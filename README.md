@@ -55,6 +55,54 @@ Development is tracked via GitHub Milestones:
 
 ---
 
+## 🗂️ Repository Orientation
+
+Kelvin is a **monorepo** with a strict directory hierarchy separating deployable applications from shared libraries. New contributors can locate any subsystem using this map:
+
+| Looking for... | Navigate to |
+| :--- | :--- |
+| Project vision & non-goals | `docs/PRODUCT_VISION.md` |
+| High-level architecture | `docs/architecture/SYSTEM_ARCHITECTURE.md` |
+| Architecture decisions (ADRs) | `docs/architecture/decisions/` |
+| Threat model | `docs/security/THREAT_MODEL.md` |
+| Acceptable use policy | `docs/security/ACCEPTABLE_USE.md` |
+| Scan profiles | `docs/architecture/SCAN_PROFILES.md` |
+| User personas & journeys | `docs/product/PERSONAS.md` |
+| API backend (control plane) | `apps/api/` |
+| Frontend dashboard (SPA) | `apps/web/` |
+| Scanner workers & adapters | `apps/worker/` |
+| Shared schemas | `packages/schemas/` |
+| Shared utilities | `packages/common/` |
+| Contribution rules | `CONTRIBUTING.md` |
+| Code ownership | `.github/CODEOWNERS` |
+| CI pipelines | `.github/workflows/` |
+| Roadmap & milestones | `docs/ROADMAP.md` |
+
+Full layout specification: `docs/architecture/REPOSITORY_LAYOUT.md`
+
+### Workspace Structure
+
+```
+apps/          # Deployable applications (api, web, worker)
+packages/      # Shared libraries (schemas, common) — no deployable entrypoint
+docs/          # Product, architecture, security, roadmap specs
+tests/         # Cross-cutting integration & security tests
+scripts/       # Build, test, release tooling
+```
+
+Apps may depend on packages, but packages may **never** import apps. This prevents circular imports and enables independent deployment of each service.
+
+### Onboarding
+
+New contributors should:
+1. Read `docs/PRODUCT_VISION.md` to understand scope and non-goals.
+2. Read `CONTRIBUTING.md` for commit, branch, and PR conventions.
+3. Review `docs/architecture/REPOSITORY_LAYOUT.md` for the workspace map.
+4. Pick an issue from `docs/ROADMAP.md` (Phase 1: `P1-01` to `P1-25`).
+5. Create a feature branch from `develop` and open a PR.
+
+---
+
 ## 🛡️ Security & Responsible Use
 
 Kelvin is explicitly engineered for **authorized assessments only**. Scanning arbitrary or unauthorized third-party infrastructure without explicit authorization is strictly prohibited. The platform incorporates built-in scope verification to prevent unconstrained scanning.

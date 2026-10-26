@@ -1,0 +1,26 @@
+# Kelvin Security Platform — Code Ownership
+# Critical security and architectural modules have designated code owners.
+# PRs touching these paths require approval from the listed owners.
+
+# --- Security-critical modules (require Product Security approval) ---
+/apps/api/internal/scope/ @kelvin/security
+/apps/api/internal/auth/ @kelvin/security
+/apps/worker/internal/sandbox/ @kelvin/security
+/apps/worker/internal/egress/ @kelvin/security
+/docs/security/ @kelvin/security
+
+# --- Architectural modules (require Platform Engineering approval) ---
+/apps/api/ @kelvin/platform
+/apps/worker/ @kelvin/platform
+/packages/schemas/ @kelvin/platform
+/docs/architecture/ @kelvin/platform
+
+# --- Frontend (require Frontend Engineering approval) ---
+/apps/web/ @kelvin/frontend
+
+# --- Documentation ---
+/docs/ @kelvin/docs
+
+# --- Root-level files ---
+/CONTRIBUTING.md @kelvin/platform @kelvin/docs
+/README.md @kelvin/platform @kelvin/docs
