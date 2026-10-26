@@ -39,7 +39,6 @@ Kelvin/                                          # Repository root
 │   │   │   └── findings/                        # Finding normalization & dedup
 │   │   ├── pkg/                                 # Library code safe for external use
 │   │   ├── configs/                             # Configuration files
-│   │   ├── db/                                  # SQL migrations (golang-migrate, ADR-0002)
 │   │   ├── openapi/                             # OpenAPI 3.1 API contract (source of truth)
 │   │   ├── deploy/                              # Deployment manifests (K8s, Docker)
 │   │   ├── go.mod                               # Go module definition
@@ -73,7 +72,6 @@ Kelvin/                                          # Repository root
 │   │   ├── assessment.schema.json               # Assessment job schema
 │   │   ├── api-envelope.schema.json             # Standard API success envelope (P1-09)
 │   │   ├── api-error.schema.json                # RFC 7807 Problem Details envelope (P1-09)
-│   │   ├── fixtures/                            # Schema fixtures + fingerprint vectors (P1-11)
 │   │   └── README.md                            # Package README
 │   ├── common/                                  # Shared cross-cutting utilities
 │   │   ├── logging/                             # Structured logging helpers
@@ -84,7 +82,6 @@ Kelvin/                                          # Repository root
 │   ├── architecture/                            # Architecture specifications & ADRs
 │   │   ├── SYSTEM_ARCHITECTURE.md               # High-level system architecture
 │   │   ├── DATA_MODEL.md                        # Relational domain data model & ERD (P1-10)
-│   │   ├── FINDING_SCHEMA.md                    # Unified finding schema & fingerprinting (P1-11)
 │   │   ├── SCAN_PROFILES.md                     # Declarative scan profiles
 │   │   ├── REPOSITORY_LAYOUT.md                 # This document
 │   │   └── decisions/                           # Architecture Decision Records (ADRs)
@@ -302,7 +299,6 @@ A newcomer should be able to locate any subsystem within seconds using this map:
 | Project vision & non-goals | `docs/PRODUCT_VISION.md` |
 | High-level architecture | `docs/architecture/SYSTEM_ARCHITECTURE.md` |
 | Domain data model & ERD | `docs/architecture/DATA_MODEL.md` |
-| Finding schema & fingerprinting | `docs/architecture/FINDING_SCHEMA.md`, `packages/schemas/finding.v1.json` |
 | Architecture decisions | `docs/architecture/decisions/ADR-000*.md` |
 | API standards & contract | `docs/api/API_STANDARDS.md`, `apps/api/openapi/openapi.yaml` |
 | Threat model | `docs/security/THREAT_MODEL.md` |
