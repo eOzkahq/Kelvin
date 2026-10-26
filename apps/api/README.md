@@ -15,6 +15,7 @@ The API control plane service. Implements authentication & tenant RBAC, target s
 | `internal/findings/` | Finding normalization & deduplication service |
 | `pkg/` | Library code safe for import by other apps |
 | `configs/` | Configuration files |
+| `openapi/` | OpenAPI 3.1 API contract — source of truth (`openapi.yaml`, `P1-09`) |
 | `deploy/` | Deployment manifests (K8s, Docker) |
 
 **Boundary rule:** `internal/` is private to this app. No other app or package may import `apps/api/internal/*`.
