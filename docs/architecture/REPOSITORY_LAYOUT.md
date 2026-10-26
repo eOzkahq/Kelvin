@@ -39,7 +39,6 @@ Kelvin/                                          # Repository root
 │   │   │   └── findings/                        # Finding normalization & dedup
 │   │   ├── pkg/                                 # Library code safe for external use
 │   │   ├── configs/                             # Configuration files
-│   │   ├── db/                                  # SQL migrations (golang-migrate, ADR-0002)
 │   │   ├── openapi/                             # OpenAPI 3.1 API contract (source of truth)
 │   │   ├── deploy/                              # Deployment manifests (K8s, Docker)
 │   │   ├── go.mod                               # Go module definition
