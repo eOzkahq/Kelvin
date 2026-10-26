@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "title": "SQL Injection (MySQL)",
+  "severity": "HIGH",
+  "confidence": 0.75,
+  "target": {
+    "asset": "portal.example.com",
+    "endpoint": "https://portal.example.com/login",
+    "method": "POST"
+  },
+  "vulnerability": {
+    "cwe_id": "CWE-89"
+  },
+  "description": "SQL injection in the username parameter of the login form. Time-based blind injection confirmed via extended response delay.",
+  "reproduction_steps": [
+    "Submit username=admin' AND SLEEP(5)-- and any password.",
+    "Observe ~5s response delay versus baseline."
+  ],
+  "remediation": {
+    "summary": "Use parameterized queries / prepared statements for all user-supplied input in authentication queries.",
+    "references": [
+      "https://owasp.org/www-community/attacks/SQL_Injection"
+    ],
+    "patch_recommendation": "Replace string-concatenated SQL in AuthRepository with parameterized statements."
+  },
+  "evidence": [
+    {
+      "type": "HTTP_EXCHANGE",
+      "content_type": "application/http;message-type=request",
+      "content_redacted": "POST /login HTTP/1.1\nHost: portal.example.com\nContent-Type: application/x-www-form-urlencoded\nCookie: [REDACTED:header.denylist]\nX-Api-Key: [REDACTED:header.denylist]\n\nusername=admin%27%20AND%20SLEEP(5)--&password=[REDACTED:rule:secret-assignment]",
+      "size_bytes": 967,
+      "checksum_sha256": "7c1e9a2f4b8d0c6e3a5f1b9d2e4c7a0f8b6d3e1c9a5f2b0d7e4c1a8f6b3d0e9c",
+      "redacted_fields": [
+        "request.header.cookie",
+        "request.header.x-api-key",
+        "rule:secret-assignment"
+      ]
+    },
+    {
+      "type": "LOG",
+      "content_type": "text/plain",
+      "content_redacted": "ZAP Scanner: Time-based blind SQLi confirmed - baseline 210ms, injected 5231ms [REDACTED:rule:secret-assignment]",
+      "size_bytes": 118,
+      "redacted_fields": ["rule:secret-assignment"]
+    }
+  ],
+  "scanner": {
+    "name": "zap",
+    "adapter_version": "1.0.0",
+    "engine_version": "2.15.0",
+    "run_id": "e4a81f62-9c3b-4d7a-8e15-2f6b0c9d8a41"
+  },
+  "scanner_meta": {
+    "zap.riskcode": "3",
+    "zap.confidence": "3",
+    "zap.pluginid": "40018",
+    "kelvin.severity_native": "High"
+  },
+  "tags": ["sqli", "owasp-top-10", "injection"],
+  "discovered_at": "2026-10-26T09:31:05Z"
+}

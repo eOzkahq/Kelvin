@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "title": "TLS/SSL Server Supports CBC Cipher Suites",
+  "severity": "MEDIUM",
+  "confidence": 0.9,
+  "target": {
+    "asset": "mail.example.com"
+  },
+  "vulnerability": {
+    "cwe_id": "CWE-327"
+  },
+  "description": "The TLS server at mail.example.com:993 accepts CBC-mode cipher suites, which are susceptible to BEAST/Lucky13-style attacks.",
+  "remediation": {
+    "summary": "Disable CBC-mode cipher suites; prefer AEAD suites (AES-GCM, ChaCha20-Poly1305).",
+    "references": [
+      "https://ssl-config.mozilla.org/"
+    ]
+  },
+  "evidence": [
+    {
+      "type": "LOG",
+      "content_type": "text/plain",
+      "content_redacted": "Nmap script ssl-enum-ciphers output excerpt:\nTLSv1.2:\n  ciphers:\n    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA - strong\n    TLS_RSA_WITH_AES_128_CBC_SHA - weak (CBC)",
+      "size_bytes": 201,
+      "redacted_fields": []
+    }
+  ],
+  "scanner": {
+    "name": "nmap",
+    "adapter_version": "1.0.0",
+    "engine_version": "7.95",
+    "run_id": "9c3f7a15-2e8d-4b6a-9f01-7c5e2d8b4a36"
+  },
+  "scanner_meta": {
+    "nmap.script_id": "ssl-enum-ciphers",
+    "nmap.port": "993",
+    "nmap.protocol": "tcp",
+    "kelvin.severity_rule": "tls-cbc-default-medium"
+  },
+  "tags": ["tls", "ciphers", "misconfiguration"],
+  "discovered_at": "2026-10-26T09:45:58Z"
+}

@@ -68,7 +68,7 @@ Kelvin/                                          # Repository root
 ├── packages/                                    # Shared libraries (no deployable entrypoint)
 │   ├── schemas/                                 # Canonical JSON/YAML schemas
 │   │   ├── scan-profile.schema.json             # Scan profile schema (ADR-0005)
-│   │   ├── finding.schema.json                  # Canonical finding schema
+│   │   ├── finding.v1.json                      # Unified finding & evidence schema (P1-11)
 │   │   ├── assessment.schema.json               # Assessment job schema
 │   │   ├── api-envelope.schema.json             # Standard API success envelope (P1-09)
 │   │   ├── api-error.schema.json                # RFC 7807 Problem Details envelope (P1-09)
@@ -105,6 +105,7 @@ Kelvin/                                          # Repository root
 ├── tests/                                       # Cross-cutting integration tests
 │   └── README.md
 ├── scripts/                                     # Build, test, release scripts
+│   ├── schema-validation/                       # JSON Schema validation harness (ajv, P1-11)
 │   └── README.md
 ├── .gitignore                                   # Git ignore rules
 ├── .env.example                                 # Example environment variables

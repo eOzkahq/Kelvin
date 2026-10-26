@@ -1,0 +1,43 @@
+{
+  "algorithm": "v1",
+  "reference": "docs/architecture/FINDING_SCHEMA.md §5.6",
+  "note": "Implementations MUST reproduce expected_fingerprint exactly. expected_canonical uses literal newlines.",
+  "vectors": [
+    {
+      "name": "hostname-case-port-query-fragment",
+      "asset": "Example.COM.",
+      "endpoint": "HTTPS://Example.Com:443/login?token=abc#frag",
+      "vulnerability": { "cwe_id": "CWE-79" },
+      "expected_vulnerability_key": "CWE-79",
+      "expected_canonical": "v1\nexample.com\nhttps://example.com/login\nCWE-79",
+      "expected_fingerprint": "0b74ae615704f8af320a13ea3dbc218e5319c67e4ce3c10e1b4abd6254c0960b"
+    },
+    {
+      "name": "ipv6-dot-segments-template-id",
+      "asset": "2001:0DB8:0:0::1",
+      "endpoint": "http://[2001:DB8::1]:80/a/../b/c",
+      "vulnerability": { "template_id": "cve-2021-44228" },
+      "expected_vulnerability_key": "cve-2021-44228",
+      "expected_canonical": "v1\n2001:db8::1\nhttp://[2001:db8::1]/b/c\ncve-2021-44228",
+      "expected_fingerprint": "5fc7fe8eeab5344946e650f1b14de6a1e79cea0460e5441564302eee9e5e5fe8"
+    },
+    {
+      "name": "host-level-cve-precedence",
+      "asset": "10.0.0.5",
+      "endpoint": null,
+      "vulnerability": { "cve_ids": ["CVE-2024-1002", "CVE-2023-99999"] },
+      "expected_vulnerability_key": "CVE-2023-99999",
+      "expected_canonical": "v1\n10.0.0.5\n\nCVE-2023-99999",
+      "expected_fingerprint": "6a90cda46f0c24a569b1a658a3c6dcda7474ca2a4bdd02408699e5dc0220b195"
+    },
+    {
+      "name": "percent-encoding-title-slug",
+      "asset": "shop.example.com",
+      "endpoint": "https://shop.example.com/Products%2fitem",
+      "vulnerability": { "title": "Login Form — SQL Injection!!" },
+      "expected_vulnerability_key": "login-form-sql-injection",
+      "expected_canonical": "v1\nshop.example.com\nhttps://shop.example.com/Products%2Fitem\nlogin-form-sql-injection",
+      "expected_fingerprint": "543f061a3bf2fcb270931470e6c43cbc677337fd80cd2c7f24fc7aad03a900de"
+    }
+  ]
+}
