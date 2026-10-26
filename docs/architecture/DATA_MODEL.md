@@ -350,9 +350,9 @@ The scale-critical table. Typed core columns for query/filter; `scanner_data` JS
 | `assessment_id` | uuid | NO | FK → `assessments(id)` ON DELETE RESTRICT — provenance survives job-level purge ordering (§8.2) |
 | `job_id` | uuid | NO | FK → `jobs(id)` ON DELETE RESTRICT |
 | `asset_id` | uuid | YES | FK → `assets(id)` ON DELETE SET NULL (asset re-verification may retire rows; finding history persists) |
-| `fingerprint` | text | NO | Dedup key: `sha256(project_id ‖ target ‖ endpoint ‖ vulnerability_key)` hex; `vulnerability_key` = scanner template ID, CVE ID, or CWE slug (SYSTEM_ARCHITECTURE §8.7) |
+| `fingerprint` | text | NO | Dedup key computed server-side per `docs/architecture/FINDING_SCHEMA.md` §5 (sha256 of canonicalized asset + endpoint + vulnerability key, lowercase hex); scoped per project via `UNIQUE (project_id, fingerprint)` |
 | `title` | text | NO | Normalized vulnerability title |
-| `severity` | text | NO | CHECK IN (`INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) |
+| `severity` | text | NO | CHECK IN (`INFORMATIONAL`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) — canonical enum of `docs/architecture/FINDING_SCHEMA.md` §4 |
 | `confidence` | numeric(4,3) | NO | CHECK 0–1 |
 | `cvss_score` | numeric(3,1) | YES | CHECK 0–10 |
 | `cwe_id` | text | YES | e.g. `CWE-79` |
@@ -624,10 +624,10 @@ ON CONFLICT (project_id, fingerprint) DO UPDATE SET
   last_job_id         = EXCLUDED.job_id,
   occurrence_count    = findings.occurrence_count + 1,
   status              = CASE WHEN findings.status = 'RESOLVED' THEN 'OPEN' ELSE findings.status END,
-  severity            = (ARRAY['INFO','LOW','MEDIUM','HIGH','CRITICAL'])[
+  severity            = (ARRAY['INFORMATIONAL','LOW','MEDIUM','HIGH','CRITICAL'])[
                           GREATEST(
-                            array_position(ARRAY['INFO','LOW','MEDIUM','HIGH','CRITICAL'], findings.severity),
-                            array_position(ARRAY['INFO','LOW','MEDIUM','HIGH','CRITICAL'], EXCLUDED.severity)
+                            array_position(ARRAY['INFORMATIONAL','LOW','MEDIUM','HIGH','CRITICAL'], findings.severity),
+                            array_position(ARRAY['INFORMATIONAL','LOW','MEDIUM','HIGH','CRITICAL'], EXCLUDED.severity)
                           )],
   updated_at          = now()
 WHERE findings.status NOT IN ('FALSE_POSITIVE', 'RISK_ACCEPTED', 'CONFIRMED');
@@ -683,7 +683,7 @@ CREATE TABLE findings (
   asset_id        uuid REFERENCES assets(id) ON DELETE SET NULL,
   fingerprint     text NOT NULL CHECK (fingerprint ~ '^[0-9a-f]{64}$'),
   title           text NOT NULL,
-  severity        text NOT NULL CHECK (severity IN ('INFO','LOW','MEDIUM','HIGH','CRITICAL')),
+  severity        text NOT NULL CHECK (severity IN ('INFORMATIONAL','LOW','MEDIUM','HIGH','CRITICAL')),
   confidence      numeric(4,3) NOT NULL CHECK (confidence BETWEEN 0 AND 1),
   cvss_score      numeric(3,1) CHECK (cvss_score BETWEEN 0 AND 10),
   cwe_id          text,

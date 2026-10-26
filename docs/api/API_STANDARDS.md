@@ -51,7 +51,7 @@ flowchart TD
 | CLI → API (REST over HTTPS) | ✅ Mandated | Same contract; API key / mTLS auth (SYSTEM_ARCHITECTURE §3.1). |
 | WebSocket job telemetry (WSS) | ✅ Adapted | §13; same correlation and error semantics inside message frames. |
 | Internal gRPC (Gateway → services) | ⚠️ Tracing only | Correlation ID propagated via `x-correlation-id` metadata; RPC error payloads stay internal. |
-| Worker → FindingsSvc (streaming) | ⚠️ Tracing only | Correlation ID propagated; findings payload governed by `packages/schemas/finding.schema.json`, not the HTTP envelope. |
+| Worker → FindingsSvc (streaming) | ⚠️ Tracing only | Correlation ID propagated; findings payload governed by `packages/schemas/finding.v1.json`, not the HTTP envelope. |
 | Broker messages (Redis/BullMQ) | ⚠️ Tracing only | Job payload carries `correlation_id`; no HTTP envelope. |
 
 **Rule:** Any new HTTP surface exposed to a client — including admin, health, and debug endpoints — is in scope. There are no exempt endpoints.

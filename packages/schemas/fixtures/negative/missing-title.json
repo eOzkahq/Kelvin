@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "severity": "HIGH",
+  "confidence": 0.9,
+  "target": {
+    "asset": "app.example.com",
+    "endpoint": "https://app.example.com/x"
+  },
+  "vulnerability": {
+    "cwe_id": "CWE-79"
+  },
+  "scanner": {
+    "name": "nuclei",
+    "adapter_version": "1.0.0"
+  },
+  "discovered_at": "2026-10-26T12:00:00Z"
+}

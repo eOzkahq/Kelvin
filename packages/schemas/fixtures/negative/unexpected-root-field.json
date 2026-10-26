@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0",
+  "title": "Missing Security Header (X-Frame-Options)",
+  "severity": "LOW",
+  "confidence": 1.0,
+  "target": {
+    "asset": "www.example.com",
+    "endpoint": "https://www.example.com/"
+  },
+  "vulnerability": {
+    "cwe_id": "CWE-693"
+  },
+  "scanner": {
+    "name": "zap",
+    "adapter_version": "1.0.0"
+  },
+  "discovered_at": "2026-10-26T12:00:00Z",
+  "priority": 1
+}

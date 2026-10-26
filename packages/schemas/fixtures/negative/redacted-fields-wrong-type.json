@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "title": "Reflected Cross-Site Scripting",
+  "severity": "HIGH",
+  "confidence": 0.85,
+  "target": {
+    "asset": "shop.example.com",
+    "endpoint": "https://shop.example.com/search"
+  },
+  "vulnerability": {
+    "cwe_id": "CWE-79"
+  },
+  "evidence": [
+    {
+      "type": "HTTP_EXCHANGE",
+      "content_redacted": "<html>payload echoed</html>",
+      "redacted_fields": "response.header.set-cookie"
+    }
+  ],
+  "scanner": {
+    "name": "zap",
+    "adapter_version": "1.0.0"
+  },
+  "discovered_at": "2026-10-26T12:00:00Z"
+}
