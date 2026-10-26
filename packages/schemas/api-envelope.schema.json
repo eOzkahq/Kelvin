@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kelvin:schemas:api-envelope.schema.json",
+  "title": "Kelvin API Success Envelope",
+  "description": "Standard success envelope for every 2xx JSON response from the Kelvin control plane. Failures NEVER use this envelope; they use RFC 7807 Problem Details (api-error.schema.json). 204 No Content responses carry no body. Normative reference: docs/api/API_STANDARDS.md §6.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["success", "data"],
+  "properties": {
+    "success": {
+      "const": true,
+      "description": "Literal true. A false value in this position is a contract violation; errors belong in Problem Details."
+    },
+    "data": {
+      "description": "Primary payload: an object (single resource or mutation result), an array (one cursor-paginated collection page), or null (e.g. 204-adjacent acknowledgements with no resource).",
+      "oneOf": [
+        { "type": "object" },
+        {
+          "type": "array",
+          "items": { "type": "object" },
+          "description": "One page of a collection. Unpaginated (endless) arrays are banned."
+        },
+        { "type": "null" }
+      ]
+    },
+    "meta": {
+      "type": "object",
+      "description": "Request-scoped metadata. REQUIRED for collection responses; optional otherwise. Carries pagination state only.",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Effective page size (default 25, max 100)."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of items in this page (len of data array)."
+        },
+        "next_cursor": {
+          "type": ["string", "null"],
+          "description": "Opaque base64url cursor for the next page. Null or absent on the final page. Clients MUST NOT parse or construct cursors."
+        },
+        "has_more": {
+          "type": "boolean",
+          "description": "True when at least one further page exists."
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Exact total result count, emitted ONLY where cheaply available (e.g. admin views). Never a COUNT(*) over unbounded tenant tables."
+        }
+      }
+    }
+  }
+}

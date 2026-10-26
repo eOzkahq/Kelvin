@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kelvin:schemas:api-error.schema.json",
+  "title": "Kelvin API Problem Details",
+  "description": "RFC 7807/9457 Problem Details envelope for every non-2xx response from the Kelvin control plane. Serialized as application/problem+json. Normative reference: docs/api/API_STANDARDS.md §7.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "title", "status", "correlation_id"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "description": "Stable URN identifying the problem type from the registry in docs/api/API_STANDARDS.md §7.2. Clients MUST treat this value as an opaque string and MUST NOT branch on title or detail.",
+      "pattern": "^urn:kelvin:problem:[a-z0-9_]+$"
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable summary of the problem type. Stable across occurrences of the same type; MUST NOT contain dynamic request data.",
+      "minLength": 1
+    },
+    "status": {
+      "type": "integer",
+      "minimum": 400,
+      "maximum": 599,
+      "description": "HTTP status code; MUST match the status line of the response."
+    },
+    "detail": {
+      "type": "string",
+      "description": "Human-readable explanation specific to this occurrence. MUST be sanitized: no stack traces, SQL, table/column names, file paths, internal hostnames, or third-party exception text. See API_STANDARDS.md §7.3.",
+      "minLength": 1
+    },
+    "instance": {
+      "type": "string",
+      "format": "uri-reference",
+      "description": "URI reference identifying this specific occurrence, typically the request path."
+    },
+    "correlation_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The X-Correlation-ID of the failing request. Required on every error response; the sole cross-trust-boundary diagnostic handle."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 UTC timestamp of when the problem was produced."
+    },
+    "errors": {
+      "type": "array",
+      "description": "Field-level validation failures. MUST be present on urn:kelvin:problem:validation_failed (422) and MUST be absent on all other problem types.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "code", "message"],
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "Dotted path to the invalid field with zero-based array indices, e.g. targets[0].host.",
+            "minLength": 1
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable snake_case machine-readable error code; safe for client branching.",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable, English, sanitized message for this field.",
+            "minLength": 1
+          },
+          "allowed_values": {
+            "type": "array",
+            "description": "Optional allow-list of valid values for enum/range rejections.",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "retry_after_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Mirrors the Retry-After header. Present on 429 and 503 problems."
+    }
+  }
+}

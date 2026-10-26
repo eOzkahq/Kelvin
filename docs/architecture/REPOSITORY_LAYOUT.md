@@ -39,6 +39,7 @@ Kelvin/                                          # Repository root
 │   │   │   └── findings/                        # Finding normalization & dedup
 │   │   ├── pkg/                                 # Library code safe for external use
 │   │   ├── configs/                             # Configuration files
+│   │   ├── openapi/                             # OpenAPI 3.1 API contract (source of truth)
 │   │   ├── deploy/                              # Deployment manifests (K8s, Docker)
 │   │   ├── go.mod                               # Go module definition
 │   │   └── README.md                            # App-specific README
@@ -69,6 +70,8 @@ Kelvin/                                          # Repository root
 │   │   ├── scan-profile.schema.json             # Scan profile schema (ADR-0005)
 │   │   ├── finding.schema.json                  # Canonical finding schema
 │   │   ├── assessment.schema.json               # Assessment job schema
+│   │   ├── api-envelope.schema.json             # Standard API success envelope (P1-09)
+│   │   ├── api-error.schema.json                # RFC 7807 Problem Details envelope (P1-09)
 │   │   └── README.md                            # Package README
 │   ├── common/                                  # Shared cross-cutting utilities
 │   │   ├── logging/                             # Structured logging helpers
@@ -92,6 +95,8 @@ Kelvin/                                          # Repository root
 │   │   └── ACCEPTABLE_USE.md                    # Acceptable Use Policy
 │   ├── product/                                 # Product & UX documents
 │   │   └── PERSONAS.md                          # User personas & journey maps
+│   ├── api/                                     # API design standards & contracts
+│   │   └── API_STANDARDS.md                     # REST API standards (P1-09)
 │   ├── PRODUCT_VISION.md                        # Product vision & non-goals
 │   ├── MVP_AND_PHASE_BIFURCATION.md             # MVP scope & phase boundaries
 │   ├── ARCHITECTURE_AND_FEATURES.md             # Feature & architecture overview
@@ -292,6 +297,7 @@ A newcomer should be able to locate any subsystem within seconds using this map:
 | Project vision & non-goals | `docs/PRODUCT_VISION.md` |
 | High-level architecture | `docs/architecture/SYSTEM_ARCHITECTURE.md` |
 | Architecture decisions | `docs/architecture/decisions/ADR-000*.md` |
+| API standards & contract | `docs/api/API_STANDARDS.md`, `apps/api/openapi/openapi.yaml` |
 | Threat model | `docs/security/THREAT_MODEL.md` |
 | Acceptable use policy | `docs/security/ACCEPTABLE_USE.md` |
 | Scan profiles | `docs/architecture/SCAN_PROFILES.md` |
