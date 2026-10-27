@@ -8,9 +8,32 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  go:
-    name: Go (${{ matrix.module }})
+  # ----------------------------------------------------------------------------
+  # 1. Secret Scanning (gitleaks)
+  # ----------------------------------------------------------------------------
+  secrets:
+    name: Secret scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  # ----------------------------------------------------------------------------
+  # 2. Go Linting, Security Audit, & Static Analysis
+  # ----------------------------------------------------------------------------
+  go-lint:
+    name: Go quality & security (${{ matrix.module }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -25,19 +48,100 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/api/go.mod
-          cache: false
-      - name: Build
-        working-directory: ${{ matrix.module }}
-        run: go build ./...
-      - name: Vet
+          cache: true
+      - name: Go Vet
         working-directory: ${{ matrix.module }}
         run: go vet ./...
-      - name: Test
-        working-directory: ${{ matrix.module }}
-        run: go test ./...
+      - name: Run staticcheck
+        uses: dominikh/staticcheck-action@v1.3.1
+        with:
+          version: "2024.1.1"
+          install-go: false
+          working-directory: ${{ matrix.module }}
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: apps/api/go.mod
+          package-path: ./${{ matrix.module }}/...
 
+  # ----------------------------------------------------------------------------
+  # 3. Go Automated Unit & Race Detection Tests
+  # ----------------------------------------------------------------------------
+  go-test:
+    name: Go test -race -cover (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - packages/schemas
+          - packages/common
+          - apps/api
+          - apps/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache: true
+      - name: Test with Race Detector & Coverage
+        working-directory: ${{ matrix.module }}
+        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+  # ----------------------------------------------------------------------------
+  # 4. Integration Tests with Service Containers (Postgres 15 & Redis 7)
+  # ----------------------------------------------------------------------------
+  integration-test:
+    name: Integration tests (Postgres 15 & Redis 7)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: kelvin
+          POSTGRES_PASSWORD: kelvin_secret_dev_pass
+          POSTGRES_DB: kelvin_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kelvin -d kelvin_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache: true
+      - name: Run Integration Tests
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_USER: kelvin
+          POSTGRES_PASSWORD: kelvin_secret_dev_pass
+          POSTGRES_DB: kelvin_test
+          KELVIN_DATABASE_URL: postgres://kelvin:kelvin_secret_dev_pass@localhost:5432/kelvin_test?sslmode=disable
+          REDIS_HOST: localhost
+          REDIS_PORT: "6379"
+          KELVIN_REDIS_ADDR: localhost:6379
+        working-directory: tests/integration
+        run: go test -v -race ./...
+
+  # ----------------------------------------------------------------------------
+  # 5. Frontend Quality Gates & Schema Validation
+  # ----------------------------------------------------------------------------
   web:
-    name: Web build & schema contracts
+    name: Frontend (ESLint, TypeScript, Vitest & Schemas)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +151,10 @@ jobs:
           cache: npm
       - name: Install workspace dependencies
         run: npm ci
+      - name: Run ESLint
+        run: npm run lint
+      - name: Run Vitest unit tests
+        run: npm run test:web
       - name: Type-check and build dashboard
         run: npm run build:web
       - name: Validate schema fixtures & fingerprint vectors

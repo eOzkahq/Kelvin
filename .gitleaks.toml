@@ -1,0 +1,14 @@
+title: "gitleaks config for Kelvin Security Platform"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for example and fixture files"
+paths = [
+  '''\.env\.example$''',
+  '''mock-target/.*''',
+  '''packages/schemas/fixtures/.*''',
+  '''docs/.*'''
+]
+

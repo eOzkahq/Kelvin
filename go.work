@@ -5,4 +5,5 @@ use (
 	./apps/worker
 	./packages/common
 	./packages/schemas
+	./tests/integration
 )
