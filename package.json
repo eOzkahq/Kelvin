@@ -29,6 +29,9 @@
     "test:go:common": "cd packages/common && go test ./...",
     "test:go:api": "cd apps/api && go test ./...",
     "test:go:worker": "cd apps/worker && go test ./...",
-    "test:schemas": "npm test --prefix scripts/schema-validation"
+    "test:schemas": "npm test --prefix scripts/schema-validation",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "dev:reset": "docker compose down -v --remove-orphans && docker compose up -d --build"
   }
 }

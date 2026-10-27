@@ -1,0 +1,146 @@
+services:
+  # ----------------------------------------------------------------------------
+  # PostgreSQL 15+ (Core Persistent Store - ADR-0002)
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: kelvin-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kelvin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kelvin_secret_dev_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-kelvin_dev}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kelvin} -d ${POSTGRES_DB:-kelvin_dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - kelvin-net
+
+  # ----------------------------------------------------------------------------
+  # Schema Migrations (golang-migrate auto-migration runner - ADR-0002)
+  # ----------------------------------------------------------------------------
+  migrate:
+    image: migrate/migrate:v4.17.0
+    container_name: kelvin-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./apps/api/db/migrations:/migrations
+    command:
+      - -path=/migrations
+      - -database=postgres://${POSTGRES_USER:-kelvin}:${POSTGRES_PASSWORD:-kelvin_secret_dev_pass}@postgres:5432/${POSTGRES_DB:-kelvin_dev}?sslmode=disable
+      - up
+    networks:
+      - kelvin-net
+
+  # ----------------------------------------------------------------------------
+  # Redis 7+ (Task Broker & Queue State - ADR-0003)
+  # AOF enabled, noeviction memory policy
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: kelvin-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy noeviction
+      --requirepass ${REDIS_PASSWORD:-kelvin_redis_dev_secret}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-kelvin_redis_dev_secret}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+    networks:
+      - kelvin-net
+
+  # ----------------------------------------------------------------------------
+  # MinIO S3 Mock (Evidence & Report Blob Store)
+  # ----------------------------------------------------------------------------
+  minio:
+    image: minio/minio:RELEASE.2024-05-10T01-41-38Z
+    container_name: kelvin-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-kelvin_minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-kelvin_minio_secret_key}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - kelvin-net
+
+  # MinIO Bucket Auto-Provisioner
+  minio-init:
+    image: minio/mc:RELEASE.2024-05-09T17-04-24Z
+    container_name: kelvin-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-kelvin_minio_admin} ${MINIO_ROOT_PASSWORD:-kelvin_minio_secret_key};
+      /usr/bin/mc mb --ignore-existing myminio/${MINIO_BUCKET_EVIDENCE:-kelvin-evidence};
+      /usr/bin/mc mb --ignore-existing myminio/${MINIO_BUCKET_REPORTS:-kelvin-reports};
+      exit 0;
+      "
+    networks:
+      - kelvin-net
+
+  # ----------------------------------------------------------------------------
+  # Mock Vulnerable Target (Isolated Sandboxed Lab for Safe Scanner Testing)
+  # ----------------------------------------------------------------------------
+  mock-target:
+    build:
+      context: ./mock-target
+      dockerfile: Dockerfile
+    container_name: kelvin-mock-target
+    restart: unless-stopped
+    ports:
+      - "${MOCK_TARGET_PORT:-8081}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+    networks:
+      - kelvin-net
+
+volumes:
+  postgres_data:
+    name: kelvin_postgres_data
+  redis_data:
+    name: kelvin_redis_data
+  minio_data:
+    name: kelvin_minio_data
+
+networks:
+  kelvin-net:
+    name: kelvin-local-network
+    driver: bridge
+
