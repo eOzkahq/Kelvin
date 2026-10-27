@@ -6,5 +6,6 @@ require github.com/golang-migrate/migrate/v4 v4.20.1
 
 require (
 	github.com/lib/pq v1.10.9 // indirect
+	github.com/stretchr/testify v1.12.1 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 )
