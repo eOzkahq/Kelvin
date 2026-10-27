@@ -1,0 +1,40 @@
+{
+  "@version": "2.14.0",
+  "@generated": "Tue, 27 Oct 2026 17:00:15",
+  "site": [
+    {
+      "@name": "http://mock-target.local:8080",
+      "@host": "mock-target.local",
+      "@port": "8080",
+      "@ssl": "false",
+      "alerts": [
+        {
+          "pluginId": "40018",
+          "alertRef": "40018",
+          "alert": "SQL Injection",
+          "name": "SQL Injection",
+          "riskcode": "3",
+          "confidence": "2",
+          "riskdesc": "High (Medium)",
+          "desc": "SQL injection may be possible.",
+          "instances": [
+            {
+              "uri": "http://mock-target.local:8080/vulnerable/sqli?id=1%27+OR+%271%27%3D%271",
+              "method": "GET",
+              "param": "id",
+              "attack": "1' OR '1'='1",
+              "evidence": "syntax error at or near"
+            }
+          ],
+          "count": "1",
+          "solution": "Use parameterized queries or stored procedures.",
+          "reference": "https://owasp.org/www-community/attacks/SQL_Injection",
+          "cweid": "89",
+          "wascid": "19",
+          "sourceid": "1"
+        }
+      ]
+    }
+  ]
+}
+
