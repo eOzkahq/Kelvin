@@ -3,6 +3,8 @@ module github.com/kelvin/kelvin/apps/api
 go 1.23.0
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/google/uuid v1.6.0
 	github.com/kelvin/kelvin/packages/common v0.0.0-00010101000000-000000000000
 	github.com/spf13/viper v1.21.0
 	go.uber.org/zap v1.27.0

@@ -2,12 +2,13 @@
 // request-scoped context plumbing. API_STANDARDS.md §10.1 makes the
 // correlation ID a mandatory field on every structured log line.
 //
-// This package also implements automated sensitive field redaction interceptors
-// in compliance with Issue 15 / ADR-0001 / ADR-0002 / ADR-0003.
+// This package also implements automated sensitive field and token redaction interceptors
+// in compliance with Issue 15/19 / ADR-0001 / ADR-0002 / ADR-0003.
 package logging
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	"go.uber.org/zap"
@@ -23,11 +24,12 @@ const (
 
 var defaultLogger = zap.NewNop()
 
-// MaskedValue is the replacement text for redacted sensitive fields.
+// MaskedValue is the replacement text for redacted sensitive fields and secrets.
 const MaskedValue = "[REDACTED]"
 
-// SensitiveFieldPatterns contains case-insensitive substrings that identify sensitive field keys.
+// SensitiveFieldPatterns contains case-insensitive substrings identifying sensitive field keys.
 var SensitiveFieldPatterns = []string{
+	"authorization",
 	"password",
 	"secret",
 	"token",
@@ -38,7 +40,19 @@ var SensitiveFieldPatterns = []string{
 	"auth",
 	"jwt",
 	"cert",
+	"cookie",
+	"set-cookie",
 	"key",
+}
+
+// Regex patterns to detect and sanitize inline tokens, bearer headers, and keys in string values.
+var sensitiveValueRegexes = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)(bearer\s+)[A-Za-z0-9\-._~+/]+=*`),
+	regexp.MustCompile(`(?i)(basic\s+)[A-Za-z0-9+/=]+`),
+	regexp.MustCompile(`(?i)(postgres(?:ql)?://[^:]+:)([^@]+)(@)`),
+	regexp.MustCompile(`(?i)(password\s*[:=]\s*)[^\s,;]+`),
+	regexp.MustCompile(`(?i)(api[_-]?key\s*[:=]\s*)[^\s,;]+`),
+	regexp.MustCompile(`(?i)(token\s*[:=]\s*)[^\s,;]+`),
 }
 
 // isSensitiveKey returns true if the key name matches any known sensitive patterns.
@@ -52,15 +66,27 @@ func isSensitiveKey(key string) bool {
 	return false
 }
 
-// redactField returns a sanitized copy of the zapcore.Field if its key is sensitive.
+// SanitizeString cleans up sensitive tokens or authorization strings from arbitrary log strings.
+func SanitizeString(s string) string {
+	res := s
+	for _, re := range sensitiveValueRegexes {
+		res = re.ReplaceAllString(res, "${1}"+MaskedValue)
+	}
+	return res
+}
+
+// redactField returns a sanitized copy of the zapcore.Field if its key or content is sensitive.
 func redactField(f zapcore.Field) zapcore.Field {
 	if isSensitiveKey(f.Key) {
 		return zap.String(f.Key, MaskedValue)
 	}
+	if f.Type == zapcore.StringType {
+		f.String = SanitizeString(f.String)
+	}
 	return f
 }
 
-// RedactingCore wraps a zapcore.Core and intercepts all logged fields to redact sensitive keys.
+// RedactingCore wraps a zapcore.Core and intercepts all logged fields to redact sensitive keys and values.
 type RedactingCore struct {
 	zapcore.Core
 }
@@ -93,10 +119,13 @@ func (r *RedactingCore) Write(entry zapcore.Entry, fields []zapcore.Field) error
 	for i, f := range fields {
 		sanitized[i] = redactField(f)
 	}
+	// Also sanitize message text in case sensitive data is formatted into the log message
+	entry.Message = SanitizeString(entry.Message)
 	return r.Core.Write(entry, sanitized)
 }
 
 // New builds a production (or development) zap logger with automated redaction.
+// In production mode, structured JSON formatting is always enforced.
 func New(level string, development bool) (*zap.Logger, error) {
 	var cfg zap.Config
 	if development {
@@ -104,6 +133,7 @@ func New(level string, development bool) (*zap.Logger, error) {
 		cfg.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 	} else {
 		cfg = zap.NewProductionConfig()
+		cfg.Encoding = "json"
 	}
 	cfg.DisableStacktrace = true
 	if level != "" {
