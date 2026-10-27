@@ -16,7 +16,7 @@
 
 ## 1. Executive Summary
 
-This document is the **authoritative relational data model** for the Kelvin control plane (PostgreSQL 15+, ADR-0002). It formalizes the illustrative MVP ERD of `docs/MVP_AND_PHASE_BIFURCATION.md` §2 into a production specification: thirteen entities, UUIDv7 primary keys, composite tenant-safe foreign keys, enforced row-level security, a cursor-pagination-aware indexing strategy, and explicit retention/deletion semantics that preserve assessment history without ever leaking one tenant's vulnerability data into another's rows.
+This document is the **authoritative relational data model** for the Kelvin control plane (PostgreSQL 15+, ADR-0002). It formalizes the illustrative MVP ERD of `docs/MVP_AND_PHASE_BIFURCATION.md` §2 into a production specification: twelve entities, UUIDv7 primary keys, composite tenant-safe foreign keys, enforced row-level security, a cursor-pagination-aware indexing strategy, and explicit retention/deletion semantics that preserve assessment history without ever leaking one tenant's vulnerability data into another's rows.
 
 The model is designed against three concrete failure modes:
 
@@ -106,7 +106,6 @@ Every tenant-owned table carries the full audit/lifecycle set unless noted:
 ```mermaid
 erDiagram
     TENANT ||--o{ USER : contains
-    USER ||--o{ AUTH_SESSION : opens
     TENANT ||--o{ PROJECT : owns
     TENANT ||--o{ SCAN_PROFILE : defines
     TENANT ||--o{ AUDIT_LOG : accumulates
@@ -134,15 +133,6 @@ erDiagram
         text role
         boolean is_active
         timestamptz deleted_at
-    }
-    AUTH_SESSION {
-        uuid id PK
-        uuid tenant_id FK
-        uuid user_id FK
-        text token_family
-        text token_hash
-        timestamptz expires_at
-        timestamptz revoked_at
     }
     PROJECT {
         uuid id PK
@@ -264,7 +254,7 @@ No `tenant_id` (this is the tenant root). Tenant hard delete is the offboarding 
 | `display_name` | text | NO | |
 | `password_hash` | text | YES | Nullable: OIDC/SAML users (Phase 4) have none |
 | `oidc_subject` | text | YES | Unique per tenant when present |
-| `role` | text | NO | CHECK IN (`PLATFORM_ADMIN`, `TENANT_ADMIN`, `SECURITY_ANALYST`, `READ_ONLY_AUDITOR`) — RBAC_MATRIX §2 (P1-12) |
+| `role` | text | NO | CHECK IN (`PLATFORM_ADMIN`, `SECURITY_ANALYST`, `READ_ONLY_AUDITOR`) — SYSTEM_ARCHITECTURE §8.2 |
 | `is_active` | boolean | NO | Default `true`; login gate |
 | `last_login_at` | timestamptz | YES | |
 
@@ -360,9 +350,9 @@ The scale-critical table. Typed core columns for query/filter; `scanner_data` JS
 | `assessment_id` | uuid | NO | FK → `assessments(id)` ON DELETE RESTRICT — provenance survives job-level purge ordering (§8.2) |
 | `job_id` | uuid | NO | FK → `jobs(id)` ON DELETE RESTRICT |
 | `asset_id` | uuid | YES | FK → `assets(id)` ON DELETE SET NULL (asset re-verification may retire rows; finding history persists) |
-| `fingerprint` | text | NO | Dedup key computed server-side per `docs/architecture/FINDING_SCHEMA.md` §5 (sha256 of canonicalized asset + endpoint + vulnerability key, lowercase hex); scoped per project via `UNIQUE (project_id, fingerprint)` |
+| `fingerprint` | text | NO | Dedup key: `sha256(project_id ‖ target ‖ endpoint ‖ vulnerability_key)` hex; `vulnerability_key` = scanner template ID, CVE ID, or CWE slug (SYSTEM_ARCHITECTURE §8.7) |
 | `title` | text | NO | Normalized vulnerability title |
-| `severity` | text | NO | CHECK IN (`INFORMATIONAL`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) — canonical enum of `docs/architecture/FINDING_SCHEMA.md` §4 |
+| `severity` | text | NO | CHECK IN (`INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) |
 | `confidence` | numeric(4,3) | NO | CHECK 0–1 |
 | `cvss_score` | numeric(3,1) | YES | CHECK 0–10 |
 | `cwe_id` | text | YES | e.g. `CWE-79` |
@@ -447,27 +437,6 @@ Append-only, per ADR-0002 §4 and T-05.
 
 **Grants:** application role has INSERT only. No UPDATE/DELETE privilege exists on this table for any application role — deletion happens only via offline archival by the retention pipeline using a separate privileged role (§8.3).
 
-### 5.13 `auth_sessions`
-
-Server-side state for rotating refresh tokens (RBAC_MATRIX §8.2). Access JWTs remain stateless; the `sid` claim always references this table so revocation is a single indexed lookup.
-
-| Column | Type | Null | Constraints / Notes |
-| :--- | :--- | :--- | :--- |
-| `id` | uuid | NO | PK (UUIDv7) — surfaced as the JWT `sid` claim |
-| `tenant_id` | uuid | NO | FK → `tenants(id)`; RLS anchor |
-| `user_id` | uuid | NO | FK → `users(id)` ON DELETE CASCADE |
-| `token_family` | uuid | NO | Groups all rotations of one login; reuse detection revokes the whole family (RBAC_MATRIX §8.2) |
-| `token_hash` | text | NO | SHA-256 of the current opaque refresh token; raw token never stored (T-09) |
-| `issued_at` | timestamptz | NO | Absolute lifetime anchor: `+90 days` |
-| `last_used_at` | timestamptz | NO | Idle-timeout anchor: `+30 days`; updated on rotation |
-| `expires_at` | timestamptz | NO | Indexed (partial: `WHERE revoked_at IS NULL`) |
-| `revoked_at` | timestamptz | YES | NULL = active; set by logout, admin revoke, role change, deactivation, reuse detection |
-| `user_agent` | text | YES | Sanitized UA string for the session list view (API STANDARDS §7.3 sanitization) |
-| `ip_address` | inet | YES | Client IP at last rotation; truncated per privacy policy |
-| `created_at` / `updated_at` | timestamptz | NO | §3.2 standard columns |
-
-**Lifecycle:** INSERT on login → UPDATE (`token_hash`, `last_used_at`) on every rotation → `revoked_at` set on logout/revocation → row deleted by the retention pipeline only after tenant offboarding (never by application code). Session listing is `WHERE user_id = principal.user_id AND revoked_at IS NULL`; cross-user revocation requires `session:revoke_tenant` (RBAC_MATRIX §5).
-
 ---
 
 ## 6. Referential Integrity
@@ -478,7 +447,7 @@ Default posture: **RESTRICT** for anything that carries history or security mean
 
 | Parent | Child | FK action | Rationale |
 | :--- | :--- | :--- | :--- |
-| `tenants` | `users`, `projects`, `scan_profiles`, `auth_sessions` | RESTRICT | Tenant rows are removed only by the offboarding pipeline (§8.5), never by accident |
+| `tenants` | `users`, `projects`, `scan_profiles` | RESTRICT | Tenant rows are removed only by the offboarding pipeline (§8.5), never by accident |
 | `projects` | `assets`, `assessments` | RESTRICT | Deleting a project must be an explicit, audited decision — the anti-orphan guarantee |
 | `scan_profiles` | `assessments` | RESTRICT | Historical assessments must retain their profile definition |
 | `assessments` | `jobs`, `reports` | CASCADE | Operational children; assessment hard delete happens only in purge after retention |
@@ -488,7 +457,6 @@ Default posture: **RESTRICT** for anything that carries history or security mean
 | `findings` | `evidence`, `finding_events` | CASCADE | Meaningless without the finding; purge order handled by pipeline anyway |
 | `findings` (`asset_id`) | `assets` | SET NULL | Asset retirement never destroys findings |
 | `users` (`generated_by`, `actor_user_id`, `created_by`) | `users` | SET NULL | Offboarded actors degrade to anonymous service identity in reports/profiles; audit actor is snapshot-only |
-| `users` | `auth_sessions` | CASCADE | Login sessions are meaningless without their user; hard delete revokes authentication state instantly |
 
 **User-facing delete = soft delete** (`deleted_at`), which triggers no FK action. **Hard delete = ordered pipeline** (§8.2): evidence objects → `evidence` → `finding_events` → `findings` → `jobs` → `reports` → `assessments` → `assets` → `projects`. RESTRICT constraints act as a tripwire: if the pipeline misses an ordering step, the transaction fails loudly instead of orphaning data.
 
@@ -597,7 +565,7 @@ CREATE POLICY tenant_isolation_findings ON findings
 
 * `FORCE ROW LEVEL SECURITY` applies policies to the table owner too — no superuser-shaped bypass in the application path.
 * `WITH CHECK` prevents cross-tenant writes even if a caller smuggles another tenant's `tenant_id` into an INSERT/UPDATE.
-* Identical policies on: `users`, `auth_sessions`, `projects`, `assets`, `scan_profiles` (plus global-row predicate), `assessments`, `jobs`, `findings`, `finding_events`, `evidence`, `reports`, `audit_log` (SELECT restricted to auditor role).
+* Identical policies on: `users`, `projects`, `assets`, `scan_profiles` (plus global-row predicate), `assessments`, `jobs`, `findings`, `finding_events`, `evidence`, `reports`, `audit_log` (SELECT restricted to auditor role).
 * **Roles:** `kelvin_app` (RLS-forced, no BYPASSRLS); `kelvin_purger` (BYPASSRLS, used only by the retention pipeline, connection origin allow-listed); `kelvin_audit_writer` (INSERT-only on `audit_log`).
 
 ### 9.3 Isolation Test Gates (CI, blocking)
@@ -656,10 +624,10 @@ ON CONFLICT (project_id, fingerprint) DO UPDATE SET
   last_job_id         = EXCLUDED.job_id,
   occurrence_count    = findings.occurrence_count + 1,
   status              = CASE WHEN findings.status = 'RESOLVED' THEN 'OPEN' ELSE findings.status END,
-  severity            = (ARRAY['INFORMATIONAL','LOW','MEDIUM','HIGH','CRITICAL'])[
+  severity            = (ARRAY['INFO','LOW','MEDIUM','HIGH','CRITICAL'])[
                           GREATEST(
-                            array_position(ARRAY['INFORMATIONAL','LOW','MEDIUM','HIGH','CRITICAL'], findings.severity),
-                            array_position(ARRAY['INFORMATIONAL','LOW','MEDIUM','HIGH','CRITICAL'], EXCLUDED.severity)
+                            array_position(ARRAY['INFO','LOW','MEDIUM','HIGH','CRITICAL'], findings.severity),
+                            array_position(ARRAY['INFO','LOW','MEDIUM','HIGH','CRITICAL'], EXCLUDED.severity)
                           )],
   updated_at          = now()
 WHERE findings.status NOT IN ('FALSE_POSITIVE', 'RISK_ACCEPTED', 'CONFIRMED');
@@ -715,7 +683,7 @@ CREATE TABLE findings (
   asset_id        uuid REFERENCES assets(id) ON DELETE SET NULL,
   fingerprint     text NOT NULL CHECK (fingerprint ~ '^[0-9a-f]{64}$'),
   title           text NOT NULL,
-  severity        text NOT NULL CHECK (severity IN ('INFORMATIONAL','LOW','MEDIUM','HIGH','CRITICAL')),
+  severity        text NOT NULL CHECK (severity IN ('INFO','LOW','MEDIUM','HIGH','CRITICAL')),
   confidence      numeric(4,3) NOT NULL CHECK (confidence BETWEEN 0 AND 1),
   cvss_score      numeric(3,1) CHECK (cvss_score BETWEEN 0 AND 10),
   cwe_id          text,
@@ -787,7 +755,6 @@ CREATE POLICY tenant_isolation_findings ON findings
 | Job queue semantics | `docs/architecture/decisions/ADR-0003.md` (Redis brokers; DB is job-state source of truth) |
 | Profile immutability | `docs/architecture/decisions/ADR-0005.md`, `docs/architecture/SCAN_PROFILES.md`, `docs/security/THREAT_MODEL.md` T-03 |
 | Threat controls | `docs/security/THREAT_MODEL.md` — T-05 (audit retention), T-08 (cross-tenant / RLS), T-09 (evidence redaction/quarantine), T-12 (queue DoS / active-job indexes), SG-04 (tenant-context test gate) |
-| Access control | `docs/security/RBAC_MATRIX.md` (P1-12) — role CHECK values (§5.2), `auth_sessions` (§5.13), session-scoped RLS (§9.2) |
 | Illustrative precursor | `docs/MVP_AND_PHASE_BIFURCATION.md` §2 (superseded by §1.1 of this document) |
 | API contract | `apps/api/openapi/openapi.yaml`, `packages/schemas/` |
 | Repository layout | `docs/architecture/REPOSITORY_LAYOUT.md` |
