@@ -55,6 +55,8 @@ const (
 	titleValidationFailed       = "Validation Failed"
 	titleNotFound               = "Resource Not Found"
 	titleForbidden              = "Forbidden"
+	titleUnauthenticated        = "Unauthenticated"
+	titleRateLimited            = "Too Many Requests"
 	titleConflict               = "Conflict"
 	titleTargetScopeViolation   = "Target Scope Violation"
 	titleInternalError          = "Internal Server Error"
@@ -84,6 +86,16 @@ func NewNotFound(detail string) *API {
 // NewForbidden builds 403 forbidden (authenticated, permission denied).
 func NewForbidden(detail string) *API {
 	return &API{Type: ProblemForbidden, Title: titleForbidden, Status: 403, Detail: detail}
+}
+
+// NewUnauthenticated builds 401 unauthenticated (unauthenticated or invalid token).
+func NewUnauthenticated(detail string) *API {
+	return &API{Type: ProblemUnauthenticated, Title: titleUnauthenticated, Status: 401, Detail: detail}
+}
+
+// NewRateLimited builds 429 rate_limited.
+func NewRateLimited(detail string) *API {
+	return &API{Type: ProblemRateLimited, Title: titleRateLimited, Status: 429, Detail: detail}
 }
 
 // NewConflict builds 409 conflict (illegal state transition, duplicate, idempotency mismatch).
