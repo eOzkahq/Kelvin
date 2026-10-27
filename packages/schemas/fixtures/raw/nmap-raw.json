@@ -1,0 +1,16 @@
+{
+  "scanner": "nmap",
+  "version": "7.94",
+  "args": "nmap -sV --script ssl-enum-ciphers -p 443 127.0.0.1",
+  "host": "mock-target.local",
+  "ip": "127.0.0.1",
+  "port": 443,
+  "protocol": "tcp",
+  "state": "open",
+  "service": "https",
+  "script": {
+    "id": "ssl-enum-ciphers",
+    "output": "TLSv1.2: Ciphers: TLS_RSA_WITH_AES_128_CBC_SHA (SWEET32 CBC weak cipher)"
+  }
+}
+
