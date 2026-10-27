@@ -10,8 +10,4 @@ Shared JSON/YAML schemas consumed by all apps. No deployable entrypoint.
 | `api-envelope.schema.json` | Standard API success envelope (`P1-09`, API_STANDARDS.md §6) |
 | `api-error.schema.json` | RFC 7807 Problem Details error envelope (`P1-09`, API_STANDARDS.md §7) |
 
-| Directory | Purpose |
-| :--- | :--- |
-| `fixtures/` | Positive/negative validation fixtures + fingerprint test vectors (`P1-11`); validated by `scripts/schema-validation/` |
-
 **Boundary rule:** Packages may never import apps. This package is domain-agnostic.
