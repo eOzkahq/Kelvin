@@ -1,0 +1,34 @@
+{
+  "name": "kelvin",
+  "version": "0.1.0-alpha",
+  "private": true,
+  "description": "Kelvin Security Platform monorepo root (npm workspaces + Go workspace)",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "apps/web",
+    "packages/common",
+    "packages/schemas"
+  ],
+  "scripts": {
+    "build": "npm run build:go && npm run build:web",
+    "build:go": "npm run build:go:schemas && npm run build:go:common && npm run build:go:api && npm run build:go:worker",
+    "build:go:schemas": "cd packages/schemas && go build ./...",
+    "build:go:common": "cd packages/common && go build ./...",
+    "build:go:api": "cd apps/api && go build ./...",
+    "build:go:worker": "cd apps/worker && go build ./...",
+    "build:web": "npm run build --workspace @kelvin/web",
+    "dev:api": "cd apps/api && go run ./cmd/api",
+    "dev:worker": "cd apps/worker && go run ./cmd/runner",
+    "dev:web": "npm run dev --workspace @kelvin/web",
+    "test": "npm run test:go && npm run test:schemas",
+    "test:go": "npm run test:go:schemas && npm run test:go:common && npm run test:go:api && npm run test:go:worker",
+    "test:go:schemas": "cd packages/schemas && go test ./...",
+    "test:go:common": "cd packages/common && go test ./...",
+    "test:go:api": "cd apps/api && go test ./...",
+    "test:go:worker": "cd apps/worker && go test ./...",
+    "test:schemas": "npm test --prefix scripts/schema-validation"
+  }
+}
