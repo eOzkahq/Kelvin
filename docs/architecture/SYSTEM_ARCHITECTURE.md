@@ -304,7 +304,7 @@ Decoupling workers from the control plane is the primary mechanism for containin
 ### 8.2 Auth & Tenant RBAC Service
 
 * **Authenticates** users via OIDC/SAML + MFA; issues short-lived JWTs.
-* **Enforces** deny-by-default RBAC (roles: Platform Admin, Security Analyst, Read-Only Auditor).
+* **Enforces** deny-by-default RBAC (roles: Platform Admin, Tenant Admin, Security Analyst, Read-Only Auditor — normative matrix in `docs/security/RBAC_MATRIX.md`, P1-12).
 * **Validates** tenant context on every request; row-level isolation hint passed to DB layer.
 
 ### 8.3 Target Scope & Validation Service

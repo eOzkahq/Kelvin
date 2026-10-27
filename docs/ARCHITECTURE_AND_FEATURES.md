@@ -37,7 +37,7 @@ flowchart LR
 
 ### 2.4 Multi-Tenant Access & Role-Based Control (RBAC)
 * **Tenant Isolation:** Row-level isolation ensuring zero leakage between distinct enterprise tenants or projects.
-* **Granular Permissions:** Strict separation between Platform Admin, Security Analyst, and Read-Only Auditor roles.
+* **Granular Permissions:** Strict separation between Platform Admin, Tenant Admin, Security Analyst, and Read-Only Auditor roles (normative matrix: `docs/security/RBAC_MATRIX.md`).
 * **Immutable Audit Trail:** Comprehensive recording of assessment initialization, approvals, target additions, and findings exports.
 
 ---
