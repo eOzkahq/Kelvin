@@ -1,0 +1,20 @@
+{
+  "name": "@kelvin/common",
+  "version": "0.1.0-alpha",
+  "private": true,
+  "description": "Cross-cutting utilities: Go (logging, errors, validation) and TypeScript (problem types, severity enum, redaction markers) shared by Kelvin apps.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/ts/index.ts",
+    "./problem": "./src/ts/problem.ts",
+    "./severity": "./src/ts/severity.ts",
+    "./redact": "./src/ts/redact.ts"
+  },
+  "files": [
+    "src/ts",
+    "logging",
+    "errors",
+    "validation"
+  ]
+}
