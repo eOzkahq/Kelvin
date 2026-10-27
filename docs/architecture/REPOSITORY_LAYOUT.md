@@ -93,6 +93,7 @@ Kelvin/                                          # Repository root
 │   │       └── ADR-0005.md                      # Worker containerization & sandboxing
 │   ├── security/                                # Security & compliance documents
 │   │   ├── THREAT_MODEL.md                      # STRIDE threat model
+│   │   ├── RBAC_MATRIX.md                       # Roles, permissions & tenant isolation (P1-12)
 │   │   └── ACCEPTABLE_USE.md                    # Acceptable Use Policy
 │   ├── product/                                 # Product & UX documents
 │   │   └── PERSONAS.md                          # User personas & journey maps
@@ -302,6 +303,7 @@ A newcomer should be able to locate any subsystem within seconds using this map:
 | Architecture decisions | `docs/architecture/decisions/ADR-000*.md` |
 | API standards & contract | `docs/api/API_STANDARDS.md`, `apps/api/openapi/openapi.yaml` |
 | Threat model | `docs/security/THREAT_MODEL.md` |
+| RBAC matrix & access control | `docs/security/RBAC_MATRIX.md` |
 | Acceptable use policy | `docs/security/ACCEPTABLE_USE.md` |
 | Scan profiles | `docs/architecture/SCAN_PROFILES.md` |
 | User personas & journeys | `docs/product/PERSONAS.md` |
