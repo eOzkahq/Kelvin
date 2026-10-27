@@ -18,6 +18,8 @@ func TestRedactingCore(t *testing.T) {
 		zap.String("password", "super-secret-password-123"),
 		zap.String("api_key", "sec_token_9999"),
 		zap.String("jwt_secret", "jwt-signing-secret"),
+		zap.String("authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.secret"),
+		zap.String("cookie", "session_id=12345; auth_token=secret"),
 		zap.String("host", "localhost:8080"),
 		zap.Int("port", 8080),
 	)
@@ -30,7 +32,7 @@ func TestRedactingCore(t *testing.T) {
 	fields := entries[0].ContextMap()
 
 	// Sensitive fields must be replaced with MaskedValue
-	sensitiveKeys := []string{"password", "api_key", "jwt_secret"}
+	sensitiveKeys := []string{"password", "api_key", "jwt_secret", "authorization", "cookie"}
 	for _, key := range sensitiveKeys {
 		val, exists := fields[key]
 		if !exists {
@@ -82,3 +84,24 @@ func TestRedactingCoreWith(t *testing.T) {
 	}
 }
 
+func TestInlineValueRedaction(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	redactingCore := NewRedactingCore(core)
+	logger := zap.New(redactingCore)
+
+	logger.Info("connected with url", zap.String("db_connection", "postgres://user:supersecretpass@localhost:5432/kelvin"))
+
+	entries := logs.All()
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 log entry, got %d", len(entries))
+	}
+
+	fields := entries[0].ContextMap()
+	connStr, ok := fields["db_connection"].(string)
+	if !ok {
+		t.Fatalf("expected db_connection to be a string")
+	}
+	if connStr == "postgres://user:supersecretpass@localhost:5432/kelvin" {
+		t.Errorf("database password was not sanitized: %s", connStr)
+	}
+}

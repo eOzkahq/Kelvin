@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/kelvin/kelvin/apps/api/internal/config"
+	"github.com/kelvin/kelvin/apps/api/internal/metrics"
 	"github.com/kelvin/kelvin/apps/api/internal/middleware"
 	kelvinerrors "github.com/kelvin/kelvin/packages/common/errors"
 	"go.uber.org/zap"
@@ -38,6 +39,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/health", s.handleHealth)
+	s.mux.HandleFunc("GET /metrics", metrics.Default().Handler())
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
 	}
