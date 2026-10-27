@@ -46,7 +46,6 @@ paths:
     get:
       tags: [health]
       operationId: getHealth
-      x-required-permission: none
       summary: Liveness probe.
       description: Unauthenticated liveness check for load balancers and uptime probes. No tenant data.
       security: []
@@ -72,7 +71,6 @@ paths:
     get:
       tags: [assessments]
       operationId: listAssessments
-      x-required-permission: assessment:read
       summary: List assessment jobs.
       description: >
         Returns a cursor-paginated collection of assessments in the caller's
@@ -132,7 +130,6 @@ paths:
     post:
       tags: [assessments]
       operationId: createAssessment
-      x-required-permission: assessment:create
       summary: Submit an assessment job.
       description: >
         Validates target scope, persists the assessment in QUEUED state, and
@@ -196,7 +193,6 @@ paths:
     get:
       tags: [assessments]
       operationId: getAssessment
-      x-required-permission: assessment:read
       summary: Fetch a single assessment.
       responses:
         "200":
