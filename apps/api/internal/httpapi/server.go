@@ -15,9 +15,10 @@ import (
 // pipeline: Correlation → Access log → Recover → Body limit → AuthN/AuthZ
 // (P2, deny-by-default RBAC per RBAC_MATRIX) → validation → handlers.
 type Server struct {
-	cfg config.Config
-	log *zap.Logger
-	mux *http.ServeMux
+	cfg           config.Config
+	log           *zap.Logger
+	mux           *http.ServeMux
+	readyCheckers ReadyCheckers
 }
 
 // New builds the server with all registered routes.
@@ -25,6 +26,11 @@ func New(cfg config.Config, log *zap.Logger) *Server {
 	s := &Server{cfg: cfg, log: log, mux: http.NewServeMux()}
 	s.routes()
 	return s
+}
+
+// SetReadyCheckers configures the external dependency health checkers for readiness probes.
+func (s *Server) SetReadyCheckers(checkers ReadyCheckers) {
+	s.readyCheckers = checkers
 }
 
 // Handler returns the fully composed middleware chain.
@@ -39,9 +45,13 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/health", s.handleHealth)
+	s.mux.HandleFunc("GET /health/live", s.handleHealthLive)
+	s.mux.HandleFunc("GET /health/ready", s.handleHealthReady)
 	s.mux.HandleFunc("GET /metrics", metrics.Default().Handler())
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
+		s.mux.Handle(method+" /health/live", methodNotAllowed("GET"))
+		s.mux.Handle(method+" /health/ready", methodNotAllowed("GET"))
 	}
 	s.mux.HandleFunc("/", s.handleNotFound)
 }
