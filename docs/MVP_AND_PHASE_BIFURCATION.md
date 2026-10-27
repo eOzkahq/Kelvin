@@ -128,6 +128,8 @@ erDiagram
     }
 ```
 
+> **Note:** This MVP ERD is an illustrative sketch. The authoritative, production-grade specification — full column definitions, UUIDv7 keys, tenant-safe composite FKs, row-level security, indexing, and retention policies — is `docs/architecture/DATA_MODEL.md` (`P1-10`), which supersedes this diagram where they differ.
+
 ---
 
 ## 3. Assessment Job State Machine
