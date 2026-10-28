@@ -1,14 +1,26 @@
 // Package daemon hosts the worker job-listener loop: dequeue → dispatch to an
-// adapter → complete/fail, with heartbeat logging and graceful shutdown.
+// adapter inside the sandbox → complete/fail, with heartbeat logging and
+// graceful shutdown.
+//
+// Execution isolation: each job runs in a rootless OCI container provisioned
+// by cfg.Executor. The worker supervisor enforces the hard execution deadline
+// (context timeout) and terminates the container on cancellation, so scanner
+// faults (OOM, crash, hung socket) are contained to a single job and cannot
+// impact platform stability.
+//
+// See docs/architecture/EXECUTION_ISOLATION.md §6 for failure handling.
 package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
+	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/packages/common/tenant"
 	"go.uber.org/zap"
 )
@@ -18,6 +30,9 @@ type Config struct {
 	WorkerID       string
 	PollInterval   time.Duration
 	HeartbeatEvery time.Duration
+	// Executor provisions scanner containers; nil means no sandboxed execution
+	// is available (jobs fail with "no executor").
+	Executor sandbox.Executor
 }
 
 // Run blocks until ctx is cancelled, processing jobs from q.
@@ -71,35 +86,36 @@ func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, regist
 			}
 			continue
 		}
-		process(jobCtx, log, q, registry, job, cfg.WorkerID, cfg.HeartbeatEvery)
-		process(ctx, log, q, registry, job, cfg.WorkerID, cfg.HeartbeatEvery)
+		process(jobCtx, log, q, registry, job, cfg)
 	}
 }
 
-func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adapters.Registry, job queue.Job, workerID string, heartbeatEvery time.Duration) {
+func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adapters.Registry, job queue.Job, cfg Config) {
 	jobLog := log.With(
 		zap.String("job_id", job.ID),
 		zap.String("job_type", job.Type),
 		zap.String("correlation_id", job.CorrelationID),
 	)
+
+	// Heartbeat the job while it executes (if the queue supports it).
 	if heartbeats, ok := q.(interface {
 		Heartbeat(context.Context, string, string, time.Duration) error
 	}); ok {
-		if err := heartbeats.Heartbeat(ctx, job.ID, workerID, heartbeatEvery*3); err != nil {
+		if err := heartbeats.Heartbeat(ctx, job.ID, cfg.WorkerID, cfg.HeartbeatEvery*3); err != nil {
 			jobLog.Warn("job heartbeat failed", zap.Error(err))
 		}
 		heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
 		heartbeatDone := make(chan struct{})
 		go func() {
 			defer close(heartbeatDone)
-			ticker := time.NewTicker(heartbeatEvery)
+			ticker := time.NewTicker(cfg.HeartbeatEvery)
 			defer ticker.Stop()
 			for {
 				select {
 				case <-heartbeatCtx.Done():
 					return
 				case <-ticker.C:
-					if err := heartbeats.Heartbeat(heartbeatCtx, job.ID, workerID, heartbeatEvery*3); err != nil {
+					if err := heartbeats.Heartbeat(heartbeatCtx, job.ID, cfg.WorkerID, cfg.HeartbeatEvery*3); err != nil {
 						jobLog.Warn("job heartbeat failed", zap.Error(err))
 					}
 				}
@@ -107,15 +123,178 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		}()
 		defer func() { stopHeartbeat(); <-heartbeatDone }()
 	}
-	if _, ok := registry.Lookup(job.Type); !ok {
-		jobLog.Warn("no adapter registered for job type; failing job")
-		if err := q.Fail(ctx, job, "no adapter registered for job type"); err != nil {
+
+	// Resolve the adapter and require it to be Executable (sandboxed).
+	exec, ok := registry.LookupExecutable(job.Type)
+	if !ok {
+		jobLog.Warn("no executable adapter registered for job type; failing job")
+		if err := q.Fail(ctx, job, "no executable adapter registered for job type"); err != nil {
 			jobLog.Error("failed to record job failure", zap.Error(err))
 		}
 		return
 	}
-	jobLog.Info("job received; adapter execution lands with Phase 2 engine milestones")
+
+	// Build and validate the task from the job envelope.
+	task, taskErr := taskFromJob(job)
+	if taskErr != nil {
+		jobLog.Warn("job task is invalid; failing job", zap.Error(taskErr))
+		if err := q.Fail(ctx, job, taskErr.Error()); err != nil {
+			jobLog.Error("failed to record job failure", zap.Error(err))
+		}
+		return
+	}
+	if err := adapters.ValidateTask(task); err != nil {
+		jobLog.Warn("job task failed validation; failing job", zap.Error(err))
+		if err := q.Fail(ctx, job, err.Error()); err != nil {
+			jobLog.Error("failed to record job failure", zap.Error(err))
+		}
+		return
+	}
+
+	// The supervisor enforces the hard execution deadline: ctx cancellation
+	// (deadline, shutdown signal, or job cancel) kills the container.
+	execCtx, cancel := context.WithTimeout(ctx, task.HardDeadline)
+	defer cancel()
+
+	jobLog.Info("dispatching job to sandboxed adapter",
+		zap.String("scanner", task.Scanner),
+		zap.String("profile", task.ProfileID),
+		zap.Duration("hard_deadline", task.HardDeadline),
+	)
+
+	spec := specFromTask(task)
+	// Fail closed if the container spec violates the isolation profile.
+	if err := spec.Validate(); err != nil {
+		jobLog.Warn("job sandbox spec violates isolation profile; failing job",
+			zap.String("job_id", job.ID), zap.Error(err))
+		if err := q.Fail(ctx, job, "sandbox spec violates isolation profile: "+err.Error()); err != nil {
+			jobLog.Error("failed to record spec failure", zap.Error(err))
+		}
+		return
+	}
+	result, execErr := exec.Execute(execCtx, task)
+	processResult(jobLog, q, job, task, &result, execErr, ctx)
+}
+
+// processResult translates the sandbox outcome into a queue completion or
+// failure, mapping scanner faults (deadline, OOM, crash, invalid findings)
+// to the appropriate terminal reason.
+func processResult(jobLog *zap.Logger, q queue.Queue, job queue.Job, task adapters.Task, result *adapters.Result, execErr error, ctx context.Context) {
+
+	// Deadline exceeded: the supervisor terminated the container at the hard
+	// execution deadline. Map to a job failure; the orchestrator/reaper
+	// handles the terminal state transition (RUNNING -> TIMED_OUT).
+	if result != nil && (result.DeadlineExceeded || result.ExitCode < 0) {
+		jobLog.Warn("job exceeded hard execution deadline; container terminated",
+			zap.String("job_id", job.ID), zap.Duration("deadline", task.HardDeadline))
+		if err := q.Fail(ctx, job, "execution deadline exceeded"); err != nil {
+			jobLog.Error("failed to record deadline failure", zap.Error(err))
+		}
+		return
+	}
+
+	// Container crash / infrastructure failure.
+	if execErr != nil {
+		reason := execErr.Error()
+		if result != nil && result.OOMKilled {
+			reason = "out of memory"
+			jobLog.Warn("job container OOM-killed", zap.String("job_id", job.ID))
+		} else {
+			jobLog.Warn("job adapter execution failed", zap.String("job_id", job.ID), zap.Error(execErr))
+		}
+		if err := q.Fail(ctx, job, reason); err != nil {
+			jobLog.Error("failed to record execution failure", zap.Error(err))
+		}
+		return
+	}
+
+	// Non-zero exit code from the scanner (crash, not deadline/OOM).
+	if result != nil && result.ExitCode != 0 {
+		jobLog.Warn("job scanner exited non-zero",
+			zap.String("job_id", job.ID), zap.Int("exit_code", result.ExitCode),
+			zap.String("stderr", result.Stderr))
+		if err := q.Fail(ctx, job, fmt.Sprintf("scanner exited with code %d", result.ExitCode)); err != nil {
+			jobLog.Error("failed to record scanner failure", zap.Error(err))
+		}
+		return
+	}
+
+	// Scanner output is untrusted: validate findings before completion.
+	if result != nil && len(result.Findings) > 0 {
+		if err := adapters.ValidateFindings(result.Findings); err != nil {
+			jobLog.Warn("job findings failed schema validation; rejecting",
+				zap.String("job_id", job.ID), zap.Error(err))
+			if err := q.Fail(ctx, job, "findings failed schema validation: "+err.Error()); err != nil {
+				jobLog.Error("failed to record validation failure", zap.Error(err))
+			}
+			return
+		}
+	}
+
+	jobLog.Info("job completed successfully", zap.String("job_id", job.ID),
+		zap.Duration("duration", result.Duration))
 	if err := q.Complete(ctx, job); err != nil {
 		jobLog.Error("failed to record job completion", zap.Error(err))
+	}
+}
+
+// taskFromJob reconstructs the validated Task from the job envelope. The
+// scanner-specific target/profile are carried in the job Payload.
+func taskFromJob(job queue.Job) (adapters.Task, error) {
+	var payload struct {
+		Target              string          `json:"target"`
+		ProfileID           string          `json:"profile_id"`
+		Params              json.RawMessage `json:"params,omitempty"`
+		HardDeadlineSeconds int64           `json:"hard_deadline_seconds"`
+	}
+	if len(job.Payload) > 0 {
+		if err := json.Unmarshal(job.Payload, &payload); err != nil {
+			return adapters.Task{}, fmt.Errorf("invalid job payload: %w", err)
+		}
+	}
+	hardDeadline := time.Duration(payload.HardDeadlineSeconds) * time.Second
+	if hardDeadline <= 0 {
+		hardDeadline = 10 * time.Minute // safe Phase 1 default
+	}
+	return adapters.Task{
+		JobID:         job.ID,
+		AssessmentID:  job.AssessmentID,
+		TenantID:      job.TenantID,
+		CorrelationID: job.CorrelationID,
+		Scanner:       job.Type,
+		Target:        payload.Target,
+		ProfileID:     payload.ProfileID,
+		HardDeadline:  hardDeadline,
+		Payload:       payload.Params,
+	}, nil
+}
+
+// specFromTask builds the sandbox container Spec from the validated task.
+// All mandatory isolation fields (rootless, read-only rootfs, dropped caps,
+// pids limit, deadline) are enforced; scanner overrides cannot weaken them.
+func specFromTask(task adapters.Task) sandbox.Spec {
+	return sandbox.Spec{
+		Image:          "kelvin/scanner-" + task.Scanner + ":latest",
+		Command:        []string{"/kelvin/bin/" + task.Scanner + "-adapter"},
+		Args:           []string{"-target", task.Target, "-profile", task.ProfileID},
+		User:           "scanner",
+		Env:            []string{"KELVIN_JOB_ID=" + task.JobID, "KELVIN_TENANT_ID=" + task.TenantID},
+		WorkingDir:     "/home/scanner",
+		MemoryLimit:    "512m",
+		CPUQuota:       "2",
+		PIDsLimit:      64,
+		ReadOnlyRootfs: true,
+		TmpfsMounts:    []string{"/tmp:noexec,size=64m", "/run:noexec,size=16m"},
+		CapDrop:        []string{"ALL"},
+		CapAdd:         []string{},
+		SecurityOpt:    []string{"seccomp=scan.json", "apparmor=kelvin-scan"},
+		Deadline:       task.HardDeadline,
+		Labels: map[string]string{
+			"job_id":     task.JobID,
+			"assessment": task.AssessmentID,
+			"tenant_id":  task.TenantID,
+			"scanner":    task.Scanner,
+			"profile_id": task.ProfileID,
+		},
 	}
 }

@@ -1,17 +1,31 @@
 // Package adapters defines the scanner adapter contract and registry
 // (Nmap, Nuclei, OpenVAS, Trivy, ... — concrete adapters land with the
 // Phase 2 engine milestones; ADR-0005 governs their sandboxing).
+//
+// See docs/architecture/EXECUTION_ISOLATION.md §5 for the normative adapter
+// contract: task ingestion, sandbox execution, and structured finding egress.
 package adapters
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"sync"
 )
 
-// Adapter is one scanner engine executable under the worker sandbox.
+// Adapter is one registered scanner engine (name-only, for backward
+// compatibility with adapters that have not yet adopted Execute).
 type Adapter interface {
 	Name() string
+}
+
+// Executable is implemented by scanner adapters that run inside the worker
+// sandbox and return structured findings. Execute receives a validated Task
+// and a context carrying the hard execution deadline; cancellation kills the
+// container.
+type Executable interface {
+	Adapter
+	Execute(context.Context, Task) (Result, error)
 }
 
 // Registry maps adapter names to implementations, built once at startup.
@@ -46,6 +60,19 @@ func (r *Registry) Lookup(name string) (Adapter, bool) {
 	defer r.mu.RUnlock()
 	a, ok := r.adapters[name]
 	return a, ok
+}
+
+// LookupExecutable returns the adapter with the given name if it implements
+// Executable; otherwise ok is false.
+func (r *Registry) LookupExecutable(name string) (Executable, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	a, ok := r.adapters[name]
+	if !ok {
+		return nil, false
+	}
+	exec, ok := a.(Executable)
+	return exec, ok
 }
 
 // Names lists registered adapter names in sorted order.
