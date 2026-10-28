@@ -125,6 +125,9 @@ coverage.xml
 # --- Compiled Binaries & Go/Rust Modules ---
 bin/
 pkg/
+!apps/api/pkg/
+!apps/api/pkg/job/
+apps/api/pkg/.gitkeep
 obj/
 *.exe
 *.exe~

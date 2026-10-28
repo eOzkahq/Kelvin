@@ -1,0 +1,7 @@
+UPDATE jobs SET status='FAILED' WHERE status='VALIDATING';
+DROP INDEX IF EXISTS idx_jobs_hard_deadline;
+ALTER TABLE jobs DROP COLUMN IF EXISTS queued_at;
+ALTER TABLE jobs DROP COLUMN IF EXISTS hard_deadline_at;
+ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_status_check;
+ALTER TABLE jobs ADD CONSTRAINT jobs_status_check CHECK
+  (status IN ('QUEUED','RUNNING','COMPLETED','FAILED','TIMED_OUT','CANCELLED'));
