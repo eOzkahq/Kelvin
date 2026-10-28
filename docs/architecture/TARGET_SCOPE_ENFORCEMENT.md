@@ -1,0 +1,13 @@
+# Target Scope and SSRF Enforcement
+
+`packages/common/scope` is the shared enforcement implementation. The API entry point is `apps/api/pkg/scope`; worker scanners must make HTTP requests through `apps/worker/internal/egress.NewHTTPClient` (or `NewTransport`) with the assessment's approved `Policy`. Do not give scanner adapters a default `http.Client` or an unrestricted `net.Dialer`.
+
+The normalizer rejects credentials, unsupported schemes, malformed hosts, zones, and invalid ports. It canonicalizes DNS names and IP literals, unmasks IPv4-mapped IPv6, and recognizes legacy browser/socket IPv4 forms such as octal, hexadecimal, abbreviated, and 32-bit integer addresses. The address policy denies RFC 1918, loopback, link-local/metadata, carrier-grade NAT, unspecified, multicast, reserved/documentation, IPv6 ULA, and IPv6 link-local ranges.
+
+Approved hostnames are checked against exact domains or explicit `*.domain` entries. IP literals and CIDRs must fall within an approved prefix. DNS names resolve during validation and again inside `PinnedTransport.DialContext`; every answer is checked before a socket is opened, and the socket connects to the checked numeric address, avoiding a second resolver lookup by the dialer. `NewHTTPClient` revalidates every redirect and limits redirect count.
+
+For a local lab only, set `KELVIN_ENV=development` or `testing`, `KELVIN_LAB_MODE=enabled`, a 32-byte `KELVIN_LAB_MODE_KEY`, and `KELVIN_LAB_MODE_SIGNATURE` to the lowercase hex HMAC-SHA256 of `kelvin-local-lab:v1`. The key and signature should be injected by the isolated lab launcher; staging and production ignore this override. Lab mode still requires the target to match an explicitly approved domain or CIDR.
+
+This application guard complements the OCI worker network policy from ADR-0005. Production worker networking must independently block private, loopback, link-local, multicast, and metadata destinations and must not expose a route to control-plane networks. `apps/worker/internal/egress` provides the shared client builder, while the deployment network policy remains the final boundary for scanner binaries that do not use Go HTTP clients.
+
+Scope validation failures map to the standard RFC 7807 `target_scope_violation` response (HTTP 422) through `apps/api/pkg/scope.Problem`. DNS service failures should be logged internally and returned as a sanitized scope validation failure.
