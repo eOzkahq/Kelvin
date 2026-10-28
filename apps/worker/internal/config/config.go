@@ -38,9 +38,10 @@ type DatabaseConfig struct {
 
 // RedisConfig holds Redis task broker connection settings for worker queue polling.
 type RedisConfig struct {
-	Addr     string `mapstructure:"addr"`
-	Password string `mapstructure:"password"` // Sensitive - redacted in logs
-	DB       int    `mapstructure:"db"`
+	Addr              string `mapstructure:"addr"`
+	Password          string `mapstructure:"password"` // Sensitive - redacted in logs
+	DB                int    `mapstructure:"db"`
+	WorkerTokenSecret string `mapstructure:"worker_token_secret"` // Sensitive; at least 32 bytes when enabled
 }
 
 // StorageConfig holds MinIO / S3 object store settings for worker evidence upload.
@@ -87,6 +88,7 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "database.url", "KELVIN_DATABASE_URL")
 	bindEnvWithFallback(v, "redis.addr", "KELVIN_REDIS_ADDR")
 	bindEnvWithFallback(v, "redis.password", "KELVIN_REDIS_PASSWORD")
+	bindEnvWithFallback(v, "redis.worker_token_secret", "KELVIN_WORKER_TOKEN_SECRET")
 	bindEnvWithFallback(v, "storage.endpoint", "MINIO_ENDPOINT")
 	bindEnvWithFallback(v, "storage.access_key", "MINIO_ROOT_USER")
 	bindEnvWithFallback(v, "storage.secret_key", "MINIO_ROOT_PASSWORD")
@@ -102,6 +104,10 @@ func Load() (Config, error) {
 	workerID := v.GetString("worker.id")
 	if strings.TrimSpace(workerID) == "" {
 		return Config{}, errors.New("KELVIN_WORKER_ID must not be empty")
+	}
+	workerTokenSecret := v.GetString("redis.worker_token_secret")
+	if workerTokenSecret != "" && len(workerTokenSecret) < 32 {
+		return Config{}, errors.New("KELVIN_WORKER_TOKEN_SECRET must contain at least 32 bytes when configured")
 	}
 
 	pollIntervalStr := v.GetString("worker.poll_interval")
@@ -137,9 +143,10 @@ func Load() (Config, error) {
 			URL: dbURL,
 		},
 		Redis: RedisConfig{
-			Addr:     v.GetString("redis.addr"),
-			Password: v.GetString("redis.password"),
-			DB:       v.GetInt("redis.db"),
+			Addr:              v.GetString("redis.addr"),
+			Password:          v.GetString("redis.password"),
+			DB:                v.GetInt("redis.db"),
+			WorkerTokenSecret: workerTokenSecret,
 		},
 		Storage: StorageConfig{
 			Endpoint:       v.GetString("storage.endpoint"),

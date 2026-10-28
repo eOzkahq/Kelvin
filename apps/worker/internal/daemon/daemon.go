@@ -62,16 +62,41 @@ func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, regist
 			}
 			continue
 		}
-		process(ctx, log, q, registry, job)
+		process(ctx, log, q, registry, job, cfg.WorkerID, cfg.HeartbeatEvery)
 	}
 }
 
-func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adapters.Registry, job queue.Job) {
+func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adapters.Registry, job queue.Job, workerID string, heartbeatEvery time.Duration) {
 	jobLog := log.With(
 		zap.String("job_id", job.ID),
 		zap.String("job_type", job.Type),
 		zap.String("correlation_id", job.CorrelationID),
 	)
+	if heartbeats, ok := q.(interface {
+		Heartbeat(context.Context, string, string, time.Duration) error
+	}); ok {
+		if err := heartbeats.Heartbeat(ctx, job.ID, workerID, heartbeatEvery*3); err != nil {
+			jobLog.Warn("job heartbeat failed", zap.Error(err))
+		}
+		heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
+		heartbeatDone := make(chan struct{})
+		go func() {
+			defer close(heartbeatDone)
+			ticker := time.NewTicker(heartbeatEvery)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-heartbeatCtx.Done():
+					return
+				case <-ticker.C:
+					if err := heartbeats.Heartbeat(heartbeatCtx, job.ID, workerID, heartbeatEvery*3); err != nil {
+						jobLog.Warn("job heartbeat failed", zap.Error(err))
+					}
+				}
+			}
+		}()
+		defer func() { stopHeartbeat(); <-heartbeatDone }()
+	}
 	if _, ok := registry.Lookup(job.Type); !ok {
 		jobLog.Warn("no adapter registered for job type; failing job")
 		if err := q.Fail(ctx, job, "no adapter registered for job type"); err != nil {
