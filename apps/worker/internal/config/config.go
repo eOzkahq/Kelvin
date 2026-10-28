@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kelvin/kelvin/apps/worker/internal/limits"
 	"github.com/spf13/viper"
 )
 
@@ -53,6 +54,18 @@ type StorageConfig struct {
 	UseSSL         bool   `mapstructure:"use_ssl"`
 }
 
+// ResourceLimits are the enforceable cgroup/container bounds applied to every
+// sandboxed scanner execution (P1-29).
+type ResourceLimits struct {
+	CPUQuota             string `mapstructure:"cpu_quota"`
+	MemoryLimit          string `mapstructure:"memory_limit"`
+	DiskLimit            string `mapstructure:"disk_limit"`
+	MaxPIDs              int64  `mapstructure:"max_pids"`
+	MaxConcurrentConns   int    `mapstructure:"max_concurrent_conns"`
+	MaxRequestsPerTarget int    `mapstructure:"max_requests_per_target"`
+	HardDeadlineSeconds  int64  `mapstructure:"hard_execution_deadline_seconds"`
+}
+
 // Config is the immutable runtime configuration of the worker daemon (.env.example).
 type Config struct {
 	Env          Environment    `mapstructure:"env"`
@@ -63,6 +76,43 @@ type Config struct {
 	Database     DatabaseConfig `mapstructure:"database"`
 	Redis        RedisConfig    `mapstructure:"redis"`
 	Storage      StorageConfig  `mapstructure:"storage"`
+	Limits       ResourceLimits `mapstructure:"limits"`
+}
+
+// toLimits converts config values into a limits.Limits, applying safe defaults
+// for unset fields.
+func (c Config) toLimits() (limits.Limits, error) {
+	l := limits.DefaultLimits()
+	if c.Limits.CPUQuota != "" {
+		l.CPUQuota = c.Limits.CPUQuota
+	}
+	if c.Limits.MemoryLimit != "" {
+		l.MemoryLimit = c.Limits.MemoryLimit
+	}
+	if c.Limits.DiskLimit != "" {
+		l.DiskLimit = c.Limits.DiskLimit
+	}
+	if c.Limits.MaxPIDs > 0 {
+		l.MaxPIDs = c.Limits.MaxPIDs
+	}
+	if c.Limits.MaxConcurrentConns > 0 {
+		l.MaxConcurrentConns = c.Limits.MaxConcurrentConns
+	}
+	if c.Limits.MaxRequestsPerTarget > 0 {
+		l.MaxRequestsPerTarget = c.Limits.MaxRequestsPerTarget
+	}
+	if c.Limits.HardDeadlineSeconds > 0 {
+		l.HardDeadline = time.Duration(c.Limits.HardDeadlineSeconds) * time.Second
+	}
+	return l, l.Validate()
+}
+
+// hardDeadline returns the parsed hard deadline from config.
+func (c Config) hardDeadline() time.Duration {
+	if c.Limits.HardDeadlineSeconds > 0 {
+		return time.Duration(c.Limits.HardDeadlineSeconds) * time.Second
+	}
+	return limits.DefaultLimits().HardDeadline
 }
 
 // Load loads and validates worker configuration from environment variables using spf13/viper.
@@ -80,10 +130,27 @@ func Load() (Config, error) {
 	v.SetDefault("worker.id", "worker-local-01")
 	v.SetDefault("worker.poll_interval", "5s")
 
+	// Resource limits defaults (P1-29); all are overridable via KELVIN_LIMITS_*.
+	v.SetDefault("limits.cpu_quota", "1")
+	v.SetDefault("limits.memory_limit", "512m")
+	v.SetDefault("limits.disk_limit", "2g")
+	v.SetDefault("limits.max_pids", int64(64))
+	v.SetDefault("limits.max_concurrent_conns", 10)
+	v.SetDefault("limits.max_requests_per_target", 5000)
+	v.SetDefault("limits.hard_execution_deadline_seconds", int64(1800))
+
 	bindEnvWithFallback(v, "env", "KELVIN_ENV")
 	bindEnvWithFallback(v, "log_level", "KELVIN_LOG_LEVEL")
 	bindEnvWithFallback(v, "worker.id", "KELVIN_WORKER_ID")
 	bindEnvWithFallback(v, "worker.poll_interval", "KELVIN_WORKER_POLL_INTERVAL")
+
+	bindEnvWithFallback(v, "limits.cpu_quota", "KELVIN_LIMITS_CPU_QUOTA")
+	bindEnvWithFallback(v, "limits.memory_limit", "KELVIN_LIMITS_MEMORY_LIMIT")
+	bindEnvWithFallback(v, "limits.disk_limit", "KELVIN_LIMITS_DISK_LIMIT")
+	bindEnvWithFallback(v, "limits.max_pids", "KELVIN_LIMITS_MAX_PIDS")
+	bindEnvWithFallback(v, "limits.max_concurrent_conns", "KELVIN_LIMITS_MAX_CONCURRENT_CONNS")
+	bindEnvWithFallback(v, "limits.max_requests_per_target", "KELVIN_LIMITS_MAX_REQUESTS_PER_TARGET")
+	bindEnvWithFallback(v, "limits.hard_execution_deadline_seconds", "KELVIN_LIMITS_HARD_EXECUTION_DEADLINE_SECONDS")
 
 	bindEnvWithFallback(v, "database.url", "KELVIN_DATABASE_URL")
 	bindEnvWithFallback(v, "redis.addr", "KELVIN_REDIS_ADDR")
@@ -155,6 +222,19 @@ func Load() (Config, error) {
 			EvidenceBucket: v.GetString("storage.evidence_bucket"),
 			UseSSL:         v.GetBool("storage.use_ssl"),
 		},
+		Limits: ResourceLimits{
+			CPUQuota:             v.GetString("limits.cpu_quota"),
+			MemoryLimit:          v.GetString("limits.memory_limit"),
+			DiskLimit:            v.GetString("limits.disk_limit"),
+			MaxPIDs:              v.GetInt64("limits.max_pids"),
+			MaxConcurrentConns:   v.GetInt("limits.max_concurrent_conns"),
+			MaxRequestsPerTarget: v.GetInt("limits.max_requests_per_target"),
+			HardDeadlineSeconds:  v.GetInt64("limits.hard_execution_deadline_seconds"),
+		},
+	}
+
+	if _, err := cfg.toLimits(); err != nil {
+		return Config{}, fmt.Errorf("invalid resource limits: %w", err)
 	}
 
 	return cfg, nil

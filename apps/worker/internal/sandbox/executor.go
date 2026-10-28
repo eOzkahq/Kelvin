@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/kelvin/kelvin/apps/worker/internal/limits"
 )
 
 // ErrDeadlineExceeded is returned when container execution is terminated by the
@@ -80,6 +82,12 @@ type Spec struct {
 	// SecurityOpt are runtime security options (seccomp/AppArmor profiles).
 	SecurityOpt []string
 
+	// Limits are the enforceable resource bounds (CPU, memory, disk, pids,
+	// deadline) applied to the container. They override the individual fields
+	// above when set; the supervisor kills the container (and its process
+	// tree) when the HardDeadline expires.
+	Limits limits.Limits
+
 	// Deadline is the hard execution deadline; the supervisor kills the
 	// container when ctx is cancelled at this time.
 	Deadline time.Duration
@@ -105,6 +113,19 @@ func (s Spec) Validate() error {
 	if !s.ReadOnlyRootfs {
 		errs = append(errs, "root filesystem must be read-only")
 	}
+	// If Limits are set, validate them against safe maximums; otherwise fall
+	// back to the individual scalar fields.
+	if (limits.Limits{} != s.Limits) {
+		if err := s.Limits.Validate(); err != nil {
+			errs = append(errs, err.Error())
+		}
+	} else {
+		if s.PIDsLimit <= 0 {
+			errs = append(errs, "pids-limit must be positive")
+		}
+		if s.Deadline <= 0 {
+			errs = append(errs, "hard execution deadline must be positive")
+		}
 	if s.PIDsLimit <= 0 {
 		errs = append(errs, "pids-limit must be positive")
 	}
