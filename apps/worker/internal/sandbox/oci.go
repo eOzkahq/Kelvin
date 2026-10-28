@@ -1,6 +1,10 @@
 // Package sandbox provides an OCI container executor (Docker/Podman-compatible)
 // that provisions scanner adapters inside rootless, hardened containers per
 // ADR-0005 and docs/architecture/EXECUTION_ISOLATION.md.
+//
+// P1-29: each container is provisioned against enforceable resource limits
+// (CPU, memory, disk, pids) and the worker supervisor terminates the entire
+// process tree when the hard execution deadline expires.
 package sandbox
 
 import (
@@ -9,12 +13,17 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"syscall"
 	"time"
 )
 
 // maxCaptureBytes caps the number of bytes captured from each of stdout/stderr
 // so a hostile or misbehaving scanner cannot exhaust worker memory.
 const maxCaptureBytes = 4 * 1024 * 1024 // 4 MiB
+
+// gracePeriod is how long the supervisor waits after SIGTERM before SIGKILL
+// when terminating a container at deadline.
+const gracePeriod = 5 * time.Second
 
 // OCIExecutor runs scanner containers via an OCI-compatible CLI (podman or
 // docker in rootless mode). It detects the runtime on construction.
@@ -35,7 +44,7 @@ func NewOCIExecutor() (*OCIExecutor, error) {
 }
 
 // Execute runs spec inside a rootless OCI container. ctx cancellation (hard
-// deadline) terminates the container via SIGTERM then SIGKILL.
+// deadline) terminates the container process tree via SIGTERM then SIGKILL.
 func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 	if err := spec.Validate(); err != nil {
 		return nil, err
@@ -49,42 +58,85 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 
 	args := e.buildArgs(spec)
 	cmd := exec.CommandContext(ctx, e.runtime, args...)
+	// Place the container runtime in its own process group so the supervisor
+	// can terminate the entire process tree (runtime + container + scanner
+	// descendants) on deadline or cancellation.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
-	result.Duration = time.Since(start)
-	result.Stdout = truncate(stdout.String())
-	result.Stderr = truncate(stderr.String())
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Run()
+	}()
 
-	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			result.DeadlineExceeded = true
-			result.ExitCode = -1
-			return result, &ExitError{Spec: spec, Result: result, Err: ErrDeadlineExceeded}
+	// Wait for completion or context cancellation (deadline).
+	select {
+	case err := <-done:
+		result.Duration = time.Since(start)
+		result.Stdout = truncate(stdout.String())
+		result.Stderr = truncate(stderr.String())
+		if err == nil {
+			result.ExitCode = 0
+			return result, nil
 		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
-			// Exit code 137 = SIGKILL (OOM killer or supervisor kill).
 			if result.ExitCode == 137 {
 				result.OOMKilled = true
 			}
 			if result.ExitCode < 0 {
 				result.DeadlineExceeded = true
 			}
-			return result, &ExitError{Spec: spec, Result: result, Err: err}
+		} else {
+			result.ExitCode = -1
 		}
-		result.ExitCode = -1
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(ctx.Err(), context.Canceled) {
+			result.DeadlineExceeded = true
+			return result, &ExitError{Spec: spec, Result: result, Err: ErrDeadlineExceeded}
+		}
 		return result, &ExitError{Spec: spec, Result: result, Err: err}
+	case <-ctx.Done():
+		// Terminate the entire process tree: SIGTERM then SIGKILL to the
+		// process group so the container runtime and scanner descendants are
+		// reaped, preventing runaway scanner subprocesses.
+		terminateProcessTree(cmd)
+		// Drain Run to release resources.
+		<-done
+		result.Duration = time.Since(start)
+		result.Stdout = truncate(stdout.String())
+		result.Stderr = truncate(stderr.String())
+		result.DeadlineExceeded = true
+		result.ExitCode = -1
+		return result, &ExitError{Spec: spec, Result: result, Err: ErrDeadlineExceeded}
 	}
+}
 
-	result.ExitCode = 0
-	return result, nil
+// terminateProcessTree sends SIGTERM to the process group, waits the grace
+// period, then SIGKills any remaining processes. This guarantees scanner
+// subprocesses and the container runtime are reaped at deadline.
+func terminateProcessTree(cmd *exec.Cmd) {
+	if cmd.Process == nil {
+		return
+	}
+	pgid, err := syscall.Getpgid(cmd.Process.Pid)
+	if err != nil {
+		// Fall back to killing the single process.
+		_ = cmd.Process.Signal(syscall.SIGTERM)
+		time.AfterFunc(gracePeriod, func() { _ = cmd.Process.Kill() })
+		return
+	}
+	_ = syscall.Kill(-pgid, syscall.SIGTERM)
+	time.AfterFunc(gracePeriod, func() {
+		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+	})
 }
 
 // buildArgs constructs the OCI run command with the mandatory hardening
-// profile. The container is removed on exit (--rm) so no state persists.
+// profile and P1-29 resource limits. The container is removed on exit (--rm)
+// so no state persists.
 func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	args := []string{"run", "--rm"}
 
@@ -102,16 +154,29 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	for _, m := range spec.TmpfsMounts {
 		args = append(args, "--tmpfs="+m)
 	}
+	// Ephemeral scratch disk ceiling (P1-29).
+	if spec.Limits.DiskLimit != "" {
+		args = append(args, "--storage-opt", "size="+spec.Limits.DiskLimit)
+	}
 
-	// Resource bounds (cgroups v2).
-	if spec.MemoryLimit != "" {
+	// Resource bounds (cgroups v2) from Limits (P1-29), falling back to
+	// scalar fields for backward compatibility.
+	if spec.Limits.MemoryLimit != "" {
+		args = append(args, "--memory="+spec.Limits.MemoryLimit)
+	} else if spec.MemoryLimit != "" {
 		args = append(args, "--memory="+spec.MemoryLimit)
 	}
-	if spec.CPUQuota != "" {
+	if spec.Limits.CPUQuota != "" {
+		args = append(args, "--cpus="+spec.Limits.CPUQuota)
+	} else if spec.CPUQuota != "" {
 		args = append(args, "--cpus="+spec.CPUQuota)
 	}
-	if spec.PIDsLimit > 0 {
-		args = append(args, "--pids-limit", fmt.Sprintf("%d", spec.PIDsLimit))
+	pids := spec.Limits.MaxPIDs
+	if pids <= 0 {
+		pids = spec.PIDsLimit
+	}
+	if pids > 0 {
+		args = append(args, "--pids-limit", fmt.Sprintf("%d", pids))
 	}
 
 	// Network isolation.

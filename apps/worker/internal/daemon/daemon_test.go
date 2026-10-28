@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
+	"github.com/kelvin/kelvin/apps/worker/internal/limits"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
+	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	schemas "github.com/kelvin/kelvin/packages/schemas"
 	"go.uber.org/zap"
 )
@@ -46,7 +48,7 @@ func TestRunFailsJobWithoutRegisteredAdapter(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: sandbox.NewFake()}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{ID: "11111111-1111-1111-1111-111111111111", TenantID: "123e4567-e89b-12d3-a456-426614174000", Type: "nuclei", CorrelationID: "corr-1"})
@@ -78,7 +80,12 @@ func TestRunProcessesJobWithRegisteredAdapter(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{
+			WorkerID:     "w-test",
+			PollInterval: 10 * time.Millisecond,
+			Executor:     sandbox.NewFake().WithResult(sandbox.Result{ExitCode: 0, Findings: validFindingPayload(), Duration: time.Second}),
+			Limits:       limits.DefaultLimits(),
+		}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{
@@ -101,48 +108,24 @@ func TestRunProcessesJobWithRegisteredAdapter(t *testing.T) {
 	}
 }
 
-type resultAdapter struct {
-	name   string
-	result adapters.Result
-	err    error
-}
-
-func (s resultAdapter) Name() string { return s.name }
-
-func (s resultAdapter) Execute(ctx context.Context, t adapters.Task) (adapters.Result, error) {
-	return s.result, s.err
-}
-
-func validFindingPayload() []byte {
-	return []byte(`{
-		"schema_version": "1.0",
-		"title": "example finding",
-		"severity": "INFORMATIONAL",
-		"confidence": 0.5,
-		"target": {"asset": "example.com"},
-		"vulnerability": {"template_id": "example-template"},
-		"scanner": {"name": "stub", "adapter_version": "1.0.0"},
-		"discovered_at": "2026-10-28T00:00:00Z"
-	}`)
-}
-
 func TestRunCompletesJobWithValidFindings(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	q := &recordingQueue{inner: queue.NewMemoryQueue()}
 	registry := adapters.NewRegistry()
-	if err := registry.Register(resultAdapter{name: "stub", result: adapters.Result{
-		ExitCode: 0,
-		Findings: validFindingPayload(),
-		Duration: time.Second,
-	}}); err != nil {
+	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
 		t.Fatal(err)
 	}
 
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: nil}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{
+			WorkerID:     "w-test",
+			PollInterval: 10 * time.Millisecond,
+			Executor:     sandbox.NewFake().WithResult(sandbox.Result{ExitCode: 0, Findings: validFindingPayload(), Duration: time.Second}),
+			Limits:       limits.DefaultLimits(),
+		}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{
@@ -174,17 +157,18 @@ func TestRunFailsJobOnDeadlineExceeded(t *testing.T) {
 
 	q := &recordingQueue{inner: queue.NewMemoryQueue()}
 	registry := adapters.NewRegistry()
-	if err := registry.Register(resultAdapter{name: "stub", result: adapters.Result{
-		ExitCode:         -1,
-		DeadlineExceeded: true,
-		Duration:         30 * time.Second,
-	}}); err != nil {
+	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
 		t.Fatal(err)
 	}
 
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: nil}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{
+			WorkerID:     "w-test",
+			PollInterval: 10 * time.Millisecond,
+			Executor:     sandbox.NewFake().WithResult(sandbox.Result{ExitCode: -1, DeadlineExceeded: true, Duration: 30 * time.Second}),
+			Limits:       limits.DefaultLimits(),
+		}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{
@@ -213,17 +197,18 @@ func TestRunFailsJobOnOOM(t *testing.T) {
 
 	q := &recordingQueue{inner: queue.NewMemoryQueue()}
 	registry := adapters.NewRegistry()
-	if err := registry.Register(resultAdapter{name: "stub", result: adapters.Result{
-		ExitCode:  137,
-		OOMKilled: true,
-		Duration:  10 * time.Second,
-	}}); err != nil {
+	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
 		t.Fatal(err)
 	}
 
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: nil}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{
+			WorkerID:     "w-test",
+			PollInterval: 10 * time.Millisecond,
+			Executor:     sandbox.NewFake().WithResult(sandbox.Result{ExitCode: 137, OOMKilled: true, Duration: 10 * time.Second}),
+			Limits:       limits.DefaultLimits(),
+		}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{
@@ -252,17 +237,18 @@ func TestRunFailsJobOnInvalidFindings(t *testing.T) {
 
 	q := &recordingQueue{inner: queue.NewMemoryQueue()}
 	registry := adapters.NewRegistry()
-	if err := registry.Register(resultAdapter{name: "stub", result: adapters.Result{
-		ExitCode: 0,
-		Findings: []byte(`{"unknown_field": true}`),
-		Duration: time.Second,
-	}}); err != nil {
+	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
 		t.Fatal(err)
 	}
 
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: nil}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{
+			WorkerID:     "w-test",
+			PollInterval: 10 * time.Millisecond,
+			Executor:     sandbox.NewFake().WithResult(sandbox.Result{ExitCode: 0, Findings: []byte(`{"unknown_field": true}`), Duration: time.Second}),
+			Limits:       limits.DefaultLimits(),
+		}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{
@@ -291,17 +277,18 @@ func TestRunFailsJobOnScannerCrash(t *testing.T) {
 
 	q := &recordingQueue{inner: queue.NewMemoryQueue()}
 	registry := adapters.NewRegistry()
-	if err := registry.Register(resultAdapter{name: "stub", result: adapters.Result{
-		ExitCode: 1,
-		Stderr:   "scanner panic",
-		Duration: 5 * time.Second,
-	}}); err != nil {
+	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
 		t.Fatal(err)
 	}
 
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: nil}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{
+			WorkerID:     "w-test",
+			PollInterval: 10 * time.Millisecond,
+			Executor:     sandbox.NewFake().WithResult(sandbox.Result{ExitCode: 1, Stderr: "scanner panic", Duration: 5 * time.Second}),
+			Limits:       limits.DefaultLimits(),
+		}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{
@@ -334,7 +321,7 @@ func TestRunRejectsJobWithoutTenantContext(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: sandbox.NewFake()}, q, registry)
 	}()
 	q.inner.Push(queue.Job{ID: "unscoped-job", Type: "stub"})
 	time.Sleep(100 * time.Millisecond)
@@ -352,17 +339,33 @@ func TestRunRejectsJobWithoutTenantContext(t *testing.T) {
 	}
 }
 
+// fakeExecutor adapts sandbox.FakeExecutor to the sandbox.Executor interface
+// used by the daemon.
+type fakeExecutor struct {
+	inner *sandbox.FakeExecutor
+}
+
+func (f *fakeExecutor) Execute(ctx context.Context, spec sandbox.Spec) (*sandbox.Result, error) {
+	return f.inner.Execute(ctx, spec)
+}
+
+// validFindingPayload returns a finding.v1.json-conformant payload.
+func validFindingPayload() []byte {
+	return []byte(`{
+		"schema_version": "1.0",
+		"title": "example finding",
+		"severity": "INFORMATIONAL",
+		"confidence": 0.5,
+		"target": {"asset": "example.com"},
+		"vulnerability": {"template_id": "example-template"},
+		"scanner": {"name": "stub", "adapter_version": "1.0.0"},
+		"discovered_at": "2026-10-28T00:00:00Z"
+	}`)
+}
+
 type stubAdapter struct{ name string }
 
 func (s stubAdapter) Name() string { return s.name }
-
-func (s stubAdapter) Execute(ctx context.Context, t adapters.Task) (adapters.Result, error) {
-	return adapters.Result{
-		ExitCode: 0,
-		Findings: validFindingPayload(),
-		Duration: time.Second,
-	}, nil
-}
 
 func TestWorkerImportsSharedFindingContract(t *testing.T) {
 	raw := schemas.MustRead("finding.v1.json")

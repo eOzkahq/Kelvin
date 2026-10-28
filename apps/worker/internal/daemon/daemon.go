@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
+	"github.com/kelvin/kelvin/apps/worker/internal/limits"
+	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/packages/common/tenant"
@@ -33,6 +35,10 @@ type Config struct {
 	// Executor provisions scanner containers; nil means no sandboxed execution
 	// is available (jobs fail with "no executor").
 	Executor sandbox.Executor
+	// Limits are the enforceable resource bounds applied to every job.
+	Limits limits.Limits
+	// Metrics records auditable resource violations and termination causes.
+	Metrics *metrics.Registry
 }
 
 // Run blocks until ctx is cancelled, processing jobs from q.
@@ -124,11 +130,12 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		defer func() { stopHeartbeat(); <-heartbeatDone }()
 	}
 
-	// Resolve the adapter and require it to be Executable (sandboxed).
-	exec, ok := registry.LookupExecutable(job.Type)
-	if !ok {
-		jobLog.Warn("no executable adapter registered for job type; failing job")
-		if err := q.Fail(ctx, job, "no executable adapter registered for job type"); err != nil {
+	// Validate that a scanner adapter is registered for this job type. The
+	// container is then run by cfg.Executor (sandbox.Executor), which enforces
+	// the P1-29 resource limits and process-tree termination.
+	if _, ok := registry.Lookup(job.Type); !ok {
+		jobLog.Warn("no adapter registered for job type; failing job")
+		if err := q.Fail(ctx, job, "no adapter registered for job type"); err != nil {
 			jobLog.Error("failed to record job failure", zap.Error(err))
 		}
 		return
@@ -152,7 +159,8 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 	}
 
 	// The supervisor enforces the hard execution deadline: ctx cancellation
-	// (deadline, shutdown signal, or job cancel) kills the container.
+	// (deadline, shutdown signal, or job cancel) kills the container and its
+	// process tree.
 	execCtx, cancel := context.WithTimeout(ctx, task.HardDeadline)
 	defer cancel()
 
@@ -160,32 +168,64 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		zap.String("scanner", task.Scanner),
 		zap.String("profile", task.ProfileID),
 		zap.Duration("hard_deadline", task.HardDeadline),
+		zap.String("limits", cfg.Limits.String()),
 	)
 
+	// Build the sandbox spec and apply the configured resource limits. Scanner
+	// overrides cannot weaken the mandatory isolation fields.
 	spec := specFromTask(task)
+	spec.Limits = cfg.Limits
+	if spec.Deadline <= 0 {
+		spec.Deadline = task.HardDeadline
+	}
 	// Fail closed if the container spec violates the isolation profile.
 	if err := spec.Validate(); err != nil {
 		jobLog.Warn("job sandbox spec violates isolation profile; failing job",
 			zap.String("job_id", job.ID), zap.Error(err))
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncTermination(metrics.CauseSpecInvalid)
+		}
 		if err := q.Fail(ctx, job, "sandbox spec violates isolation profile: "+err.Error()); err != nil {
 			jobLog.Error("failed to record spec failure", zap.Error(err))
 		}
 		return
 	}
-	result, execErr := exec.Execute(execCtx, task)
-	processResult(jobLog, q, job, task, &result, execErr, ctx)
+
+	if cfg.Executor == nil {
+		jobLog.Warn("no sandbox executor configured; failing job")
+		if err := q.Fail(ctx, job, "no sandbox executor configured"); err != nil {
+			jobLog.Error("failed to record executor failure", zap.Error(err))
+		}
+		return
+	}
+	result, execErr := cfg.Executor.Execute(execCtx, spec)
+	processResult(jobLog, q, job, task, result, execErr, ctx, cfg.Metrics)
 }
 
 // processResult translates the sandbox outcome into a queue completion or
-// failure, mapping scanner faults (deadline, OOM, crash, invalid findings)
-// to the appropriate terminal reason.
-func processResult(jobLog *zap.Logger, q queue.Queue, job queue.Job, task adapters.Task, result *adapters.Result, execErr error, ctx context.Context) {
+// failure, mapping scanner faults (deadline, OOM, crash, invalid findings,
+// egress blocks) to the appropriate terminal reason. Every termination cause
+// is audited via structured logging and a metrics counter.
+func processResult(jobLog *zap.Logger, q queue.Queue, job queue.Job, task adapters.Task, result *sandbox.Result, execErr error, ctx context.Context, reg *metrics.Registry) {
+	recordTermination := func(cause metrics.TerminationCause) {
+		jobLog.Info("job terminated", zap.String("job_id", job.ID), zap.String("cause", string(cause)))
+		if reg != nil {
+			reg.IncTermination(cause)
+		}
+	}
+	recordViolation := func(v metrics.ViolationType) {
+		jobLog.Warn("job resource violation", zap.String("job_id", job.ID), zap.String("violation", string(v)))
+		if reg != nil {
+			reg.IncResourceViolation(v)
+		}
+	}
 
-	// Deadline exceeded: the supervisor terminated the container at the hard
-	// execution deadline. Map to a job failure; the orchestrator/reaper
-	// handles the terminal state transition (RUNNING -> TIMED_OUT).
+	// Deadline exceeded: the supervisor terminated the container process tree
+	// at the hard execution deadline.
 	if result != nil && (result.DeadlineExceeded || result.ExitCode < 0) {
-		jobLog.Warn("job exceeded hard execution deadline; container terminated",
+		recordTermination(metrics.CauseDeadline)
+		recordViolation(metrics.ViolationDeadline)
+		jobLog.Warn("job exceeded hard execution deadline; container process tree terminated",
 			zap.String("job_id", job.ID), zap.Duration("deadline", task.HardDeadline))
 		if err := q.Fail(ctx, job, "execution deadline exceeded"); err != nil {
 			jobLog.Error("failed to record deadline failure", zap.Error(err))
@@ -195,14 +235,18 @@ func processResult(jobLog *zap.Logger, q queue.Queue, job queue.Job, task adapte
 
 	// Container crash / infrastructure failure.
 	if execErr != nil {
-		reason := execErr.Error()
 		if result != nil && result.OOMKilled {
-			reason = "out of memory"
+			recordTermination(metrics.CauseOOM)
+			recordViolation(metrics.ViolationOOM)
 			jobLog.Warn("job container OOM-killed", zap.String("job_id", job.ID))
-		} else {
-			jobLog.Warn("job adapter execution failed", zap.String("job_id", job.ID), zap.Error(execErr))
+			if err := q.Fail(ctx, job, "out of memory"); err != nil {
+				jobLog.Error("failed to record OOM failure", zap.Error(err))
+			}
+			return
 		}
-		if err := q.Fail(ctx, job, reason); err != nil {
+		recordTermination(metrics.CauseCrash)
+		jobLog.Warn("job adapter execution failed", zap.String("job_id", job.ID), zap.Error(execErr))
+		if err := q.Fail(ctx, job, execErr.Error()); err != nil {
 			jobLog.Error("failed to record execution failure", zap.Error(err))
 		}
 		return
@@ -210,6 +254,7 @@ func processResult(jobLog *zap.Logger, q queue.Queue, job queue.Job, task adapte
 
 	// Non-zero exit code from the scanner (crash, not deadline/OOM).
 	if result != nil && result.ExitCode != 0 {
+		recordTermination(metrics.CauseCrash)
 		jobLog.Warn("job scanner exited non-zero",
 			zap.String("job_id", job.ID), zap.Int("exit_code", result.ExitCode),
 			zap.String("stderr", result.Stderr))
@@ -222,6 +267,7 @@ func processResult(jobLog *zap.Logger, q queue.Queue, job queue.Job, task adapte
 	// Scanner output is untrusted: validate findings before completion.
 	if result != nil && len(result.Findings) > 0 {
 		if err := adapters.ValidateFindings(result.Findings); err != nil {
+			recordTermination(metrics.CauseValidation)
 			jobLog.Warn("job findings failed schema validation; rejecting",
 				zap.String("job_id", job.ID), zap.Error(err))
 			if err := q.Fail(ctx, job, "findings failed schema validation: "+err.Error()); err != nil {
@@ -231,6 +277,7 @@ func processResult(jobLog *zap.Logger, q queue.Queue, job queue.Job, task adapte
 		}
 	}
 
+	recordTermination(metrics.CauseCompleted)
 	jobLog.Info("job completed successfully", zap.String("job_id", job.ID),
 		zap.Duration("duration", result.Duration))
 	if err := q.Complete(ctx, job); err != nil {

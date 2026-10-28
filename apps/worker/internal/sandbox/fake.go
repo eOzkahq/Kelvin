@@ -32,6 +32,33 @@ type FakeExecutor struct {
 	Last Spec
 }
 
+// NewFake returns a FakeExecutor configured to simulate a successful run.
+func NewFake() *FakeExecutor {
+	return &FakeExecutor{Mode: "success"}
+}
+
+// WithResult configures the fake to return the given Result and returns the
+// receiver for chaining. The execution mode is derived from the result so
+// deadline/OOM/crash outcomes are preserved.
+func (f *FakeExecutor) WithResult(result Result) *FakeExecutor {
+	f.ExitCode = result.ExitCode
+	f.Stdout = result.Stdout
+	f.Stderr = result.Stderr
+	f.Findings = result.Findings
+	f.Duration = result.Duration
+	switch {
+	case result.DeadlineExceeded:
+		f.Mode = "deadline"
+	case result.OOMKilled:
+		f.Mode = "oom"
+	case result.ExitCode != 0:
+		f.Mode = "crash"
+	default:
+		f.Mode = "success"
+	}
+	return f
+}
+
 // Execute simulates container execution. It respects ctx cancellation by
 // returning ErrDeadlineExceeded when the context is already done.
 func (f *FakeExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
