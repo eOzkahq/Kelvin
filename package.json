@@ -29,6 +29,7 @@
     "test:go:common": "cd packages/common && go test ./...",
     "test:go:api": "cd apps/api && go test ./...",
     "test:go:worker": "cd apps/worker && go test ./...",
+    "test:go:security": "cd apps/api && go test ./internal/security/",
     "test:schemas": "npm test --prefix scripts/schema-validation"
   }
 }
