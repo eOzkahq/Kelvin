@@ -29,18 +29,6 @@
     "test:go:common": "cd packages/common && go test ./...",
     "test:go:api": "cd apps/api && go test ./...",
     "test:go:worker": "cd apps/worker && go test ./...",
-    "test:schemas": "npm test --prefix scripts/schema-validation",
-    "test:web": "vitest run",
-    "lint": "eslint .",
-    "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down",
-    "dev:reset": "docker compose down -v --remove-orphans && docker compose up -d --build"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.39.5",
-    "eslint": "^9.39.5",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "typescript-eslint": "^8.72.1",
-    "vitest": "^5.0.5"
+    "test:schemas": "npm test --prefix scripts/schema-validation"
   }
 }
