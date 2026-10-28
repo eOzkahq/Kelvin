@@ -6,6 +6,7 @@ Messages use the `job-message.v1.json` contract embedded by `packages/schemas`: 
 
 Redis uses a consumer group, pending-entry reclaim after worker loss, per-job status hashes, Redis TTL heartbeats, and a delayed sorted set for retries. Retry delay is exponential (`base × 2^(attempt-1)`); after `max_attempts`, the message and failure reason are routed to the DLQ. `GetStatus` reports queue-side state; PostgreSQL remains authoritative for lifecycle state and reconciliation (ADR-0002/0003).
 
+Configure `RedisConfig.TokenSecret` with at least 32 random bytes and set `WorkerID` to issue short-lived HMAC worker tokens scoped to the job, tenant, and worker. When token signing is enabled, consumption verifies the signature, scope, and expiry before yielding work. Never log or expose token values.
 Configure `RedisConfig.TokenSecret` with at least 32 random bytes and set `WorkerID` to issue short-lived HMAC worker tokens scoped to the job and worker. When token signing is enabled, consumption verifies the signature, scope, and expiry before yielding work. Never log or expose token values.
 
 Redis must be deployed with ADR-0003 persistence, TLS, ACLs, and `noeviction`. The queue package expects the caller to configure the Redis client with those transport and access controls.

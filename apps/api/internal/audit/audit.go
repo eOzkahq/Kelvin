@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kelvin/kelvin/packages/common/logging"
+	"github.com/kelvin/kelvin/packages/common/tenant"
 	"go.uber.org/zap"
 )
 
@@ -71,6 +72,17 @@ func (s *Service) Record(ctx context.Context, evt Event) error {
 	if evt.ActorType == "" {
 		evt.ActorType = ActorSystem
 	}
+	contextTenant, tenantErr := tenant.ID(ctx)
+	if tenantErr == nil {
+		if evt.TenantID != nil && *evt.TenantID != contextTenant {
+			return errors.New("audit: event tenant does not match authenticated tenant context")
+		}
+		if evt.TenantID == nil {
+			evt.TenantID = &contextTenant
+		}
+	} else if evt.TenantID != nil || evt.ActorType == ActorUser || evt.ActorType == ActorWorker {
+		return errors.New("audit: tenant context required for tenant-owned event")
+	}
 	if evt.ID == uuid.Nil {
 		evt.ID = uuid.New()
 	}
@@ -114,7 +126,22 @@ func (s *Service) Record(ctx context.Context, evt Event) error {
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 
-	_, err := s.db.ExecContext(
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("audit: begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, "SET LOCAL ROLE kelvin_audit_writer"); err != nil {
+		return fmt.Errorf("audit: assume append-only writer role: %w", err)
+	}
+	tenantValue := ""
+	if evt.TenantID != nil {
+		tenantValue = evt.TenantID.String()
+	}
+	if _, err = tx.ExecContext(ctx, "SELECT set_config('app.tenant_id', $1, true)", tenantValue); err != nil {
+		return fmt.Errorf("audit: set tenant context: %w", err)
+	}
+	_, err = tx.ExecContext(
 		ctx,
 		query,
 		evt.ID,
@@ -136,7 +163,8 @@ func (s *Service) Record(ctx context.Context, evt Event) error {
 		)
 		return fmt.Errorf("audit: failed to insert audit record: %w", err)
 	}
-
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("audit: commit event: %w", err)
+	}
 	return nil
 }
-

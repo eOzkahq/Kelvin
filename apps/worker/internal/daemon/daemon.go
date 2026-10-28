@@ -9,6 +9,7 @@ import (
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
+	"github.com/kelvin/kelvin/packages/common/tenant"
 	"go.uber.org/zap"
 )
 
@@ -62,6 +63,15 @@ func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, regist
 			}
 			continue
 		}
+		jobCtx, tenantErr := tenant.ParseAndWithID(ctx, job.TenantID)
+		if tenantErr != nil {
+			log.Warn("job has invalid tenant context; refusing execution", zap.String("job_id", job.ID))
+			if failErr := q.Fail(ctx, job, "invalid tenant context"); failErr != nil {
+				log.Error("failed to reject unscoped job", zap.Error(failErr))
+			}
+			continue
+		}
+		process(jobCtx, log, q, registry, job, cfg.WorkerID, cfg.HeartbeatEvery)
 		process(ctx, log, q, registry, job, cfg.WorkerID, cfg.HeartbeatEvery)
 	}
 }

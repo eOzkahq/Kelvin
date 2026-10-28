@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/kelvin/kelvin/packages/common/tenant"
 )
 
 func TestPasswordHashing(t *testing.T) {
@@ -89,9 +90,10 @@ func TestJWTNegativeSecurityVectors(t *testing.T) {
 	// Vector 1: Tampered token signature
 	tamperedService, _ := NewTokenService("differentSecretKeyMustBe32BytesLong!")
 	p := Principal{
-		UserID:   uuid.New(),
-		TenantID: uuid.New(),
-		Role:     RoleTenantAdmin,
+		UserID:    uuid.New(),
+		TenantID:  uuid.New(),
+		SessionID: uuid.New(),
+		Role:      RoleTenantAdmin,
 	}
 	forgedPair, _ := tamperedService.GenerateTokenPair(p)
 
@@ -130,9 +132,10 @@ func TestAuthMiddlewareAndTenantGuard(t *testing.T) {
 	userA := uuid.New()
 
 	principalA := Principal{
-		UserID:   userA,
-		TenantID: tenantA,
-		Role:     RoleSecurityAnalyst,
+		UserID:    userA,
+		TenantID:  tenantA,
+		SessionID: uuid.New(),
+		Role:      RoleSecurityAnalyst,
 	}
 	pairA, _ := service.GenerateTokenPair(principalA)
 
@@ -146,6 +149,13 @@ func TestAuthMiddlewareAndTenantGuard(t *testing.T) {
 			RequireRole(RoleSecurityAnalyst)(handler),
 		),
 	)
+	contextHandler := Middleware(service)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, err := tenant.ID(r.Context())
+		if err != nil || got != tenantA {
+			t.Errorf("tenant context=%s err=%v", got, err)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
 
 	// Case 1: Unauthenticated -> 401
 	reqUnauth := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
@@ -158,10 +168,16 @@ func TestAuthMiddlewareAndTenantGuard(t *testing.T) {
 	// Case 2: Authenticated for Tenant A -> 200 OK
 	reqAuth := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
 	reqAuth.Header.Set("Authorization", "Bearer "+pairA.AccessToken)
+	reqAuth.Header.Set("X-Tenant-ID", tenantB.String())
 	recAuth := httptest.NewRecorder()
 	protectedHandler.ServeHTTP(recAuth, reqAuth)
 	if recAuth.Code != http.StatusOK {
 		t.Fatalf("expected 200 OK for valid auth, got %d", recAuth.Code)
+	}
+	recContext := httptest.NewRecorder()
+	contextHandler.ServeHTTP(recContext, reqAuth)
+	if recContext.Code != http.StatusNoContent {
+		t.Fatalf("tenant context middleware status=%d", recContext.Code)
 	}
 
 	// Case 3: Cross-tenant attack (Principal belongs to Tenant A, resource belongs to Tenant B) -> 403 Forbidden
@@ -172,6 +188,23 @@ func TestAuthMiddlewareAndTenantGuard(t *testing.T) {
 	crossTenantHandler.ServeHTTP(recCross, reqAuth)
 	if recCross.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 Forbidden on cross-tenant IDOR attempt, got %d", recCross.Code)
+	}
+}
+
+func TestPlatformAdminTenantGuardDoesNotBypassIsolation(t *testing.T) {
+	service, _ := NewTokenService("01234567890123456789012345678901")
+	principal := Principal{UserID: uuid.New(), TenantID: uuid.New(), SessionID: uuid.New(), Role: RolePlatformAdmin}
+	pair, err := service.GenerateTokenPair(principal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := Middleware(service)(TenantGuard(uuid.New())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })))
+	req := httptest.NewRequest(http.MethodGet, "/tenant", nil)
+	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("platform admin cross-tenant status=%d", rec.Code)
 	}
 }
 
@@ -199,4 +232,3 @@ func TestRateLimiter(t *testing.T) {
 		t.Fatal("expected different IP to be allowed")
 	}
 }
-
