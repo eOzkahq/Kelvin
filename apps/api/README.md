@@ -10,7 +10,7 @@ The API control plane service. Implements authentication & tenant RBAC, target s
 | :--- | :--- |
 | `cmd/` | Application entrypoints |
 | `internal/auth/` | Auth & tenant RBAC service |
-| `internal/scope/` | Target scope & validation service (security-critical) |
+| `pkg/scope/` | Shared target validation entry point and RFC 7807 scope errors |
 | `internal/orchestrator/` | Assessment job orchestrator |
 | `internal/findings/` | Finding normalization & deduplication service |
 | `pkg/` | Library code safe for import by other apps |
