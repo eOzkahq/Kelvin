@@ -72,6 +72,7 @@ func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, regist
 			continue
 		}
 		process(jobCtx, log, q, registry, job, cfg.WorkerID, cfg.HeartbeatEvery)
+		process(ctx, log, q, registry, job, cfg.WorkerID, cfg.HeartbeatEvery)
 	}
 }
 
