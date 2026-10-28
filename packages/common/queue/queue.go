@@ -139,7 +139,7 @@ func (q *RedisQueue) Enqueue(ctx context.Context, m Message) error {
 		m.MaxAttempts = q.cfg.MaxAttempts
 	}
 	if m.WorkerToken == "" && len(q.cfg.TokenSecret) >= 32 && q.cfg.WorkerID != "" {
-		token, err := (WorkerTokens{Secret: q.cfg.TokenSecret, TTL: q.cfg.TokenTTL}).Issue(m.ID, q.cfg.WorkerID)
+		token, err := (WorkerTokens{Secret: q.cfg.TokenSecret, TTL: q.cfg.TokenTTL}).Issue(m.ID, m.TenantID, q.cfg.WorkerID)
 		if err != nil {
 			return err
 		}
@@ -225,7 +225,7 @@ func (q *RedisQueue) decodeDelivery(ctx context.Context, r redis.XMessage) (Deli
 		return Delivery{}, false, nil
 	}
 	if len(q.cfg.TokenSecret) >= 32 {
-		if err := (WorkerTokens{Secret: q.cfg.TokenSecret}).Verify(m.WorkerToken, m.ID, q.cfg.WorkerID); err != nil {
+		if err := (WorkerTokens{Secret: q.cfg.TokenSecret}).Verify(m.WorkerToken, m.ID, m.TenantID, q.cfg.WorkerID); err != nil {
 			_ = q.client.XAdd(ctx, &redis.XAddArgs{Stream: q.dlq(), Values: map[string]any{"message": raw, "job_id": m.ID, "reason": "worker token validation failed"}}).Err()
 			_ = q.client.XAck(ctx, q.stream(), q.cfg.Group, r.ID).Err()
 			return Delivery{}, false, nil
@@ -500,9 +500,9 @@ type WorkerTokens struct {
 	Now    func() time.Time
 }
 
-func (t WorkerTokens) Issue(jobID, workerID string) (string, error) {
-	if len(t.Secret) < 32 || jobID == "" || workerID == "" {
-		return "", errors.New("queue: token secret (32 bytes), job ID and worker ID required")
+func (t WorkerTokens) Issue(jobID, tenantID, workerID string) (string, error) {
+	if len(t.Secret) < 32 || jobID == "" || tenantID == "" || workerID == "" {
+		return "", errors.New("queue: token secret (32 bytes), job ID, tenant ID and worker ID required")
 	}
 	now := time.Now
 	if t.Now != nil {
@@ -512,13 +512,13 @@ func (t WorkerTokens) Issue(jobID, workerID string) (string, error) {
 	if ttl <= 0 {
 		ttl = 15 * time.Minute
 	}
-	payload, _ := json.Marshal(map[string]any{"job_id": jobID, "worker_id": workerID, "exp": now().Add(ttl).Unix()})
+	payload, _ := json.Marshal(map[string]any{"job_id": jobID, "tenant_id": tenantID, "worker_id": workerID, "exp": now().Add(ttl).Unix()})
 	raw := base64.RawURLEncoding.EncodeToString(payload)
 	mac := hmac.New(sha256.New, t.Secret)
 	_, _ = mac.Write([]byte(raw))
 	return raw + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
 }
-func (t WorkerTokens) Verify(token, jobID, workerID string) error {
+func (t WorkerTokens) Verify(token, jobID, tenantID, workerID string) error {
 	parts := strings.Split(token, ".")
 	if len(parts) != 2 || len(t.Secret) < 32 {
 		return errors.New("queue: invalid worker token")
@@ -538,10 +538,11 @@ func (t WorkerTokens) Verify(token, jobID, workerID string) error {
 	}
 	var c struct {
 		JobID    string `json:"job_id"`
+		TenantID string `json:"tenant_id"`
 		WorkerID string `json:"worker_id"`
 		Exp      int64  `json:"exp"`
 	}
-	if json.Unmarshal(b, &c) != nil || c.JobID != jobID || c.WorkerID != workerID {
+	if json.Unmarshal(b, &c) != nil || c.JobID != jobID || c.TenantID != tenantID || c.WorkerID != workerID {
 		return errors.New("queue: worker token scope mismatch")
 	}
 	now := time.Now

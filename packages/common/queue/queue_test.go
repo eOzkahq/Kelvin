@@ -60,24 +60,27 @@ func TestMemoryQueueLifecycleAndRetry(t *testing.T) {
 func TestWorkerTokenScopeExpiryAndSignature(t *testing.T) {
 	now := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
 	tokens := WorkerTokens{Secret: []byte("01234567890123456789012345678901"), TTL: time.Minute, Now: func() time.Time { return now }}
-	token, err := tokens.Issue("job-1", "worker-1")
+	token, err := tokens.Issue("job-1", "tenant-1", "worker-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := tokens.Verify(token, "job-1", "worker-1"); err != nil {
+	if err := tokens.Verify(token, "job-1", "tenant-1", "worker-1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tokens.Verify(token, "job-2", "worker-1"); err == nil {
+	if err := tokens.Verify(token, "job-2", "tenant-1", "worker-1"); err == nil {
 		t.Fatal("wrong job scope accepted")
 	}
-	if err := tokens.Verify(token, "job-1", "worker-2"); err == nil {
+	if err := tokens.Verify(token, "job-1", "tenant-1", "worker-2"); err == nil {
 		t.Fatal("wrong worker scope accepted")
 	}
+	if err := tokens.Verify(token, "job-1", "tenant-2", "worker-1"); err == nil {
+		t.Fatal("wrong tenant scope accepted")
+	}
 	tokens.Now = func() time.Time { return now.Add(time.Minute) }
-	if err := tokens.Verify(token, "job-1", "worker-1"); err == nil {
+	if err := tokens.Verify(token, "job-1", "tenant-1", "worker-1"); err == nil {
 		t.Fatal("expired token accepted")
 	}
-	if err := tokens.Verify(token+"x", "job-1", "worker-1"); err == nil {
+	if err := tokens.Verify(token+"x", "job-1", "tenant-1", "worker-1"); err == nil {
 		t.Fatal("tampered token accepted")
 	}
 }

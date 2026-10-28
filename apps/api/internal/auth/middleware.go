@@ -9,6 +9,7 @@ import (
 	"github.com/kelvin/kelvin/apps/api/internal/httpapi"
 	kelvinerrors "github.com/kelvin/kelvin/packages/common/errors"
 	"github.com/kelvin/kelvin/packages/common/logging"
+	"github.com/kelvin/kelvin/packages/common/tenant"
 	"go.uber.org/zap"
 )
 
@@ -51,6 +52,11 @@ func Middleware(tokenService *TokenService) func(http.Handler) http.Handler {
 
 			// Add correlation and principal info to request context
 			ctx := ContextWithPrincipal(r.Context(), principal)
+			ctx, err = tenant.WithID(ctx, principal.TenantID)
+			if err != nil {
+				httpapi.WriteProblem(w, r, kelvinerrors.NewUnauthenticated("token has no valid tenant context"))
+				return
+			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -90,12 +96,6 @@ func TenantGuard(expectedTenantID uuid.UUID) func(http.Handler) http.Handler {
 			principal, ok := PrincipalFromContext(r.Context())
 			if !ok {
 				httpapi.WriteProblem(w, r, kelvinerrors.NewUnauthenticated("authentication required"))
-				return
-			}
-
-			// PLATFORM_ADMIN can be authorized across tenants with audited break-glass
-			if principal.Role == RolePlatformAdmin {
-				next.ServeHTTP(w, r)
 				return
 			}
 

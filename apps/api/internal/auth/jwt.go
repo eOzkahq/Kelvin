@@ -81,6 +81,12 @@ func NewTokenService(secretKey string) (*TokenService, error) {
 
 // GenerateTokenPair creates a new short-lived access JWT and opaque refresh token.
 func (s *TokenService) GenerateTokenPair(p Principal) (*TokenPair, error) {
+	if p.UserID == uuid.Nil || p.TenantID == uuid.Nil || p.SessionID == uuid.Nil {
+		return nil, errors.New("user, tenant, and session IDs are required to issue tokens")
+	}
+	if p.Role != RolePlatformAdmin && p.Role != RoleTenantAdmin && p.Role != RoleSecurityAnalyst && p.Role != RoleReadOnlyAuditor {
+		return nil, errors.New("invalid principal role")
+	}
 	now := time.Now().UTC()
 	accessExpiryTime := now.Add(s.accessExpiry)
 
@@ -141,21 +147,27 @@ func (s *TokenService) VerifyAccessToken(tokenStr string) (*Principal, error) {
 	}
 
 	userID, err := uuid.Parse(claims.UserID)
-	if err != nil {
+	if err != nil || userID == uuid.Nil {
 		return nil, errors.New("invalid user_id in claims")
 	}
 	tenantID, err := uuid.Parse(claims.TenantID)
-	if err != nil {
+	if err != nil || tenantID == uuid.Nil {
 		return nil, errors.New("invalid tenant_id in claims")
 	}
-	sessionID, _ := uuid.Parse(claims.SessionID)
+	sessionID, err := uuid.Parse(claims.SessionID)
+	if err != nil || sessionID == uuid.Nil {
+		return nil, errors.New("invalid session_id in claims")
+	}
+	role := Role(claims.Role)
+	if role != RolePlatformAdmin && role != RoleTenantAdmin && role != RoleSecurityAnalyst && role != RoleReadOnlyAuditor {
+		return nil, errors.New("invalid role in claims")
+	}
 
 	return &Principal{
 		UserID:    userID,
 		TenantID:  tenantID,
 		Email:     claims.Email,
-		Role:      Role(claims.Role),
+		Role:      role,
 		SessionID: sessionID,
 	}, nil
 }
-

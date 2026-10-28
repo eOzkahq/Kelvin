@@ -7,13 +7,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -183,22 +183,19 @@ func (m *Migrator) instance() (*migrate.Migrate, error) {
 	return mig, nil
 }
 
-// SetTenantContext sets the session-level tenant identifier for PostgreSQL Row-Level Security.
-// In compliance with DATA_MODEL.md §9.1: SET LOCAL app.tenant_id = '<uuid>'.
+// SetTenantContext sets the transaction-local application role and tenant for PostgreSQL RLS.
+// In compliance with DATA_MODEL.md §9.1: transaction-local app.tenant_id.
 func SetTenantContext(ctx context.Context, tx *sql.Tx, tenantID string) error {
-	if tenantID == "" {
-		return errors.New("database: tenantID must not be empty")
+	id, err := uuid.Parse(tenantID)
+	if err != nil || id == uuid.Nil {
+		return errors.New("database: invalid tenant ID")
 	}
-	// Validate uuid format safely
-	if _, err := url.PathUnescape(tenantID); err != nil {
-		return fmt.Errorf("database: invalid tenant ID format: %w", err)
+	if _, err = tx.ExecContext(ctx, "SET LOCAL ROLE kelvin_app"); err != nil {
+		return fmt.Errorf("database: assume tenant-scoped application role: %w", err)
 	}
-
-	query := fmt.Sprintf("SET LOCAL app.tenant_id = '%s'", tenantID)
-	_, err := tx.ExecContext(ctx, query)
+	_, err = tx.ExecContext(ctx, "SELECT set_config('app.tenant_id', $1, true)", id.String())
 	if err != nil {
 		return fmt.Errorf("database: failed to set RLS tenant context: %w", err)
 	}
 	return nil
 }
-

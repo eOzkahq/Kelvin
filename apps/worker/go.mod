@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/kelvin/kelvin/packages/common v0.0.0-00010101000000-000000000000
 	github.com/kelvin/kelvin/packages/schemas v0.0.0-00010101000000-000000000000
+	github.com/jackc/pgx/v5 v5.11.0
 	github.com/redis/go-redis/v9 v9.7.3
 	github.com/spf13/viper v1.21.0
 	go.uber.org/zap v1.27.0
