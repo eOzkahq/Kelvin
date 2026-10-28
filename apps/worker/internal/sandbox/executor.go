@@ -126,6 +126,11 @@ func (s Spec) Validate() error {
 		if s.Deadline <= 0 {
 			errs = append(errs, "hard execution deadline must be positive")
 		}
+	if s.PIDsLimit <= 0 {
+		errs = append(errs, "pids-limit must be positive")
+	}
+	if s.Deadline <= 0 {
+		errs = append(errs, "hard execution deadline must be positive")
 	}
 	for _, mount := range s.TmpfsMounts {
 		if strings.Contains(mount, "/var/run/docker.sock") {

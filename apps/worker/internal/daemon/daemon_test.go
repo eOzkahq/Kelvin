@@ -108,6 +108,31 @@ func TestRunProcessesJobWithRegisteredAdapter(t *testing.T) {
 	}
 }
 
+type resultAdapter struct {
+	name   string
+	result adapters.Result
+	err    error
+}
+
+func (s resultAdapter) Name() string { return s.name }
+
+func (s resultAdapter) Execute(ctx context.Context, t adapters.Task) (adapters.Result, error) {
+	return s.result, s.err
+}
+
+func validFindingPayload() []byte {
+	return []byte(`{
+		"schema_version": "1.0",
+		"title": "example finding",
+		"severity": "INFORMATIONAL",
+		"confidence": 0.5,
+		"target": {"asset": "example.com"},
+		"vulnerability": {"template_id": "example-template"},
+		"scanner": {"name": "stub", "adapter_version": "1.0.0"},
+		"discovered_at": "2026-10-28T00:00:00Z"
+	}`)
+}
+
 func TestRunCompletesJobWithValidFindings(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -115,7 +140,13 @@ func TestRunCompletesJobWithValidFindings(t *testing.T) {
 	q := &recordingQueue{inner: queue.NewMemoryQueue()}
 	registry := adapters.NewRegistry()
 	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
-		t.Fatal(err)
+	if err := registry.Register(resultAdapter{name: "stub", result: adapters.Result{
+		ExitCode: 0,
+		Findings: validFindingPayload(),
+		Duration: time.Second,
+	}}); err != nil {
+
+    t.Fatal(err)
 	}
 
 	done := make(chan error, 1)
@@ -126,6 +157,7 @@ func TestRunCompletesJobWithValidFindings(t *testing.T) {
 			Executor:     sandbox.NewFake().WithResult(sandbox.Result{ExitCode: 0, Findings: validFindingPayload(), Duration: time.Second}),
 			Limits:       limits.DefaultLimits(),
 		}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: nil}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{
@@ -158,6 +190,11 @@ func TestRunFailsJobOnDeadlineExceeded(t *testing.T) {
 	q := &recordingQueue{inner: queue.NewMemoryQueue()}
 	registry := adapters.NewRegistry()
 	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
+	if err := registry.Register(resultAdapter{name: "stub", result: adapters.Result{
+		ExitCode:         -1,
+		DeadlineExceeded: true,
+		Duration:         30 * time.Second,
+	}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -169,6 +206,8 @@ func TestRunFailsJobOnDeadlineExceeded(t *testing.T) {
 			Executor:     sandbox.NewFake().WithResult(sandbox.Result{ExitCode: -1, DeadlineExceeded: true, Duration: 30 * time.Second}),
 			Limits:       limits.DefaultLimits(),
 		}, q, registry)
+
+    done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: nil}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{
@@ -197,7 +236,14 @@ func TestRunFailsJobOnOOM(t *testing.T) {
 
 	q := &recordingQueue{inner: queue.NewMemoryQueue()}
 	registry := adapters.NewRegistry()
-	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
+
+  
+  if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
+	if err := registry.Register(resultAdapter{name: "stub", result: adapters.Result{
+		ExitCode:  137,
+		OOMKilled: true,
+		Duration:  10 * time.Second,
+	}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -209,6 +255,7 @@ func TestRunFailsJobOnOOM(t *testing.T) {
 			Executor:     sandbox.NewFake().WithResult(sandbox.Result{ExitCode: 137, OOMKilled: true, Duration: 10 * time.Second}),
 			Limits:       limits.DefaultLimits(),
 		}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: nil}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{
@@ -238,6 +285,11 @@ func TestRunFailsJobOnInvalidFindings(t *testing.T) {
 	q := &recordingQueue{inner: queue.NewMemoryQueue()}
 	registry := adapters.NewRegistry()
 	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
+	if err := registry.Register(resultAdapter{name: "stub", result: adapters.Result{
+		ExitCode: 0,
+		Findings: []byte(`{"unknown_field": true}`),
+		Duration: time.Second,
+	}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -249,6 +301,7 @@ func TestRunFailsJobOnInvalidFindings(t *testing.T) {
 			Executor:     sandbox.NewFake().WithResult(sandbox.Result{ExitCode: 0, Findings: []byte(`{"unknown_field": true}`), Duration: time.Second}),
 			Limits:       limits.DefaultLimits(),
 		}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: nil}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{
@@ -278,6 +331,11 @@ func TestRunFailsJobOnScannerCrash(t *testing.T) {
 	q := &recordingQueue{inner: queue.NewMemoryQueue()}
 	registry := adapters.NewRegistry()
 	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
+	if err := registry.Register(resultAdapter{name: "stub", result: adapters.Result{
+		ExitCode: 1,
+		Stderr:   "scanner panic",
+		Duration: 5 * time.Second,
+	}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -289,6 +347,7 @@ func TestRunFailsJobOnScannerCrash(t *testing.T) {
 			Executor:     sandbox.NewFake().WithResult(sandbox.Result{ExitCode: 1, Stderr: "scanner panic", Duration: 5 * time.Second}),
 			Limits:       limits.DefaultLimits(),
 		}, q, registry)
+		done <- Run(ctx, zap.NewNop(), Config{WorkerID: "w-test", PollInterval: 10 * time.Millisecond, Executor: nil}, q, registry)
 	}()
 
 	q.inner.Push(queue.Job{
@@ -366,6 +425,14 @@ func validFindingPayload() []byte {
 type stubAdapter struct{ name string }
 
 func (s stubAdapter) Name() string { return s.name }
+
+func (s stubAdapter) Execute(ctx context.Context, t adapters.Task) (adapters.Result, error) {
+	return adapters.Result{
+		ExitCode: 0,
+		Findings: validFindingPayload(),
+		Duration: time.Second,
+	}, nil
+}
 
 func TestWorkerImportsSharedFindingContract(t *testing.T) {
 	raw := schemas.MustRead("finding.v1.json")
