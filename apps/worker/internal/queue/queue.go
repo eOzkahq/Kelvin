@@ -2,8 +2,11 @@ package queue
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
+
+	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
 )
 
 // Job is one unit of scanner work dispatched by the control plane
@@ -15,6 +18,9 @@ type Job struct {
 	CorrelationID string
 	Type          string
 	Payload       []byte
+	WorkerToken   string
+	DeliveryID    string
+	Attempts      int
 }
 
 // Queue is the worker-side abstraction over the job broker. Implementations:
@@ -48,6 +54,78 @@ type MemoryQueue struct {
 	mu   sync.Mutex
 	jobs []Job
 	ch   chan struct{}
+}
+
+// RedisQueue adapts the shared backend-neutral queue to the worker daemon API.
+type RedisQueue struct {
+	Queue      commonqueue.IJobQueue
+	WorkerID   string
+	mu         sync.Mutex
+	deliveries map[string]commonqueue.Delivery
+}
+
+func NewRedisQueue(q commonqueue.IJobQueue, workerID string) (*RedisQueue, error) {
+	if q == nil || workerID == "" {
+		return nil, errors.New("worker queue requires a queue and worker ID")
+	}
+	return &RedisQueue{Queue: q, WorkerID: workerID, deliveries: map[string]commonqueue.Delivery{}}, nil
+}
+func (r *RedisQueue) Enqueue(ctx context.Context, j Job) error {
+	return r.Queue.Enqueue(ctx, commonqueue.Message{Version: 1, ID: j.ID, AssessmentID: j.AssessmentID, TenantID: j.TenantID, CorrelationID: j.CorrelationID, Type: j.Type, Payload: j.Payload})
+}
+func (r *RedisQueue) Dequeue(ctx context.Context) (Job, error) {
+	d, err := r.Queue.Consume(ctx, r.WorkerID)
+	if err != nil {
+		return Job{}, err
+	}
+	r.mu.Lock()
+	r.deliveries[d.Message.ID] = d
+	r.mu.Unlock()
+	return Job{ID: d.Message.ID, AssessmentID: d.Message.AssessmentID, TenantID: d.Message.TenantID, CorrelationID: d.Message.CorrelationID, Type: d.Message.Type, Payload: d.Message.Payload, WorkerToken: d.Message.WorkerToken, DeliveryID: d.DeliveryID, Attempts: d.Attempts}, nil
+}
+func (r *RedisQueue) Complete(ctx context.Context, j Job) error {
+	d, ok := r.delivery(j)
+	if !ok {
+		return errors.New("queue delivery not found")
+	}
+	if err := r.Queue.Complete(ctx, d); err != nil {
+		return err
+	}
+	r.forget(j.ID)
+	return nil
+}
+func (r *RedisQueue) Fail(ctx context.Context, j Job, reason string) error {
+	d, ok := r.delivery(j)
+	if !ok {
+		return errors.New("queue delivery not found")
+	}
+	if err := r.Queue.Fail(ctx, d, errors.New(reason)); err != nil {
+		return err
+	}
+	r.forget(j.ID)
+	return nil
+}
+func (r *RedisQueue) delivery(j Job) (commonqueue.Delivery, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	d, ok := r.deliveries[j.ID]
+	if ok {
+		if j.DeliveryID != "" {
+			d.DeliveryID = j.DeliveryID
+		}
+		if j.Attempts > 0 {
+			d.Attempts = j.Attempts
+		}
+	}
+	return d, ok
+}
+func (r *RedisQueue) forget(id string)                            { r.mu.Lock(); delete(r.deliveries, id); r.mu.Unlock() }
+func (r *RedisQueue) Cancel(ctx context.Context, id string) error { return r.Queue.Cancel(ctx, id) }
+func (r *RedisQueue) GetStatus(ctx context.Context, id string) (commonqueue.Status, error) {
+	return r.Queue.GetStatus(ctx, id)
+}
+func (r *RedisQueue) Heartbeat(ctx context.Context, id, worker string, ttl time.Duration) error {
+	return r.Queue.Heartbeat(ctx, id, worker, ttl)
 }
 
 // NewMemoryQueue builds an empty in-process queue.
