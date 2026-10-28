@@ -89,7 +89,26 @@ jobs:
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
   # ----------------------------------------------------------------------------
-  # 4. Integration Tests with Service Containers (Postgres 15 & Redis 7)
+  # 4. Security Test Harness (authentication, authorization, IDOR, boundaries)
+  # ----------------------------------------------------------------------------
+  # Runs the Kelvin API security-testing baseline (tests/security strategy) on
+  # every push/PR. It is self-contained (httptest + deterministic JWT fixtures,
+  # no service containers) and exercises the real auth middleware stack.
+  security-test:
+    name: Security test harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache: true
+      - name: Run security test harness
+        working-directory: apps/api
+        run: go test -v -race ./internal/security/
+
+  # ----------------------------------------------------------------------------
+  # 5. Integration Tests with Service Containers (Postgres 15 & Redis 7)
   # ----------------------------------------------------------------------------
   integration-test:
     name: Integration tests (Postgres 15 & Redis 7)
