@@ -81,24 +81,6 @@ func TestWorkerTokenScopeExpiryAndSignature(t *testing.T) {
 		t.Fatal("expired token accepted")
 	}
 	if err := tokens.Verify(token+"x", "job-1", "tenant-1", "worker-1"); err == nil {
-	token, err := tokens.Issue("job-1", "worker-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := tokens.Verify(token, "job-1", "worker-1"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tokens.Verify(token, "job-2", "worker-1"); err == nil {
-		t.Fatal("wrong job scope accepted")
-	}
-	if err := tokens.Verify(token, "job-1", "worker-2"); err == nil {
-		t.Fatal("wrong worker scope accepted")
-	}
-	tokens.Now = func() time.Time { return now.Add(time.Minute) }
-	if err := tokens.Verify(token, "job-1", "worker-1"); err == nil {
-		t.Fatal("expired token accepted")
-	}
-	if err := tokens.Verify(token+"x", "job-1", "worker-1"); err == nil {
 		t.Fatal("tampered token accepted")
 	}
 }
