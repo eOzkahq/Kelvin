@@ -1,14 +1,19 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/kelvin/kelvin/apps/api/internal/config"
 	"github.com/kelvin/kelvin/apps/api/internal/middleware"
+	"github.com/kelvin/kelvin/apps/api/pkg/job"
+	kelvinerrors "github.com/kelvin/kelvin/packages/common/errors"
 	schemas "github.com/kelvin/kelvin/packages/schemas"
 	"go.uber.org/zap"
 )
@@ -155,3 +160,108 @@ func TestSharedContractsImportableFromAPI(t *testing.T) {
 		}
 	}
 }
+
+// mockJobStore is a test double for jobStoreIface.
+type mockJobStore struct {
+	transitionErr error
+	transitionID  string
+	transitionTo  job.State
+}
+
+func (m *mockJobStore) Transition(ctx context.Context, id string, to job.State, workerID string) error {
+	m.transitionID = id
+	m.transitionTo = to
+	return m.transitionErr
+}
+
+func newHandlerWithStore(store jobStoreIface) http.Handler {
+	s := New(config.Config{
+		APIVersion:     "1.0.0-alpha",
+		BodyLimitBytes: 1 << 20,
+	}, zap.NewNop())
+	s.SetJobStore(store)
+	return s.Handler()
+}
+
+func TestCancelAssessmentWithoutStoreReturns503(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/assessments/"+uuid.New().String()+"/cancel", nil)
+	rec := httptest.NewRecorder()
+	newHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/problem+json") {
+		t.Fatalf("content-type = %q", ct)
+	}
+}
+
+func TestCancelAssessmentSuccess(t *testing.T) {
+	store := &mockJobStore{}
+	id := uuid.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/assessments/"+id.String()+"/cancel", nil)
+	rec := httptest.NewRecorder()
+	newHandlerWithStore(store).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if store.transitionID != id.String() {
+		t.Errorf("transition id = %q, want %q", store.transitionID, id.String())
+	}
+	if store.transitionTo != job.Cancelled {
+		t.Errorf("transition to = %q, want %q", store.transitionTo, job.Cancelled)
+	}
+}
+
+func TestCancelAssessmentInvalidUUID(t *testing.T) {
+	store := &mockJobStore{}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/assessments/not-a-uuid/cancel", nil)
+	rec := httptest.NewRecorder()
+	newHandlerWithStore(store).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", rec.Code)
+	}
+	if store.transitionErr != nil {
+		t.Errorf("transition should not be called for invalid UUID, got err=%v", store.transitionErr)
+	}
+}
+
+func TestCancelAssessmentTerminalStateReturns409(t *testing.T) {
+	store := &mockJobStore{transitionErr: job.ErrInvalidTransition}
+	id := uuid.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/assessments/"+id.String()+"/cancel", nil)
+	rec := httptest.NewRecorder()
+	newHandlerWithStore(store).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", rec.Code)
+	}
+}
+
+func TestCancelAssessmentNotFoundReturns404(t *testing.T) {
+	store := &mockJobStore{transitionErr: job.ErrNotFound}
+	id := uuid.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/assessments/"+id.String()+"/cancel", nil)
+	rec := httptest.NewRecorder()
+	newHandlerWithStore(store).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestCancelAssessmentInternalErrorReturns500(t *testing.T) {
+	store := &mockJobStore{transitionErr: errors.New("db connection lost")}
+	id := uuid.New()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/assessments/"+id.String()+"/cancel", nil)
+	rec := httptest.NewRecorder()
+	newHandlerWithStore(store).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+}
+
+var _ = kelvinerrors.NewNotFound

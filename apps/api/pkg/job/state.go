@@ -9,7 +9,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/kelvin/kelvin/apps/api/internal/database"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -60,9 +59,7 @@ func ValidateTransition(from, to State) error {
 type Store struct{ DB *pgxpool.Pool }
 
 func (s Store) Transition(ctx context.Context, id string, to State, workerID string) error {
-	tx, err := database.BeginTenantTx(ctx, s.DB)
 	tx, err := s.DB.BeginTx(ctx, pgx.TxOptions{})
-
 	if err != nil {
 		return fmt.Errorf("begin job transition: %w", err)
 	}
@@ -100,27 +97,22 @@ func (s Store) SetDeadline(ctx context.Context, id string, duration time.Duratio
 		return errors.New("job execution deadline must be positive")
 	}
 
-	tx, err := database.BeginTenantTx(ctx, s.DB)
+	tx, err := s.DB.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("begin set deadline: %w", err)
 	}
 	defer tx.Rollback(ctx)
 	tag, err := tx.Exec(ctx, `UPDATE jobs SET hard_deadline_at=now()+($2 * interval '1 second'), updated_at=now()
-
-	tag, err := s.DB.Exec(ctx, `UPDATE jobs SET hard_deadline_at=now()+($2 * interval '1 second'), updated_at=now()
-
-		WHERE id=$1 AND status='RUNNING'`, id, duration.Seconds())
+        WHERE id=$1 AND status='RUNNING'`, id, duration.Seconds())
 	if err != nil {
 		return fmt.Errorf("set job execution deadline: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
+		_ = tx.Rollback(ctx)
 		return ErrNotFound
 	}
 
 	return tx.Commit(ctx)
-
-	return nil
-
 }
 
 // RecordHeartbeat extends the PostgreSQL worker lease for a live running job.
@@ -131,27 +123,22 @@ func (s Store) RecordHeartbeat(ctx context.Context, id, workerID string, lease t
 		return errors.New("job heartbeat requires a worker ID and positive lease")
 	}
 
-	tx, err := database.BeginTenantTx(ctx, s.DB)
+	tx, err := s.DB.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("begin record heartbeat: %w", err)
 	}
 	defer tx.Rollback(ctx)
 	tag, err := tx.Exec(ctx, `UPDATE jobs SET heartbeat_at=now(), lease_expires_at=now()+($3 * interval '1 second'), updated_at=now()
-
-	tag, err := s.DB.Exec(ctx, `UPDATE jobs SET heartbeat_at=now(), lease_expires_at=now()+($3 * interval '1 second'), updated_at=now()
-
-		WHERE id=$1 AND worker_id=$2 AND status='RUNNING'`, id, workerID, lease.Seconds())
+        WHERE id=$1 AND worker_id=$2 AND status='RUNNING'`, id, workerID, lease.Seconds())
 	if err != nil {
 		return fmt.Errorf("record job heartbeat: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
+		_ = tx.Rollback(ctx)
 		return ErrNotFound
 	}
 
 	return tx.Commit(ctx)
-
-	return nil
-
 }
 
 // Heartbeats are keyed by job and worker. TTL provides automatic cleanup;
@@ -194,15 +181,12 @@ func (h Heartbeats) Active(ctx context.Context, jobID, workerID string) (bool, e
 // their database heartbeat lease expires; SKIP LOCKED permits concurrent sweepers.
 func (s Store) ReapStalled(ctx context.Context) (int64, error) {
 
-	tx, err := database.BeginTenantTx(ctx, s.DB)
+	tx, err := s.DB.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("begin reap stalled: %w", err)
 	}
 	defer tx.Rollback(ctx)
 	tag, err := tx.Exec(ctx, `UPDATE jobs SET status='FAILED', finished_at=now(),
-
-	tag, err := s.DB.Exec(ctx, `UPDATE jobs SET status='FAILED', finished_at=now(),
-
         error_ref=COALESCE(error_ref,'worker heartbeat expired or execution deadline exceeded'), updated_at=now()
         WHERE id IN (SELECT id FROM jobs WHERE status='RUNNING' AND
         ((hard_deadline_at IS NOT NULL AND hard_deadline_at <= now()) OR
