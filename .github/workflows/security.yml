@@ -1,0 +1,129 @@
+name: Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    name: Security / Gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  go-security:
+    name: Security / Go (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - packages/schemas
+          - packages/common
+          - apps/api
+          - apps/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache: true
+      - name: Check known Go vulnerabilities
+        working-directory: ${{ matrix.module }}
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.2
+          "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: Run gosec
+        working-directory: ${{ matrix.module }}
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+          "$(go env GOPATH)/bin/gosec" -severity high ./...
+
+  frontend-security:
+    name: Security / Frontend lint and SAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - name: Install Semgrep
+        run: python3 -m pip install semgrep
+      - name: Run Semgrep security rules
+        run: >-
+          semgrep scan --error
+          --config p/security-audit
+          --config p/javascript
+          --config p/typescript
+          --config p/golang
+
+  npm-audit:
+    name: Security / npm dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Fail on high or critical npm advisories
+        run: npm audit --audit-level=high
+
+  trivy:
+    name: Security / Trivy filesystem and configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan dependencies, secrets, and configuration
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  container-sbom:
+    name: Security / PostgreSQL backup image SBOM and scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the PostgreSQL backup image
+        run: docker build -f deploy/postgres/Dockerfile.pgbackrest -t kelvin-postgres-backup:ci .
+      - name: Scan image and generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: kelvin-postgres-backup:ci
+          format: cyclonedx
+          output: kelvin-postgres-backup.cdx.json
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kelvin-postgres-backup-sbom
+          path: kelvin-postgres-backup.cdx.json
+          if-no-files-found: ignore

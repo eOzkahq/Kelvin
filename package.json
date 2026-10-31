@@ -23,6 +23,8 @@
     "dev:api": "cd apps/api && go run ./cmd/api",
     "dev:worker": "cd apps/worker && go run ./cmd/runner",
     "dev:web": "npm run dev --workspace @kelvin/web",
+    "lint": "eslint .",
+    "test:web": "vitest run --config apps/web/vite.config.ts",
     "test": "npm run test:go && npm run test:schemas",
     "test:go": "npm run test:go:schemas && npm run test:go:common && npm run test:go:api && npm run test:go:worker",
     "test:go:schemas": "cd packages/schemas && go test ./...",

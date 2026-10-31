@@ -9,6 +9,5 @@ paths = [
   '''\.env\.example$''',
   '''mock-target/.*''',
   '''packages/schemas/fixtures/.*''',
-  '''docs/.*'''
 ]
 
