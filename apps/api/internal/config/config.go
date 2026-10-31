@@ -63,6 +63,19 @@ type IdempotencyConfig struct {
 	TTLSeconds int64 `mapstructure:"ttl_seconds"` // TTL for idempotency records (default 24h = 86400)
 }
 
+// EvidenceConfig holds evidence artifact storage and signed URL settings.
+type EvidenceConfig struct {
+	SigningKey          string `mapstructure:"signing_key"`            // HMAC signing key for signed URLs (32+ bytes)
+	SignedURLTTLSeconds int    `mapstructure:"signed_url_ttl_seconds"` // TTL for signed download URLs (default 15min = 900)
+}
+
+// RetentionConfig holds evidence retention policy settings.
+type RetentionConfig struct {
+	ActiveDays     int `mapstructure:"active_days"`      // Days evidence remains active (default 90)
+	ArchivedDays   int `mapstructure:"archived_days"`    // Days evidence remains archived (default 270)
+	PurgeGraceDays int `mapstructure:"purge_grace_days"` // Grace days before hard delete (default 7)
+}
+
 // Config represents the immutable, strongly-typed configuration of the API control plane.
 type Config struct {
 	Env              Environment       `mapstructure:"env"`
@@ -76,6 +89,8 @@ type Config struct {
 	Redis            RedisConfig       `mapstructure:"redis"`
 	Storage          StorageConfig     `mapstructure:"storage"`
 	Idempotency      IdempotencyConfig `mapstructure:"idempotency"`
+	Evidence         EvidenceConfig    `mapstructure:"evidence"`
+	Retention        RetentionConfig   `mapstructure:"retention"`
 }
 
 // Load loads, parses, and validates the API control plane configuration using spf13/viper.
@@ -98,6 +113,14 @@ func Load() (Config, error) {
 	// Idempotency record TTL (default 24 hours = 86400 seconds).
 	v.SetDefault("idempotency.ttl_seconds", int64(86400))
 
+	// Evidence signed URL TTL (default 15 minutes = 900 seconds).
+	v.SetDefault("evidence.signed_url_ttl_seconds", 900)
+
+	// Evidence retention policy defaults (DATA_LIFECYCLE.md §3).
+	v.SetDefault("retention.active_days", 90)
+	v.SetDefault("retention.archived_days", 270)
+	v.SetDefault("retention.purge_grace_days", 7)
+
 	// Direct environment bindings for compatibility with KELVIN_* and service-specific envs
 	bindEnvWithFallback(v, "env", "KELVIN_ENV")
 	bindEnvWithFallback(v, "log_level", "KELVIN_LOG_LEVEL")
@@ -106,6 +129,11 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "api.body_limit_bytes", "KELVIN_API_BODY_LIMIT_BYTES")
 
 	bindEnvWithFallback(v, "idempotency.ttl_seconds", "KELVIN_IDEMPOTENCY_TTL_SECONDS")
+	bindEnvWithFallback(v, "evidence.signing_key", "KELVIN_EVIDENCE_SIGNING_KEY")
+	bindEnvWithFallback(v, "evidence.signed_url_ttl_seconds", "KELVIN_EVIDENCE_SIGNED_URL_TTL_SECONDS")
+	bindEnvWithFallback(v, "retention.active_days", "KELVIN_RETENTION_ACTIVE_DAYS")
+	bindEnvWithFallback(v, "retention.archived_days", "KELVIN_RETENTION_ARCHIVED_DAYS")
+	bindEnvWithFallback(v, "retention.purge_grace_days", "KELVIN_RETENTION_PURGE_GRACE_DAYS")
 
 	bindEnvWithFallback(v, "database.url", "KELVIN_DATABASE_URL")
 	bindEnvWithFallback(v, "database.host", "POSTGRES_HOST")
@@ -191,6 +219,15 @@ func Load() (Config, error) {
 		},
 		Idempotency: IdempotencyConfig{
 			TTLSeconds: v.GetInt64("idempotency.ttl_seconds"),
+		},
+		Evidence: EvidenceConfig{
+			SigningKey:          v.GetString("evidence.signing_key"),
+			SignedURLTTLSeconds: v.GetInt("evidence.signed_url_ttl_seconds"),
+		},
+		Retention: RetentionConfig{
+			ActiveDays:     v.GetInt("retention.active_days"),
+			ArchivedDays:   v.GetInt("retention.archived_days"),
+			PurgeGraceDays: v.GetInt("retention.purge_grace_days"),
 		},
 	}
 
