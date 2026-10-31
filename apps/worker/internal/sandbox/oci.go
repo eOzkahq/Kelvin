@@ -5,7 +5,6 @@
 // P1-29: each container is provisioned against enforceable resource limits
 // (CPU, memory, disk, pids) and the worker supervisor terminates the entire
 // process tree when the hard execution deadline expires.
-package sandbox
 
 import (
 	"bytes"
@@ -45,6 +44,7 @@ func NewOCIExecutor() (*OCIExecutor, error) {
 
 // Execute runs spec inside a rootless OCI container. ctx cancellation (hard
 // deadline) terminates the container process tree via SIGTERM then SIGKILL.
+// deadline) terminates the container via SIGTERM then SIGKILL.
 func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 	if err := spec.Validate(); err != nil {
 		return nil, err
@@ -84,6 +84,20 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			result.ExitCode = exitErr.ExitCode()
+	err := cmd.Run()
+	result.Duration = time.Since(start)
+	result.Stdout = truncate(stdout.String())
+	result.Stderr = truncate(stderr.String())
+
+	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			result.DeadlineExceeded = true
+			result.ExitCode = -1
+			return result, &ExitError{Spec: spec, Result: result, Err: ErrDeadlineExceeded}
+		}
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			result.ExitCode = exitErr.ExitCode()
+			// Exit code 137 = SIGKILL (OOM killer or supervisor kill).
 			if result.ExitCode == 137 {
 				result.OOMKilled = true
 			}
@@ -137,6 +151,19 @@ func terminateProcessTree(cmd *exec.Cmd) {
 // buildArgs constructs the OCI run command with the mandatory hardening
 // profile and P1-29 resource limits. The container is removed on exit (--rm)
 // so no state persists.
+
+			return result, &ExitError{Spec: spec, Result: result, Err: err}
+		}
+		result.ExitCode = -1
+		return result, &ExitError{Spec: spec, Result: result, Err: err}
+	}
+
+	result.ExitCode = 0
+	return result, nil
+}
+
+// buildArgs constructs the OCI run command with the mandatory hardening
+// profile. The container is removed on exit (--rm) so no state persists.
 func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	args := []string{"run", "--rm"}
 
@@ -177,6 +204,16 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	}
 	if pids > 0 {
 		args = append(args, "--pids-limit", fmt.Sprintf("%d", pids))
+
+	// Resource bounds (cgroups v2).
+	if spec.MemoryLimit != "" {
+		args = append(args, "--memory="+spec.MemoryLimit)
+	}
+	if spec.CPUQuota != "" {
+		args = append(args, "--cpus="+spec.CPUQuota)
+	}
+	if spec.PIDsLimit > 0 {
+		args = append(args, "--pids-limit", fmt.Sprintf("%d", spec.PIDsLimit))
 	}
 
 	// Network isolation.
