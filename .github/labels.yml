@@ -1,0 +1,159 @@
+# ==============================================================================
+# Kelvin Security Platform — Standard Issue & PR Label Taxonomy
+# Synchronized with GitHub Labeler / CLI label schemas
+# ==============================================================================
+
+# --- Kinds ---
+- name: "kind/epic"
+  color: "3E4B9E"
+  description: "High-level umbrella issue covering major architectural or product capability"
+
+- name: "kind/feature"
+  color: "0E8A16"
+  description: "New user-facing or platform feature functionality"
+
+- name: "kind/bug"
+  color: "D93F0B"
+  description: "Defect or unexpected behavior violating specifications"
+
+- name: "kind/docs"
+  color: "0075CA"
+  description: "Architecture, specifications, guides, or API documentation"
+
+- name: "kind/roadmap"
+  color: "5319E7"
+  description: "Multi-phase planning, milestone tracking, and engineering roadmaps"
+
+- name: "kind/scanner-integration"
+  color: "FBCA04"
+  description: "Integration, packaging, or parsing of third-party or native scanners"
+
+- name: "kind/security"
+  color: "B60205"
+  description: "Hardening, sandboxing, isolation, or scope enforcement improvements"
+
+- name: "kind/infra"
+  color: "C5DEF5"
+  description: "CI/CD, Docker packaging, queue infrastructure, or deployment configs"
+
+# --- Areas ---
+- name: "area/architecture"
+  color: "1D76DB"
+  description: "Core architectural boundaries, ADRs, design specs, and data models"
+
+- name: "area/api"
+  color: "5319E7"
+  description: "Go control plane HTTP API, middleware, routing, and persistence"
+
+- name: "area/web"
+  color: "1D76DB"
+  description: "React/TypeScript frontend dashboard and visualization components"
+
+- name: "area/worker"
+  color: "D4C5F9"
+  description: "Asynchronous task queue daemon and worker execution runtime"
+
+- name: "area/scanner-engine"
+  color: "E99695"
+  description: "Assessment execution engine, adapters, processes, and runtimes"
+
+- name: "area/database"
+  color: "0052CC"
+  description: "PostgreSQL schemas, migrations, RLS policies, and indexes"
+
+- name: "area/project-management"
+  color: "006B75"
+  description: "Sprint planning, milestone bifurcations, and progress tracking"
+
+- name: "area/mvp"
+  color: "F9D0C4"
+  description: "Core capabilities required for Minimum Viable Product validation"
+
+# --- Phases ---
+- name: "phase/1-foundation"
+  color: "BFD4F2"
+  description: "Phase 1: Foundation, Threat Model, Target Scope & Job Queue"
+
+- name: "phase/2-scanner-engine"
+  color: "D4C5F9"
+  description: "Phase 2: Assessment Engine, Worker Isolation & Scanner Integrations"
+
+- name: "phase/3-findings"
+  color: "C2E0C6"
+  description: "Phase 3: Unified Findings Pipeline, Deduplication & Risk Intelligence"
+
+- name: "phase/4-enterprise"
+  color: "FEF2C0"
+  description: "Phase 4: Multi-Tenancy, Enterprise RBAC & Audit Governance"
+
+- name: "phase/5-continuous"
+  color: "F9D0C4"
+  description: "Phase 5: Continuous Assessment, Scheduled Scans & SIEM Webhooks"
+
+- name: "phase/6-extensibility"
+  color: "E11D48"
+  description: "Phase 6: Custom Plugin SDK, Advanced Heuristics & Ecosystem"
+
+# --- Workstreams (Phase 2) ---
+- name: "workstream/a-foundation"
+  color: "D9E2EC"
+  description: "Phase 2 Workstream A: Scanner Architecture & Integration Foundation"
+
+- name: "workstream/b-integrations"
+  color: "BCCCDC"
+  description: "Phase 2 Workstream B: MVP Scanner Integrations (Preflight, TLS, ZAP, Nuclei)"
+
+- name: "workstream/c-worker-orchestration"
+  color: "9FB3C8"
+  description: "Phase 2 Workstream C: Worker Execution, Isolation, Budgets & Orchestration"
+
+- name: "workstream/d-normalization"
+  color: "829AB1"
+  description: "Phase 2 Workstream D: Result Parsing, Evidence & Schema Normalization"
+
+- name: "workstream/e-testing-readiness"
+  color: "627D98"
+  description: "Phase 2 Workstream E: End-to-End Pipeline Verification & Readiness Review"
+
+# --- Priorities ---
+- name: "priority/critical"
+  color: "B60205"
+  description: "Blocker or highest-urgency task directly on the critical path"
+
+- name: "priority/high"
+  color: "D93F0B"
+  description: "High priority item required for current milestone delivery"
+
+- name: "priority/medium"
+  color: "FBCA04"
+  description: "Normal priority engineering or documentation task"
+
+- name: "priority/low"
+  color: "0E8A16"
+  description: "Low urgency enhancement or non-blocking cleanup"
+
+# --- Statuses ---
+- name: "status/triage"
+  color: "EDEDED"
+  description: "Newly submitted item awaiting technical review and prioritization"
+
+- name: "status/ready-for-dev"
+  color: "0E8A16"
+  description: "Specification finalized, acceptance criteria set, ready for implementation"
+
+- name: "status/in-progress"
+  color: "1D76DB"
+  description: "Actively being designed or implemented by an assigned contributor"
+
+- name: "status/in-review"
+  color: "FBCA04"
+  description: "PR or specification under peer and architectural review"
+
+- name: "status/accepted"
+  color: "0075CA"
+  description: "Approved and merged into mainline baseline"
+
+- name: "status/deferred"
+  color: "C5DEF5"
+  description: "Intentionally deferred to a subsequent project phase"
+

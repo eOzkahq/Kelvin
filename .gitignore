@@ -1,9 +1,9 @@
 # ==============================================================================
 # Kelvin Security Platform — Git Ignore Configuration
-# Professional, multi-stack ignore rules for frontend, backend, workers & scans
+# Multi-stack rules for Go control plane, React frontend, sandboxed workers & scans
 # ==============================================================================
 
-# --- Operating System Files ---
+# --- Operating System & Filesystem Artifacts ---
 .DS_Store
 .DS_Store?
 ._*
@@ -20,163 +20,126 @@ Thumbs.db
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-*.sublime-workspace
+.zed/
 *.sublime-project
+*.sublime-workspace
 *.swp
 *.swo
 *~
 *.bak
 
-# --- Environment & Secret Configuration ---
-# CRITICAL: Never commit real credentials, API tokens, or private keys
+# --- Environment Configuration & Secrets (CRITICAL) ---
 .env
 .env.*
 !.env.example
 !.env.template
-*.env
 *.pem
 *.key
 *.cert
 *.crt
-*.pfx
 *.p12
+*.pfx
 *.id_rsa
 *.id_ed25519
 secrets/
 credentials/
 config/local.*
 
-# --- Node.js & Frontend Tooling ---
+# --- Node.js & Web Frontend (apps/web) ---
 node_modules/
-jspm_packages/
 .npm/
+.pnpm-store/
 .yarn/cache/
 .yarn/unplugged/
-.yarn/build-state.yml
-.pnpm-store/
-lerna-debug.log*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Frontend Build Outputs
+# Frontend Build Caches & Bundles
 dist/
 dist-ssr/
 build/
 out/
 .next/
 .nuxt/
-.svelte-kit/
-.astro/
 .output/
 .parcel-cache/
 .turbo/
 .cache/
 *.tsbuildinfo
 
-# --- Python & Scanning Engine Workers ---
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual Environments
-.env/
-.venv/
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Python Tooling Caches
-.mypy_cache/
-.dmypy.json
-dmypy.json
-.pytest_cache/
-.ruff_cache/
-.hypothesis/
-.coverage
-.coverage.*
-htmlcov/
-*.cover
-nosetests.xml
-coverage.xml
-
-# --- Compiled Binaries & Go/Rust Modules ---
+# --- Go & Native Build Binaries (apps/api, workers) ---
 bin/
-pkg/
-!apps/api/pkg/
-!apps/api/pkg/job/
-apps/api/pkg/.gitkeep
-obj/
 *.exe
-*.exe~
 *.dll
-*.so
 *.dylib
+*.so
 *.out
 *.app
 target/
+# Preserve Go internal packages
+!apps/api/pkg/
+!pkg/
 
-# --- Local Databases & Volumes ---
+# --- Python & Testing Utilities ---
+__pycache__/
+*.py[cod]
+.Python
+.venv/
+venv/
+ENV/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+*.egg-info/
+
+# --- Testing Outputs, Coverage & Observability ---
+coverage/
+coverage.out
+coverage.html
+test-results/
+.nyc_output/
+*.lcov
+*.log
+logs/
+
+# --- Local Databases, State & Container Volumes ---
 *.sqlite
 *.sqlite3
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
-data/
-db_data/
 postgres-data/
 redis-data/
 minio-data/
-volumes/
 mongo-data/
-
-# --- Local Container & Orchestration Overrides ---
+volumes/
+data/
+db_data/
 docker-compose.override.yml
 docker-compose.local.yml
 *.local.yml
 
-# --- Testing, Reports & Observability ---
-coverage/
-test-results/
-.nyc_output/
-*.lcov
-reports/temp/
-reports/generated/
-logs/
-*.log
-
-# --- Security Scanner Artifacts & Raw Evidence ---
-# Local target outputs, raw PCAPs, and evidence bundles must not be versioned
+# --- Security Scanner Outputs, Evidence & Ephemeral Workspaces ---
+# Ephemeral assessment execution workspaces (P2-22)
+workspaces/
 scans/output/
 scans/temp/
 raw_evidence/
 evidence/temp/
+reports/temp/
+reports/generated/
 *.pcap
 *.pcapng
 *.har
+
+# Whitelist test fixtures if located under scanner test directories
+!tests/fixtures/**
+!apps/**/testdata/**
 
 # --- Temporary & Scratch Files ---
 tmp/
