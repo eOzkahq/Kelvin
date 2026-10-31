@@ -58,18 +58,24 @@ type StorageConfig struct {
 	UseSSL         bool   `mapstructure:"use_ssl"`
 }
 
+// IdempotencyConfig holds idempotency store settings.
+type IdempotencyConfig struct {
+	TTLSeconds int64 `mapstructure:"ttl_seconds"` // TTL for idempotency records (default 24h = 86400)
+}
+
 // Config represents the immutable, strongly-typed configuration of the API control plane.
 type Config struct {
-	Env              Environment    `mapstructure:"env"`
-	LogLevel         string         `mapstructure:"log_level"`
-	Addr             string         `mapstructure:"addr"`
-	APIVersion       string         `mapstructure:"api_version"`
-	BodyLimitBytes   int64          `mapstructure:"body_limit_bytes"`
-	ShutdownTimeoutS int            `mapstructure:"shutdown_timeout_s"`
-	Development      bool           `mapstructure:"development"`
-	Database         DatabaseConfig `mapstructure:"database"`
-	Redis            RedisConfig    `mapstructure:"redis"`
-	Storage          StorageConfig  `mapstructure:"storage"`
+	Env              Environment       `mapstructure:"env"`
+	LogLevel         string            `mapstructure:"log_level"`
+	Addr             string            `mapstructure:"addr"`
+	APIVersion       string            `mapstructure:"api_version"`
+	BodyLimitBytes   int64             `mapstructure:"body_limit_bytes"`
+	ShutdownTimeoutS int               `mapstructure:"shutdown_timeout_s"`
+	Development      bool              `mapstructure:"development"`
+	Database         DatabaseConfig    `mapstructure:"database"`
+	Redis            RedisConfig       `mapstructure:"redis"`
+	Storage          StorageConfig     `mapstructure:"storage"`
+	Idempotency      IdempotencyConfig `mapstructure:"idempotency"`
 }
 
 // Load loads, parses, and validates the API control plane configuration using spf13/viper.
@@ -89,12 +95,17 @@ func Load() (Config, error) {
 	v.SetDefault("api.body_limit_bytes", int64(1<<20)) // 1 MiB
 	v.SetDefault("api.shutdown_timeout_s", 10)
 
+	// Idempotency record TTL (default 24 hours = 86400 seconds).
+	v.SetDefault("idempotency.ttl_seconds", int64(86400))
+
 	// Direct environment bindings for compatibility with KELVIN_* and service-specific envs
 	bindEnvWithFallback(v, "env", "KELVIN_ENV")
 	bindEnvWithFallback(v, "log_level", "KELVIN_LOG_LEVEL")
 	bindEnvWithFallback(v, "api.addr", "KELVIN_API_ADDR")
 	bindEnvWithFallback(v, "api.version", "KELVIN_API_VERSION")
 	bindEnvWithFallback(v, "api.body_limit_bytes", "KELVIN_API_BODY_LIMIT_BYTES")
+
+	bindEnvWithFallback(v, "idempotency.ttl_seconds", "KELVIN_IDEMPOTENCY_TTL_SECONDS")
 
 	bindEnvWithFallback(v, "database.url", "KELVIN_DATABASE_URL")
 	bindEnvWithFallback(v, "database.host", "POSTGRES_HOST")
@@ -177,6 +188,9 @@ func Load() (Config, error) {
 			EvidenceBucket: v.GetString("storage.evidence_bucket"),
 			ReportsBucket:  v.GetString("storage.reports_bucket"),
 			UseSSL:         v.GetBool("storage.use_ssl"),
+		},
+		Idempotency: IdempotencyConfig{
+			TTLSeconds: v.GetInt64("idempotency.ttl_seconds"),
 		},
 	}
 
