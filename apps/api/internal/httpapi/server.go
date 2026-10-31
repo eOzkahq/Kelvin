@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kelvin/kelvin/apps/api/internal/config"
+	"github.com/kelvin/kelvin/apps/api/internal/idempotency"
 	"github.com/kelvin/kelvin/apps/api/internal/metrics"
 	"github.com/kelvin/kelvin/apps/api/internal/middleware"
 	"github.com/kelvin/kelvin/apps/api/pkg/job"
@@ -19,11 +20,12 @@ import (
 // pipeline: Correlation → Access log → Recover → Body limit → AuthN/AuthZ
 // (P2, deny-by-default RBAC per RBAC_MATRIX) → validation → handlers.
 type Server struct {
-	cfg           config.Config
-	log           *zap.Logger
-	mux           *http.ServeMux
-	readyCheckers ReadyCheckers
-	jobStore      jobStoreIface // nil means cancel endpoint returns 503
+	cfg              config.Config
+	log              *zap.Logger
+	mux              *http.ServeMux
+	readyCheckers    ReadyCheckers
+	jobStore         jobStoreIface     // nil means cancel endpoint returns 503
+	idempotencyStore idempotency.Store // nil means idempotency middleware is disabled
 }
 
 // New builds the server with all registered routes.
@@ -37,6 +39,13 @@ func New(cfg config.Config, log *zap.Logger) *Server {
 // cancel endpoint returns 503.
 func (s *Server) SetJobStore(store jobStoreIface) {
 	s.jobStore = store
+}
+
+// SetIdempotencyStore assigns the idempotency store used by the idempotency
+// middleware on state-mutating endpoints. If nil, idempotency checks are
+// disabled and requests pass through unchanged.
+func (s *Server) SetIdempotencyStore(store idempotency.Store) {
+	s.idempotencyStore = store
 }
 
 // jobStoreIface is the subset of job.Store used by the cancel endpoint, so
@@ -65,7 +74,15 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /health/live", s.handleHealthLive)
 	s.mux.HandleFunc("GET /health/ready", s.handleHealthReady)
 	s.mux.HandleFunc("GET /metrics", metrics.Default().Handler())
-	s.mux.HandleFunc("POST /api/v1/assessments/{id}/cancel", s.handleCancelAssessment)
+
+	// State-mutating endpoints are wrapped with idempotency middleware when a
+	// store is configured. The middleware is a no-op for requests without an
+	// Idempotency-Key header.
+	var cancelHandler http.Handler = http.HandlerFunc(s.handleCancelAssessment)
+	if s.idempotencyStore != nil {
+		cancelHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(cancelHandler)
+	}
+	s.mux.Handle("POST /api/v1/assessments/{id}/cancel", cancelHandler)
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
 		s.mux.Handle(method+" /health/live", methodNotAllowed("GET"))
