@@ -8,7 +8,10 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/config"
 	"github.com/kelvin/kelvin/apps/worker/internal/daemon"
+	"github.com/kelvin/kelvin/apps/worker/internal/limits"
+	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
+	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/packages/common/logging"
 	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
 	"github.com/redis/go-redis/v9"
@@ -32,6 +35,7 @@ func main() {
 	defer stop()
 
 	registry := adapters.NewRegistry()
+	var executor sandbox.Executor
 	var workQueue queue.Queue = queue.NopQueue{}
 	if cfg.Env == config.EnvProduction && cfg.Redis.Addr == "" {
 		log.Fatal("KELVIN_REDIS_ADDR is required in production")
@@ -40,6 +44,14 @@ func main() {
 		log.Fatal("KELVIN_WORKER_TOKEN_SECRET is required in production")
 	}
 	if cfg.Redis.Addr != "" {
+		if len(registry.Names()) == 0 {
+			log.Fatal("worker queue is configured but no scanner adapters are registered")
+		}
+		var err error
+		executor, err = sandbox.NewOCIExecutor()
+		if err != nil {
+			log.Fatal("sandbox executor initialization failed", zap.Error(err))
+		}
 		client := redis.NewClient(&redis.Options{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
 		if err := client.Ping(ctx).Err(); err != nil {
 			log.Fatal("redis connection failed", zap.Error(err))
@@ -57,6 +69,9 @@ func main() {
 	err = daemon.Run(ctx, log, daemon.Config{
 		WorkerID:     cfg.WorkerID,
 		PollInterval: cfg.PollInterval,
+		Executor:     executor,
+		Limits:       limits.DefaultLimits(),
+		Metrics:      metrics.Default(),
 	}, workQueue, registry)
 	if err != nil {
 		log.Fatal("worker daemon failed", zap.Error(err))

@@ -4,7 +4,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | Baseline — Peer-Reviewed |
+| **Status** | Target architecture; not an as-built deployment description |
 | **Milestone** | Phase 1 — Foundation & Core Architecture (`P1-06`) |
 | **Depends On** | `docs/PRODUCT_VISION.md` (`P1-01`), `docs/security/THREAT_MODEL.md` (`P1-03`) |
 | **Owner** | Platform Engineering / Architecture |

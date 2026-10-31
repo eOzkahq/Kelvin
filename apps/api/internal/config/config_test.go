@@ -62,6 +62,8 @@ func TestLoadProductionValidDatabaseURL(t *testing.T) {
 	os.Clearenv()
 	_ = os.Setenv("KELVIN_ENV", "production")
 	_ = os.Setenv("KELVIN_DATABASE_URL", "postgres://user:pass@db.internal:5432/kelvin_prod")
+	_ = os.Setenv("KELVIN_REDIS_ADDR", "redis.internal:6379")
+	_ = os.Setenv("KELVIN_JWT_SECRET", "test-secret-at-least-32-bytes-long")
 
 	cfg, err := Load()
 	if err != nil {
@@ -76,3 +78,12 @@ func TestLoadProductionValidDatabaseURL(t *testing.T) {
 	}
 }
 
+func TestLoadProductionRequiresJWTSecret(t *testing.T) {
+	os.Clearenv()
+	_ = os.Setenv("KELVIN_ENV", "production")
+	_ = os.Setenv("KELVIN_DATABASE_URL", "postgres://user:pass@db.internal:5432/kelvin_prod")
+	_ = os.Setenv("KELVIN_REDIS_ADDR", "redis.internal:6379")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected production configuration to require a JWT signing secret")
+	}
+}
