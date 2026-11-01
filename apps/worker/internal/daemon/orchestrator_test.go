@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
+	"github.com/kelvin/kelvin/packages/common/scope"
 	"go.uber.org/zap"
 )
 
@@ -316,4 +318,72 @@ func (m failingMockAdapter) Cancel() error                { return nil }
 func (m failingMockAdapter) Health(context.Context) error { return nil }
 func (m failingMockAdapter) Result() (adapters.Result, error) {
 	return adapters.Result{}, nil
+}
+
+type mockOrchestratorResolver struct{}
+
+func (m mockOrchestratorResolver) LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error) {
+	if host == "example.com" {
+		return []netip.Addr{netip.MustParseAddr("93.184.216.34")}, nil
+	}
+	return nil, nil
+}
+
+func TestOrchestratorIntegratesEgressProxy(t *testing.T) {
+	registry := adapters.NewRegistry()
+	if err := registerStub(registry); err != nil { // Nuclei
+		t.Fatal(err)
+	}
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	executor := sandbox.NewFake().WithResult(sandbox.Result{
+		ExitCode: 0,
+		Findings: []byte(`{"findings":[]}`),
+		Duration: time.Millisecond * 10,
+	})
+
+	scopePol, err := scope.NewPolicy([]string{"example.com"}, []string{"93.184.216.0/24"}, mockOrchestratorResolver{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := Config{
+		WorkerID: "test-worker",
+		Executor: executor,
+		ScopePolicyProvider: func(ctx context.Context, task adapters.Task) (scope.Policy, error) {
+			return scopePol, nil
+		},
+	}
+
+	orch := NewOrchestrator(registry, executor, nil, nil, nil, zap.NewNop())
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      adapters.ScannerNuclei,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileDeep,
+		HardDeadline: time.Minute,
+	}
+
+	res, err := orch.ExecuteScanner(context.Background(), zap.NewNop(), task, cfg)
+	if err != nil {
+		t.Fatalf("expected ExecuteScanner to succeed: %v", err)
+	}
+	if res == nil {
+		t.Fatal("expected non-nil result")
+	}
+
+	// Verify the sandbox spec was provisioned with egress proxy and network enabled
+	if executor.Last.EgressProxy == "" {
+		t.Fatal("expected EgressProxy to be configured on the sandbox spec")
+	}
+	if executor.Last.NetworkDisabled {
+		t.Fatal("expected NetworkDisabled to be false when scoped EgressProxy is configured")
+	}
+	if !strings.HasPrefix(executor.Last.EgressProxy, "http://127.0.0.1:") {
+		t.Errorf("expected localhost proxy URL, got %s", executor.Last.EgressProxy)
+	}
 }

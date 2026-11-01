@@ -48,17 +48,18 @@ Apply the Phase 1 network isolation architecture to each scanner runtime.
 
 ## ✅ Acceptance Criteria
 
-- [ ] Each scanner has a documented egress policy.
-- [ ] Scanner execution cannot bypass Phase 1 network restrictions.
-- [ ] Unauthorized outbound destinations are blocked.
-- [ ] Network policy failures are observable.
-- [ ] Integration tests verify permitted and prohibited network behavior.
+- [x] Each scanner has a documented egress policy (`docs/architecture/SCANNER_NETWORK_EGRESS_POLICIES.md`).
+- [x] Scanner execution cannot bypass Phase 1 network restrictions (`apps/worker/internal/egress/policy.go`).
+- [x] Unauthorized outbound destinations are blocked (RFC 1918, metadata, loopback, callbacks).
+- [x] Network policy failures are observable (structured security alarms, metrics `ViolationNetwork`, broadcaster).
+- [x] Integration tests verify permitted and prohibited network behavior (`apps/worker/internal/egress/proxy_test.go`, `policy_test.go`, `apps/worker/internal/sandbox/sandbox_test.go`, `apps/worker/internal/daemon/orchestrator_test.go`).
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- Scanner Network Egress Policies: [`docs/architecture/SCANNER_NETWORK_EGRESS_POLICIES.md`](../../../docs/architecture/SCANNER_NETWORK_EGRESS_POLICIES.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"path"
 	"path/filepath"
@@ -96,6 +97,8 @@ type Spec struct {
 	CaptureZAPReport bool
 	// WorkspaceMount specifies the host directory to bind-mount to /workspace in the container.
 	WorkspaceMount string
+	// EgressProxy specifies the local proxy URL to enforce scoped network egress.
+	EgressProxy string
 }
 
 func (s Spec) Validate() error {
@@ -114,8 +117,14 @@ func (s Spec) Validate() error {
 	if s.CaptureZAPReport && scanner != "zap" {
 		errs = append(errs, "ZAP report capture is only available to the ZAP scanner")
 	}
-	if scanner == "zap" && !s.NetworkDisabled {
+	if scanner == "zap" && !s.NetworkDisabled && s.EgressProxy == "" {
 		errs = append(errs, "ZAP network access must remain disabled until scoped egress enforcement is configured")
+	}
+	if s.EgressProxy != "" {
+		parsed, err := url.Parse(s.EgressProxy)
+		if err != nil || parsed == nil || parsed.Scheme != "http" || parsed.Host == "" || strings.ContainsAny(s.EgressProxy, "\x00\r\n") {
+			errs = append(errs, "egress proxy must be a valid http URL without control characters")
+		}
 	}
 	if s.CaptureZAPReport && !hasArgPair(s.Invocation.Args, "-J", "/tmp/kelvin-zap-report.json") {
 		errs = append(errs, "ZAP report capture requires the fixed report path")
@@ -151,9 +160,23 @@ func (s Spec) Validate() error {
 			errs = append(errs, fmt.Sprintf("capability %q is prohibited", cap))
 		}
 	}
+	allowedEnvKeys := map[string]bool{
+		"KELVIN_JOB_ID":         true,
+		"KELVIN_TENANT_ID":      true,
+		"KELVIN_ASSESSMENT_ID":  true,
+		"KELVIN_CORRELATION_ID": true,
+		"KELVIN_WORKSPACE":      true,
+		"HTTP_PROXY":            true,
+		"HTTPS_PROXY":           true,
+		"http_proxy":            true,
+		"https_proxy":           true,
+		"NO_PROXY":              true,
+		"no_proxy":              true,
+		"KELVIN_EGRESS_PROXY":   true,
+	}
 	for _, entry := range s.Env {
 		key, _, ok := strings.Cut(entry, "=")
-		if !ok || (key != "KELVIN_JOB_ID" && key != "KELVIN_TENANT_ID" && key != "KELVIN_ASSESSMENT_ID" && key != "KELVIN_CORRELATION_ID" && key != "KELVIN_WORKSPACE") || strings.ContainsAny(entry, "\x00\r\n") {
+		if !ok || !allowedEnvKeys[key] || strings.ContainsAny(entry, "\x00\r\n") {
 			errs = append(errs, "container environment contains an unapproved variable")
 			break
 		}

@@ -27,7 +27,8 @@ type Config struct {
 	Limits           limits.Limits
 	Metrics          *metrics.Registry
 	ReadinessChecker *readiness.Checker
-	WorkspaceManager *workspace.Manager
+	WorkspaceManager    *workspace.Manager
+	ScopePolicyProvider adapters.ScopePolicyProvider
 }
 
 func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, registry *adapters.Registry) error {

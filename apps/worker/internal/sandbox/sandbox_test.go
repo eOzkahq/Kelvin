@@ -315,3 +315,55 @@ func TestRuntimeEnvironmentDropsUnapprovedVariables(t *testing.T) {
 		}
 	}
 }
+
+func TestEgressProxySpecValidation(t *testing.T) {
+	spec := validSpec()
+	spec.Image = "registry.example/zap@sha256:" + strings.Repeat("a", 64)
+	spec.Invocation = ProcessInvocation{Executable: "/zap/zap-baseline.py", Args: []string{"-t", "https://example.com", "-J", "/tmp/kelvin-zap-report.json"}}
+	spec.Labels["scanner"] = "zap"
+	spec.CaptureZAPReport = true
+	spec.NetworkDisabled = false
+
+	// Without egress proxy, network-enabled ZAP fails
+	if err := spec.Validate(); err == nil {
+		t.Fatal("expected failure when network is enabled without egress proxy")
+	}
+
+	// With scoped egress proxy, network-enabled ZAP succeeds
+	spec.EgressProxy = "http://127.0.0.1:54321"
+	if err := spec.Validate(); err != nil {
+		t.Fatalf("expected spec to validate with egress proxy, got: %v", err)
+	}
+
+	// Verify buildArgs injects proxy env variables
+	args := (&OCIExecutor{}).buildArgs(spec)
+	foundHTTPProxy := false
+	foundHTTPSProxy := false
+	for i, arg := range args {
+		if arg == "--env" && i+1 < len(args) {
+			val := args[i+1]
+			if strings.HasPrefix(val, "HTTP_PROXY=http://127.0.0.1:54321") {
+				foundHTTPProxy = true
+			}
+			if strings.HasPrefix(val, "HTTPS_PROXY=http://127.0.0.1:54321") {
+				foundHTTPSProxy = true
+			}
+		}
+	}
+	if !foundHTTPProxy || !foundHTTPSProxy {
+		t.Errorf("expected proxy env variables in args, foundHTTP=%v, foundHTTPS=%v", foundHTTPProxy, foundHTTPSProxy)
+	}
+
+	// Malformed egress proxy URL fails
+	malformedSpecs := []string{
+		"ftp://127.0.0.1:21",
+		"not-a-url",
+		"http://127.0.0.1\r\nBadHeader: injection",
+	}
+	for _, bad := range malformedSpecs {
+		spec.EgressProxy = bad
+		if err := spec.Validate(); err == nil {
+			t.Errorf("expected malformed egress proxy %q to be rejected", bad)
+		}
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
+	"github.com/kelvin/kelvin/apps/worker/internal/egress"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
@@ -168,6 +169,24 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 	spec := specFromTask(task, metadata.VersionPolicy.ImageReference, invocation, ws.RootDir)
 	spec.CaptureZAPReport = task.Scanner == adapters.ScannerZAPBaseline
 	spec.Limits = cfg.Limits
+
+	var egressProxy *egress.Proxy
+	if cfg.ScopePolicyProvider != nil {
+		scopePol, err := cfg.ScopePolicyProvider(execCtx, task)
+		if err == nil {
+			egressPolicy, err := egress.PolicyForScanner(task.Scanner, task.Target, scopePol)
+			if err == nil && egressPolicy.RequiresProxy {
+				proxy, err := egress.NewProxy(egressPolicy, o.logger, cfg.Metrics)
+				if err == nil {
+					egressProxy = proxy
+					defer proxy.Close()
+					spec.NetworkDisabled = false
+					spec.EgressProxy = proxy.Endpoint()
+				}
+			}
+		}
+	}
+
 	if err := spec.Validate(); err != nil {
 		if cfg.Metrics != nil {
 			cfg.Metrics.IncTermination(metrics.CauseSpecInvalid)
@@ -176,6 +195,13 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 	}
 
 	result, execErr := cfg.Executor.Execute(execCtx, spec)
+	if egressProxy != nil && egressProxy.ViolationsCount() > 0 {
+		o.logger.Warn("assessment execution recorded egress policy violations",
+			zap.String("job_id", task.JobID),
+			zap.String("scanner", task.Scanner),
+			zap.Int("violations_count", egressProxy.ViolationsCount()),
+		)
+	}
 	if task.Scanner == adapters.ScannerZAPBaseline && result != nil && execErr == nil && result.ExitCode == 0 {
 		completed := time.Now().UTC()
 		started := completed.Add(-result.Duration)
