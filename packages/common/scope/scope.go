@@ -64,6 +64,17 @@ func NewPolicy(domains, cidrs []string, resolver Resolver) (Policy, error) {
 	return p, nil
 }
 
+// WithLabMode returns a copy of the policy with lab mode toggled (for testing / isolated labs).
+func (p Policy) WithLabMode(enabled bool) Policy {
+	p.labMode = enabled
+	return p
+}
+
+// LabMode reports whether lab mode is enabled on this policy.
+func (p Policy) LabMode() bool {
+	return p.labMode
+}
+
 var prohibited = []netip.Prefix{
 	netip.MustParsePrefix("0.0.0.0/8"), netip.MustParsePrefix("10.0.0.0/8"),
 	netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("127.0.0.0/8"),
@@ -275,6 +286,10 @@ func (p Policy) resolver() Resolver {
 	}
 	return net.DefaultResolver
 }
+func (p Policy) HostAllowed(host string) bool {
+	return p.hostAllowed(host)
+}
+
 func (p Policy) hostAllowed(host string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	for _, d := range p.Domains {

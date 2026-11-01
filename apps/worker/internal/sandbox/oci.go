@@ -143,6 +143,24 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	for _, env := range spec.Env {
 		args = append(args, "--env", env)
 	}
+	if spec.EgressProxy != "" {
+		hasProxy := false
+		for _, env := range spec.Env {
+			if strings.HasPrefix(env, "HTTP_PROXY=") {
+				hasProxy = true
+				break
+			}
+		}
+		if !hasProxy {
+			args = append(args,
+				"--env", "HTTP_PROXY="+spec.EgressProxy,
+				"--env", "HTTPS_PROXY="+spec.EgressProxy,
+				"--env", "http_proxy="+spec.EgressProxy,
+				"--env", "https_proxy="+spec.EgressProxy,
+				"--env", "KELVIN_EGRESS_PROXY="+spec.EgressProxy,
+			)
+		}
+	}
 	if spec.WorkingDir != "" {
 		args = append(args, "--workdir", spec.WorkingDir)
 	}
