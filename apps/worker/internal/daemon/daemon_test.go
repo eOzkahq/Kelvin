@@ -44,9 +44,12 @@ func (r *recordingQueue) Fail(ctx context.Context, j queue.Job, _ string) error 
 type stubAdapter struct{ name string }
 
 func (s stubAdapter) Name() string                                  { return s.name }
+func (s stubAdapter) Version() string                               { return "1.0.0" }
 func (s stubAdapter) Initialize(context.Context, *zap.Logger) error { return nil }
 func (s stubAdapter) ValidateConfig(json.RawMessage) error          { return nil }
-func (s stubAdapter) Capabilities() adapters.Capabilities           { return adapters.Capabilities{} }
+func (s stubAdapter) Capabilities() adapters.Capabilities {
+	return adapters.Capabilities{SupportedTargetTypes: []string{"url"}, CheckCategories: []string{"passive"}}
+}
 func (s stubAdapter) Execute(context.Context, adapters.Task) (adapters.Result, error) {
 	return adapters.Result{}, nil
 }

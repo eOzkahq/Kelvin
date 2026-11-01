@@ -14,11 +14,18 @@ import (
 // These declarations are descriptive; the worker and sandbox remain the
 // enforcement boundary for scope, request pacing, resources, and deadlines.
 type Capabilities struct {
-	CheckCategories []string
-	RequiresNetwork bool
-	SupportsCancel  bool
-	MaxRequestRate  int
-	MaxRequests     int
+	CheckCategories      []string
+	Flags                []string
+	SupportedTargetTypes []string
+	SupportedProtocols   []string
+	PassiveOnly          bool
+	ActiveScanning       bool
+	RequiresNetwork      bool
+	SupportsCancel       bool
+	RequiresSandbox      bool
+	MaxConcurrency       int
+	MaxRequestRate       int
+	MaxRequests          int
 }
 
 // ScannerAdapter is the lifecycle contract for scanner implementations.
@@ -30,6 +37,7 @@ type Capabilities struct {
 // Implementations must not access persistence directly.
 type ScannerAdapter interface {
 	Adapter
+	Version() string
 	Initialize(context.Context, *zap.Logger) error
 	ValidateConfig(json.RawMessage) error
 	Capabilities() Capabilities
@@ -61,6 +69,9 @@ type ReferenceAdapter struct {
 }
 
 func (a *ReferenceAdapter) Name() string { return a.AdapterName }
+
+// Version reports the adapter implementation version for registry metadata.
+func (a *ReferenceAdapter) Version() string { return "1.0.0" }
 
 func (a *ReferenceAdapter) Initialize(ctx context.Context, logger *zap.Logger) error {
 	if a == nil || a.AdapterName == "" || a.Run == nil {
@@ -107,9 +118,7 @@ func (a *ReferenceAdapter) ValidateConfig(raw json.RawMessage) error {
 }
 
 func (a *ReferenceAdapter) Capabilities() Capabilities {
-	caps := a.Caps
-	caps.CheckCategories = append([]string(nil), caps.CheckCategories...)
-	return caps
+	return cloneCapabilities(a.Caps)
 }
 
 func (a *ReferenceAdapter) Execute(ctx context.Context, task Task) (Result, error) {
@@ -174,10 +183,6 @@ func (a *ReferenceAdapter) Result() (Result, error) {
 		return Result{}, ErrNoResult
 	}
 	result := a.result
-	result.Findings = append([]byte(nil), result.Findings...)
-	return result, nil
-}
-
 	result.Findings = cloneRawMessages(result.Findings)
 	result.Diagnostics = append([]ExecutionDiagnostic(nil), result.Diagnostics...)
 	if result.ExitCode != nil {

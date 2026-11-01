@@ -46,11 +46,11 @@ Provide a central registry through which KELVIN discovers and manages available 
 
 ## ✅ Acceptance Criteria
 
-- [ ] Scanner adapters can register with the registry.
-- [ ] The engine can discover available capabilities.
-- [ ] Unknown scanner identifiers are rejected safely.
-- [ ] Duplicate registrations are handled deterministically.
-- [ ] Registry behavior is covered by automated tests.
+- [x] Scanner adapters can register with the registry.
+- [x] The engine can discover available capabilities.
+- [x] Unknown scanner identifiers are rejected safely.
+- [x] Duplicate registrations are handled deterministically.
+- [x] Registry behavior is covered by automated tests.
 
 ---
 
@@ -61,3 +61,4 @@ Provide a central registry through which KELVIN discovers and manages available 
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- Scanner Registry Contract: [`docs/architecture/SCANNER_REGISTRY.md`](../../../docs/architecture/SCANNER_REGISTRY.md)
