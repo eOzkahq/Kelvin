@@ -24,6 +24,33 @@ Create a consistent output envelope for results and diagnostics returned by diff
 
 ---
 
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart LR
+    subgraph AdapterExecution ["Scanner Adapter"]
+        Proc["Subprocess / Engine"]
+    end
+
+    subgraph EnvelopeStructure ["OutputEnvelope v1.0"]
+        Meta["ScannerMetadata (ID, Version)"]
+        Diag["Diagnostics (ExitCode, CPU, Memory)"]
+        Raw["RawOutput (Untrusted Dump)"]
+        Findings["Findings Collection (Untrusted Candidate)"]
+        Status["Status (Success, Partial, Failed)"]
+    end
+
+    subgraph Consumer ["Worker Daemon"]
+        Ingest["ValidateOutputEnvelope"]
+        Norm["Ingestion & Canonical Normalizer"]
+    end
+
+    Proc --> Meta & Diag & Raw & Findings & Status
+    Meta & Diag & Raw & Findings & Status --> Ingest --> Norm
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define a common output structure containing: Assessment ID, Scanner identifier and version, Execution status, Start and completion timestamps, Findings collection, Execution diagnostics, Scanner-specific metadata, Partial-result indicator.
@@ -46,17 +73,20 @@ Create a consistent output envelope for results and diagnostics returned by diff
 
 ## ✅ Acceptance Criteria
 
-- [ ] A documented, versioned output contract exists.
-- [ ] All adapters use the common envelope.
-- [ ] Failure and partial-result states are unambiguous.
-- [ ] Raw scanner output cannot be mistaken for normalized findings.
-- [ ] Contract tests validate serialization and deserialization.
+- [x] A documented, versioned output contract exists.
+- [x] All adapters use the common envelope.
+- [x] Failure and partial-result states are unambiguous.
+- [x] Raw scanner output cannot be mistaken for normalized findings.
+- [x] Contract tests validate serialization and deserialization.
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- Scanner Output Envelope Specification: [`docs/architecture/SCANNER_OUTPUT_ENVELOPE.md`](../../../docs/architecture/SCANNER_OUTPUT_ENVELOPE.md)
+- Scanner Invocation Contract Specification: [`docs/architecture/SCANNER_INVOCATION_CONTRACT.md`](../../../docs/architecture/SCANNER_INVOCATION_CONTRACT.md)
+- Scanner Adapter Interface Specification: [`docs/architecture/SCANNER_ADAPTER_INTERFACE.md`](../../../docs/architecture/SCANNER_ADAPTER_INTERFACE.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
