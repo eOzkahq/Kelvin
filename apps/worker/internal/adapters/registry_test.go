@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -21,6 +22,12 @@ type registryTestAdapter struct {
 
 func (a *registryTestAdapter) Name() string    { return a.name }
 func (a *registryTestAdapter) Version() string { return a.version }
+func (a *registryTestAdapter) VerifyRuntimeVersion(ctx context.Context) (RuntimeVersionInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return RuntimeVersionInfo{}, err
+	}
+	return RuntimeVersionInfo{ScannerVersion: a.version, AdapterVersion: a.version}, nil
+}
 func (a *registryTestAdapter) Initialize(context.Context, *zap.Logger) error {
 	a.initCount.Add(1)
 	return a.initErr
@@ -48,6 +55,7 @@ func registryTestMetadata(id string, caps Capabilities) Metadata {
 		ID: id, DisplayName: "Test Scanner", Version: "1.2.3",
 		SupportedTargets: append([]string(nil), caps.SupportedTargetTypes...),
 		Capabilities:     cloneCapabilities(caps), ConfigVersion: "1.0",
+		VersionPolicy: VersionPolicy{ScannerVersion: "1.2.3"},
 	}
 }
 
@@ -115,6 +123,56 @@ func TestRegistryRejectsDuplicateAndUnknownScanner(t *testing.T) {
 	}
 	if len(registry.ListAvailable()) != 0 {
 		t.Fatal("uninitialized scanner appeared in ListAvailable")
+	}
+}
+
+func TestVersionPolicyRequiresImmutableExternalImageAndNucleiCatalog(t *testing.T) {
+	caps := registryTestCaps()
+	caps.RequiresSandbox = true
+	if err := validateVersionPolicy("zap", "1.2.3", caps, VersionPolicy{ScannerVersion: "2.14.0"}); err == nil {
+		t.Fatal("expected missing image pin rejection")
+	}
+	digest := "sha256:" + strings.Repeat("a", 64)
+	policy := VersionPolicy{ScannerVersion: "2.14.0", ImageDigest: digest, ImageReference: "registry.example/zap@" + digest}
+	if err := validateVersionPolicy("zap", "1.2.3", caps, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err := compareRuntimeVersion("zap", "1.2.3", policy, RuntimeVersionInfo{ScannerVersion: "2.14.1", AdapterVersion: "1.2.3", ImageReference: policy.ImageReference, ImageDigest: digest}); err == nil {
+		t.Fatal("expected unexpected scanner version rejection")
+	}
+	nuclei := VersionPolicy{ScannerVersion: "3.3.0", TemplateCatalogVersion: "kelvin.safe.web.v1", TemplateCatalogDigest: digest}
+	if err := validateVersionPolicy(ScannerNuclei, "1.2.3", registryTestCaps(), nuclei); err != nil {
+		t.Fatal(err)
+	}
+	nuclei.TemplateCatalogDigest = ""
+	if err := validateVersionPolicy(ScannerNuclei, "1.2.3", registryTestCaps(), nuclei); err == nil {
+		t.Fatal("expected unpinned nuclei catalog rejection")
+	}
+}
+
+func TestRegistryRechecksRuntimeAndStampsOutput(t *testing.T) {
+	registry := NewRegistry()
+	caps := registryTestCaps()
+	adapter := &registryTestAdapter{name: "tls_test", version: "1.2.3", caps: caps}
+	if err := registry.RegisterAdapter(registryTestMetadata("tls_test", caps), func() ScannerAdapter { return adapter }); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.VerifyRuntime(context.Background(), "tls_test"); err != nil {
+		t.Fatal(err)
+	}
+	out := &ScannerOutputEnvelope{}
+	if err := registry.StampOutput("tls_test", out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Metadata.ScannerID != "tls_test" || out.Metadata.ScannerVersion != "1.2.3" || out.Metadata.AdapterVersion != "1.2.3" {
+		t.Fatalf("runtime identity not stamped: %+v", out.Metadata)
+	}
+	adapter.version = "9.9.9"
+	if err := registry.VerifyRuntime(context.Background(), "tls_test"); !errors.Is(err, ErrAdapterUnavailable) {
+		t.Fatalf("version drift error = %v", err)
 	}
 }
 

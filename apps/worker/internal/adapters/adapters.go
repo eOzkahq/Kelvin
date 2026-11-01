@@ -44,14 +44,16 @@ const (
 
 // Metadata describes a registered adapter independently of any scan run.
 type Metadata struct {
-	ID                string       `json:"id"`
-	DisplayName       string       `json:"display_name"`
-	Version           string       `json:"version"`
-	SupportedTargets  []string     `json:"supported_target_types"`
-	Capabilities      Capabilities `json:"capabilities"`
-	ConfigVersion     string       `json:"config_version"`
-	Availability      Availability `json:"availability"`
-	UnavailableReason string       `json:"unavailable_reason,omitempty"`
+	ID                string              `json:"id"`
+	DisplayName       string              `json:"display_name"`
+	Version           string              `json:"version"`
+	SupportedTargets  []string            `json:"supported_target_types"`
+	Capabilities      Capabilities        `json:"capabilities"`
+	ConfigVersion     string              `json:"config_version"`
+	Availability      Availability        `json:"availability"`
+	UnavailableReason string              `json:"unavailable_reason,omitempty"`
+	VersionPolicy     VersionPolicy       `json:"version_policy"`
+	VerifiedVersion   *RuntimeVersionInfo `json:"verified_runtime,omitempty"`
 }
 
 type AdapterFactory func() ScannerAdapter
@@ -85,6 +87,7 @@ func (r *Registry) Register(a ScannerAdapter) error {
 		ID: a.Name(), DisplayName: a.Name(), Version: a.Version(),
 		SupportedTargets: append([]string(nil), caps.SupportedTargetTypes...),
 		Capabilities:     caps, ConfigVersion: ScannerConfigVersion,
+		VersionPolicy: VersionPolicy{ScannerVersion: a.Version()},
 	}, func() ScannerAdapter { return a })
 }
 
@@ -107,6 +110,9 @@ func (r *Registry) RegisterAdapter(metadata Metadata, factory AdapterFactory) er
 	}
 	if !reflect.DeepEqual(metadata.Capabilities.SupportedTargetTypes, metadata.SupportedTargets) {
 		return fmt.Errorf("%w: supported target types disagree between metadata and capabilities", ErrInvalidMetadata)
+	}
+	if err := validateVersionPolicy(metadata.ID, metadata.Version, metadata.Capabilities, metadata.VersionPolicy); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidMetadata, err)
 	}
 	metadata = cloneMetadata(metadata)
 	r.mu.Lock()
@@ -139,9 +145,17 @@ func (r *Registry) Initialize(ctx context.Context, logger *zap.Logger) error {
 		if err == nil {
 			err = initializeAdapter(adapter, ctx, logger)
 		}
+		var verified RuntimeVersionInfo
+		if err == nil {
+			verified, err = adapter.VerifyRuntimeVersion(ctx)
+			if err == nil {
+				err = compareRuntimeVersion(id, entry.metadata.Version, entry.metadata.VersionPolicy, verified)
+			}
+		}
 		if err != nil {
 			entry.metadata.Availability = AvailabilityUnavailable
 			entry.metadata.UnavailableReason = err.Error()
+			entry.metadata.VerifiedVersion = nil
 			entry.mu.Unlock()
 			logger.Error("scanner adapter unavailable", zap.String("scanner_id", id), zap.Error(err))
 			if ctxErr := ctx.Err(); ctxErr != nil {
@@ -151,8 +165,78 @@ func (r *Registry) Initialize(ctx context.Context, logger *zap.Logger) error {
 		}
 		entry.metadata.Availability = AvailabilityAvailable
 		entry.metadata.UnavailableReason = ""
+		entry.metadata.VerifiedVersion = &verified
 		entry.mu.Unlock()
 	}
+	return nil
+}
+
+// VerifyRuntime rechecks the actual scanner identity before dispatch. A
+// changed runtime is disabled until the worker is restarted with approved pins.
+func (r *Registry) VerifyRuntime(ctx context.Context, id string) error {
+	entry, ok := r.entry(id)
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrAdapterNotFound, id)
+	}
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+	if entry.metadata.Availability != AvailabilityAvailable || entry.adapter == nil {
+		return fmt.Errorf("%w: %s", ErrAdapterUnavailable, id)
+	}
+	actual, err := entry.adapter.VerifyRuntimeVersion(ctx)
+	if err == nil {
+		err = compareRuntimeVersion(id, entry.metadata.Version, entry.metadata.VersionPolicy, actual)
+	}
+	if err != nil {
+		entry.metadata.Availability = AvailabilityUnavailable
+		entry.metadata.UnavailableReason = err.Error()
+		entry.metadata.VerifiedVersion = nil
+		return fmt.Errorf("%w: runtime verification failed for %s: %v", ErrAdapterUnavailable, id, err)
+	}
+	entry.metadata.VerifiedVersion = &actual
+	return nil
+}
+
+// StampOutput records registry-verified runtime identity in the assessment
+// envelope; adapter-supplied identity cannot override the approved snapshot.
+func (r *Registry) StampOutput(id string, envelope *ScannerOutputEnvelope) error {
+	if envelope == nil {
+		return fmt.Errorf("adapters: output envelope is required")
+	}
+	entry, ok := r.entry(id)
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrAdapterNotFound, id)
+	}
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+	if entry.metadata.Availability != AvailabilityAvailable || entry.metadata.VerifiedVersion == nil {
+		return fmt.Errorf("%w: %s", ErrAdapterUnavailable, id)
+	}
+	v := entry.metadata.VerifiedVersion
+	if envelope.Metadata.ScannerID != "" && envelope.Metadata.ScannerID != id {
+		return fmt.Errorf("adapters: output scanner ID does not match registry entry")
+	}
+	if envelope.Metadata.ScannerVersion != "" && envelope.Metadata.ScannerVersion != v.ScannerVersion {
+		return fmt.Errorf("adapters: output scanner version does not match verified runtime")
+	}
+	if envelope.Metadata.AdapterVersion != "" && envelope.Metadata.AdapterVersion != v.AdapterVersion {
+		return fmt.Errorf("adapters: output adapter version does not match verified runtime")
+	}
+	if envelope.Metadata.ImageReference != "" && envelope.Metadata.ImageReference != v.ImageReference {
+		return fmt.Errorf("adapters: output image reference does not match verified runtime")
+	}
+	if envelope.Metadata.ImageDigest != "" && envelope.Metadata.ImageDigest != v.ImageDigest {
+		return fmt.Errorf("adapters: output image digest does not match verified runtime")
+	}
+	if envelope.Metadata.TemplateCatalogVersion != "" && envelope.Metadata.TemplateCatalogVersion != v.TemplateCatalogVersion {
+		return fmt.Errorf("adapters: output template catalog does not match verified runtime")
+	}
+	if envelope.Metadata.TemplateCatalogDigest != "" && envelope.Metadata.TemplateCatalogDigest != v.TemplateCatalogDigest {
+		return fmt.Errorf("adapters: output template catalog digest does not match verified runtime")
+	}
+	envelope.Metadata.ScannerID, envelope.Metadata.ScannerVersion, envelope.Metadata.AdapterVersion = id, v.ScannerVersion, v.AdapterVersion
+	envelope.Metadata.ImageReference, envelope.Metadata.ImageDigest = v.ImageReference, v.ImageDigest
+	envelope.Metadata.TemplateCatalogVersion, envelope.Metadata.TemplateCatalogDigest = v.TemplateCatalogVersion, v.TemplateCatalogDigest
 	return nil
 }
 
@@ -313,6 +397,10 @@ func cloneCapabilities(c Capabilities) Capabilities {
 func cloneMetadata(m Metadata) Metadata {
 	m.SupportedTargets = append([]string(nil), m.SupportedTargets...)
 	m.Capabilities = cloneCapabilities(m.Capabilities)
+	if m.VerifiedVersion != nil {
+		v := *m.VerifiedVersion
+		m.VerifiedVersion = &v
+	}
 	return m
 }
 

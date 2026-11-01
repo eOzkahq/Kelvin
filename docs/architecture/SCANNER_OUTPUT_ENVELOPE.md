@@ -12,7 +12,7 @@
 
 ## Contract
 
-Every adapter returns `adapters.ScannerOutputEnvelope` (aliased as `adapters.Result` for the adapter lifecycle API). The output is versioned and carries assessment/scanner/run identity, engine and adapter versions, correlation ID, start/end timestamps, status, exit code, duration, normalized findings, diagnostics, scanner-specific metadata, partial-result state, and references to separately stored stdout/stderr artifacts.
+Every adapter returns `adapters.ScannerOutputEnvelope` (aliased as `adapters.Result` for the adapter lifecycle API). The output is versioned and carries assessment/scanner/run identity, engine and adapter versions, optional immutable image and template-catalog identities, correlation ID, start/end timestamps, status, exit code, duration, normalized findings, diagnostics, scanner-specific metadata, partial-result state, and references to separately stored stdout/stderr artifacts. Runtime identity is stamped from the registry's verified version snapshot; see `SCANNER_VERSION_COMPATIBILITY.md`.
 
 `findings` contains only records that already conform to `finding.v1.json`. Raw scanner output is never placed in `findings`; bounded raw content belongs in `raw_payload`, and larger stdout/stderr data belongs in opaque `artifact://<uuid>` references. Both raw channels are untrusted and must be redacted before persistence and escaped before display. Artifact references cannot point to external URLs.
 

@@ -83,6 +83,15 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		fail(jobLog, q, ctx, job, "no executable adapter registered for job type")
 		return
 	}
+	if err := registry.VerifyRuntime(ctx, job.Type); err != nil {
+		fail(jobLog, q, ctx, job, "scanner version compatibility check failed: "+err.Error())
+		return
+	}
+	metadata, ok := registry.Metadata(job.Type)
+	if !ok {
+		fail(jobLog, q, ctx, job, "scanner metadata unavailable")
+		return
+	}
 	task, err := taskFromJob(job)
 	if err == nil {
 		err = adapters.ValidateTask(task)
@@ -112,7 +121,7 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 
 	execCtx, cancel := context.WithTimeout(ctx, task.HardDeadline)
 	defer cancel()
-	spec := specFromTask(task)
+	spec := specFromTask(task, metadata.VersionPolicy.ImageReference)
 	spec.Limits = cfg.Limits
 	if err := spec.Validate(); err != nil {
 		fail(jobLog, q, ctx, job, "sandbox spec violates isolation profile: "+err.Error())
@@ -196,9 +205,12 @@ func taskFromJob(job queue.Job) (adapters.Task, error) {
 	return adapters.Task{JobID: job.ID, AssessmentID: job.AssessmentID, TenantID: job.TenantID, CorrelationID: job.CorrelationID, Scanner: job.Type, Target: payload.Target, ProfileID: payload.ProfileID, HardDeadline: deadline, Payload: payload.Params}, nil
 }
 
-func specFromTask(task adapters.Task) sandbox.Spec {
+func specFromTask(task adapters.Task, imageReference string) sandbox.Spec {
+	if imageReference == "" {
+		imageReference = "kelvin/scanner-" + task.Scanner + ":local"
+	}
 	return sandbox.Spec{
-		Image: "kelvin/scanner-" + task.Scanner + ":latest", Command: []string{"/kelvin/bin/" + task.Scanner + "-adapter"},
+		Image: imageReference, Command: []string{"/kelvin/bin/" + task.Scanner + "-adapter"},
 		Args: []string{"-target", task.Target, "-profile", task.ProfileID}, User: "scanner",
 		Env: []string{"KELVIN_JOB_ID=" + task.JobID, "KELVIN_TENANT_ID=" + task.TenantID}, WorkingDir: "/home/scanner",
 		MemoryLimit: "512m", CPUQuota: "2", PIDsLimit: 64, ReadOnlyRootfs: true,
