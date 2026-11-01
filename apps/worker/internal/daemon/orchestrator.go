@@ -17,10 +17,12 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/pacing"
 	"github.com/kelvin/kelvin/apps/worker/internal/progress"
+	"github.com/kelvin/kelvin/apps/worker/internal/provenance"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/retry"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/apps/worker/internal/scannerprocess"
+	"github.com/kelvin/kelvin/apps/worker/internal/scopevalidator"
 	"github.com/kelvin/kelvin/apps/worker/internal/workspace"
 	"go.uber.org/zap"
 )
@@ -188,6 +190,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		pub = cfg.ProgressPublisher
 	}
 	tracker := progress.NewTracker(task.AssessmentID, task.JobID, task.TenantID, task.Scanner, pub, jobLog)
+	provCollector := provenance.NewCollector(task.TenantID, task.AssessmentID, task.JobID, task.Scanner, task.CorrelationID, 0, jobLog)
 	_ = tracker.TransitionTo(ctx, progress.StagePreflight, "running scope checks and pre-execution verification")
 
 	if errors.Is(ctx.Err(), context.Canceled) {
@@ -297,6 +300,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 			_ = tracker.ReportProgress(execCtxWithReporter, progress.NewIndeterminateProgress(fmt.Sprintf("executing scanner %q", task.Scanner)))
 		}
 
+		provCollector.RecordStart([]string{task.Scanner}, nil)
 		res, err := adapter.Execute(execCtxWithReporter, task)
 		isCancelled := errors.Is(ctx.Err(), context.Canceled) ||
 			errors.Is(execCtx.Err(), context.Canceled) ||
@@ -487,6 +491,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		_ = tracker.ReportProgress(execCtxWithReporter, progress.NewIndeterminateProgress(fmt.Sprintf("executing scanner %q", task.Scanner)))
 	}
 
+	provCollector.RecordStart(spec.Invocation.Args, spec.Env)
 	result, execErr := cfg.Executor.Execute(execCtxWithReporter, spec)
 	if result != nil && result.OOMKilled {
 		if cfg.Metrics != nil {
@@ -569,6 +574,14 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 			zap.Int("violations_count", egressProxy.ViolationsCount()),
 		)
 	}
+
+	exitCode := 0
+	duration := time.Duration(0)
+	if result != nil {
+		exitCode = result.ExitCode
+		duration = result.Duration
+	}
+	provCollector.RecordCompletion(exitCode, duration, 0, 0, 0)
 
 	if execErr != nil || (result != nil && result.ExitCode != 0) {
 		egressBlocked := egressProxy != nil && egressProxy.ViolationsCount() > 0
@@ -944,6 +957,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 	var scannersFailed []string
 	var scannersSkipped []string
 	allFindings := []json.RawMessage{}
+	var scopeViolations []scopevalidator.ScopeViolation
 
 	totalPhases := int64(len(profile.DefaultScannerOrder))
 	for _, phase := range profile.DefaultScannerOrder {
@@ -1087,6 +1101,13 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			if len(subResult.OutputEnvelope) > 0 {
 				env, err := adapters.DecodeOutputEnvelope(subResult.OutputEnvelope)
 				if err == nil {
+					if scopeVal, vErr := scopevalidator.NewFromTarget(task.Target, jobLog); vErr == nil {
+						accepted, violations, _ := scopeVal.FilterFindings(assessmentCtx, env.Findings)
+						env.Findings = accepted
+						if len(violations) > 0 {
+							scopeViolations = append(scopeViolations, violations...)
+						}
+					}
 					report.Envelopes = append(report.Envelopes, env)
 					report.TotalFindings += len(env.Findings)
 					allFindings = append(allFindings, env.Findings...)
@@ -1194,6 +1215,10 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 				}
 			}
 		}
+	}
+
+	if len(scopeViolations) > 0 {
+		diagnostics = append(diagnostics, scopevalidator.ToDiagnostics(scopeViolations)...)
 	}
 
 	report.OverallStatus = status
