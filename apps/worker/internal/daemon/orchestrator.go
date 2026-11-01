@@ -17,6 +17,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/pacing"
 	"github.com/kelvin/kelvin/apps/worker/internal/progress"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
+	"github.com/kelvin/kelvin/apps/worker/internal/retry"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/apps/worker/internal/scannerprocess"
 	"github.com/kelvin/kelvin/apps/worker/internal/workspace"
@@ -99,8 +100,83 @@ func (o *Orchestrator) ensureWorkspaceManager(cfg Config) *workspace.Manager {
 }
 
 // ExecuteScanner executes an individual resolved scanner adapter, choosing in-process
-// execution or OCI container sandboxing based on the adapter's declared capabilities.
+// execution or OCI container sandboxing based on the adapter's declared capabilities,
+// with safe bounded retries for transient failures.
 func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, task adapters.Task, cfg Config) (*sandbox.Result, error) {
+	retryPolicy := retry.ScannerPolicy(task.Scanner)
+	deadline := time.Time{}
+	if d, ok := ctx.Deadline(); ok {
+		deadline = d
+	}
+
+	var lastResult *sandbox.Result
+	var lastErr error
+
+	for attempt := 0; attempt <= retryPolicy.MaxRetries; attempt++ {
+		if attempt > 0 {
+			jobLog.Info("retrying scanner execution",
+				zap.String("job_id", task.JobID),
+				zap.String("scanner", task.Scanner),
+				zap.Int("attempt", attempt),
+			)
+		}
+
+		lastResult, lastErr = o.executeScannerAttempt(ctx, jobLog, task, cfg)
+		if lastErr == nil && (lastResult == nil || lastResult.ExitCode == 0) {
+			return lastResult, nil
+		}
+
+		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(lastErr, sandbox.ErrCancelled) {
+			return lastResult, lastErr
+		}
+
+		exitCode := 0
+		oomKilled := false
+		timedOut := false
+		stdout := ""
+		stderr := ""
+		if lastResult != nil {
+			exitCode = lastResult.ExitCode
+			oomKilled = lastResult.OOMKilled
+			timedOut = lastResult.DeadlineExceeded
+			stdout = string(lastResult.Stdout)
+			stderr = string(lastResult.Stderr)
+		}
+		cf := classification.Classify(ctx, classification.ClassificationInput{
+			Scanner:   task.Scanner,
+			ExitCode:  exitCode,
+			Stdout:    stdout,
+			Stderr:    stderr,
+			Err:       lastErr,
+			OOMKilled: oomKilled,
+			TimedOut:  timedOut,
+		})
+
+		shouldRetry, backoff := retryPolicy.ShouldRetry(attempt, cf, deadline)
+		if !shouldRetry {
+			break
+		}
+
+		jobLog.Warn("transient failure detected; backing off before retry",
+			zap.String("job_id", task.JobID),
+			zap.String("scanner", task.Scanner),
+			zap.Duration("backoff", backoff),
+			zap.Int("next_attempt", attempt+1),
+		)
+
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return lastResult, ctx.Err()
+		case <-timer.C:
+		}
+	}
+
+	return lastResult, lastErr
+}
+
+func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Logger, task adapters.Task, cfg Config) (*sandbox.Result, error) {
 	pub := o.publisher
 	if cfg.ProgressPublisher != nil {
 		pub = cfg.ProgressPublisher

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/netip"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1183,6 +1184,127 @@ func TestExecutePipelineProgressPhases(t *testing.T) {
 	}
 	if !foundPhaseProgress {
 		t.Fatal("expected pipeline phase progress event")
+	}
+}
+
+func TestExecuteScannerRetriesTransientFailure(t *testing.T) {
+	registry := adapters.NewRegistry()
+	var attemptCount int32
+
+	a := &adapters.ReferenceAdapter{
+		AdapterName: "http_preflight",
+		Caps:        adapters.Capabilities{RequiresSandbox: false, SupportedTargetTypes: []string{"url"}},
+		Run: func(ctx context.Context, task adapters.Task) (adapters.Result, error) {
+			att := atomic.AddInt32(&attemptCount, 1)
+			if att == 1 {
+				// Transient failure on first attempt
+				return adapters.Result{}, errors.New("dial tcp 93.184.216.34:80: connect: connection refused")
+			}
+			exitZero := 0
+			now := time.Now().UTC()
+			return adapters.Result{
+				SchemaVersion: adapters.OutputEnvelopeVersion,
+				Metadata: adapters.OutputMetadata{
+					AssessmentID:   task.AssessmentID,
+					ScannerID:      task.Scanner,
+					ScannerVersion: "1.0.0",
+					AdapterVersion: "1.0.0",
+					RunID:          uuid.New().String(),
+					StartedAt:      now.Add(-time.Second),
+					CompletedAt:    now,
+				},
+				Status:      adapters.StatusCompleted,
+				ExitCode:    &exitZero,
+				DurationMS:  1000,
+				Findings:    []json.RawMessage{},
+				Diagnostics: []adapters.ExecutionDiagnostic{},
+			}, nil
+		},
+	}
+	_ = a.Initialize(context.Background(), zap.NewNop())
+	_ = registry.RegisterAdapter(adapters.Metadata{
+		ID:               "http_preflight",
+		DisplayName:      "HTTP Preflight",
+		Version:          "1.0.0",
+		SupportedTargets: []string{"url"},
+		Capabilities:     a.Capabilities(),
+		ConfigVersion:    adapters.ScannerConfigVersion,
+		VersionPolicy:    adapters.VersionPolicy{ScannerVersion: "1.0.0"},
+	}, func() adapters.ScannerAdapter { return a })
+
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
+
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      "http_preflight",
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileStandard,
+		HardDeadline: 10 * time.Second,
+	}
+
+	res, err := orch.ExecuteScanner(context.Background(), zap.NewNop(), task, Config{})
+	if err != nil {
+		t.Fatalf("expected ExecuteScanner to succeed on retry: %v", err)
+	}
+	if res.ExitCode != 0 {
+		t.Fatalf("res.ExitCode = %d, want 0", res.ExitCode)
+	}
+	if atomic.LoadInt32(&attemptCount) != 2 {
+		t.Fatalf("expected 2 execution attempts, observed %d", atomic.LoadInt32(&attemptCount))
+	}
+}
+
+func TestExecuteScannerDoesNotRetryTerminalFailure(t *testing.T) {
+	registry := adapters.NewRegistry()
+	var attemptCount int32
+
+	a := &adapters.ReferenceAdapter{
+		AdapterName: "http_preflight",
+		Caps:        adapters.Capabilities{RequiresSandbox: false, SupportedTargetTypes: []string{"url"}},
+		Run: func(ctx context.Context, task adapters.Task) (adapters.Result, error) {
+			atomic.AddInt32(&attemptCount, 1)
+			return adapters.Result{}, errors.New("adapters: invalid scanner config: requests_per_second must be in 1..5")
+		},
+	}
+	_ = a.Initialize(context.Background(), zap.NewNop())
+	_ = registry.RegisterAdapter(adapters.Metadata{
+		ID:               "http_preflight",
+		DisplayName:      "HTTP Preflight",
+		Version:          "1.0.0",
+		SupportedTargets: []string{"url"},
+		Capabilities:     a.Capabilities(),
+		ConfigVersion:    adapters.ScannerConfigVersion,
+		VersionPolicy:    adapters.VersionPolicy{ScannerVersion: "1.0.0"},
+	}, func() adapters.ScannerAdapter { return a })
+
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
+
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      "http_preflight",
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileStandard,
+		HardDeadline: 10 * time.Second,
+	}
+
+	_, err := orch.ExecuteScanner(context.Background(), zap.NewNop(), task, Config{})
+	if err == nil {
+		t.Fatalf("expected ExecuteScanner to fail immediately on terminal error")
+	}
+	if atomic.LoadInt32(&attemptCount) != 1 {
+		t.Fatalf("expected exactly 1 execution attempt for terminal failure, observed %d", atomic.LoadInt32(&attemptCount))
 	}
 }
 
