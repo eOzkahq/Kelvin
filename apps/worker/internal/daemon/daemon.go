@@ -14,7 +14,6 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
-	"github.com/kelvin/kelvin/apps/worker/internal/scannerprocess"
 	"github.com/kelvin/kelvin/packages/common/tenant"
 	"go.uber.org/zap"
 )
@@ -95,24 +94,21 @@ func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, regist
 
 func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adapters.Registry, job queue.Job, cfg Config) {
 	jobLog := log.With(zap.String("job_id", job.ID), zap.String("job_type", job.Type), zap.String("correlation_id", job.CorrelationID))
-	if cfg.ReadinessChecker != nil && !cfg.ReadinessChecker.IsScannerReady(ctx, job.Type) {
-		fail(jobLog, q, ctx, job, fmt.Sprintf("scanner %q runtime readiness check failed", job.Type))
-		return
+
+	if cfg.ReadinessChecker != nil && job.Type != JobTypeAssessment && job.Type != JobTypePipeline {
+		if !cfg.ReadinessChecker.IsScannerReady(ctx, job.Type) {
+			fail(jobLog, q, ctx, job, fmt.Sprintf("scanner %q runtime readiness check failed", job.Type))
+			return
+		}
 	}
-	adapter, ok := registry.LookupExecutable(job.Type)
-	if !ok {
-		fail(jobLog, q, ctx, job, "no executable adapter registered for job type")
-		return
+
+	if job.Type != JobTypeAssessment && job.Type != JobTypePipeline {
+		if _, ok := registry.LookupExecutable(job.Type); !ok {
+			fail(jobLog, q, ctx, job, "no executable adapter registered for job type")
+			return
+		}
 	}
-	if err := registry.VerifyRuntime(ctx, job.Type); err != nil {
-		fail(jobLog, q, ctx, job, "scanner version compatibility check failed: "+err.Error())
-		return
-	}
-	metadata, ok := registry.Metadata(job.Type)
-	if !ok {
-		fail(jobLog, q, ctx, job, "scanner metadata unavailable")
-		return
-	}
+
 	task, err := taskFromJob(job)
 	if err == nil {
 		err = adapters.ValidateTask(task)
@@ -121,29 +117,14 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		fail(jobLog, q, ctx, job, err.Error())
 		return
 	}
-	if err := adapter.ValidateConfig(task.Payload); err != nil {
-		fail(jobLog, q, ctx, job, "invalid scanner configuration: "+err.Error())
-		return
+
+	// Prevent workers from accepting unvalidated execution requests
+	if task.ProfileID != "" && job.Type != JobTypeAssessment && job.Type != JobTypePipeline {
+		if _, err := adapters.ValidateProfileSelection(task.ProfileID, task.Scanner); err != nil {
+			fail(jobLog, q, ctx, job, "unauthorized scanner for assessment profile: "+err.Error())
+			return
+		}
 	}
-	if err := adapter.Health(ctx); err != nil {
-		fail(jobLog, q, ctx, job, "scanner adapter unavailable: "+err.Error())
-		return
-	}
-	if cfg.Executor == nil {
-		fail(jobLog, q, ctx, job, "no sandbox executor configured")
-		return
-	}
-	invocation, err := scannerprocess.Build(task)
-	if err != nil {
-		fail(jobLog, q, ctx, job, "scanner invocation rejected: "+err.Error())
-		return
-	}
-	executionDeadline, err := scannerprocess.EffectiveDeadline(task)
-	if err != nil {
-		fail(jobLog, q, ctx, job, "scanner duration policy rejected: "+err.Error())
-		return
-	}
-	task.HardDeadline = executionDeadline
 
 	if hb, ok := q.(interface {
 		Heartbeat(context.Context, string, string, time.Duration) error
@@ -151,33 +132,17 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		_ = hb.Heartbeat(ctx, job.ID, cfg.WorkerID, cfg.HeartbeatEvery*3)
 	}
 
-	execCtx, cancel := context.WithTimeout(ctx, task.HardDeadline)
-	defer cancel()
-	spec := specFromTask(task, metadata.VersionPolicy.ImageReference, invocation)
-	spec.CaptureZAPReport = task.Scanner == adapters.ScannerZAPBaseline
-	spec.Limits = cfg.Limits
-	if err := spec.Validate(); err != nil {
-		fail(jobLog, q, ctx, job, "sandbox spec violates isolation profile: "+err.Error())
-		if cfg.Metrics != nil {
-			cfg.Metrics.IncTermination(metrics.CauseSpecInvalid)
-		}
-		return
+	orchestrator := NewOrchestrator(registry, cfg.Executor, cfg.ReadinessChecker, cfg.Metrics, jobLog)
+
+	var result *sandbox.Result
+	var execErr error
+
+	if job.Type == JobTypeAssessment || job.Type == JobTypePipeline {
+		result, execErr = orchestrator.ExecutePipeline(ctx, jobLog, task, cfg)
+	} else {
+		result, execErr = orchestrator.ExecuteScanner(ctx, jobLog, task, cfg)
 	}
-	result, execErr := cfg.Executor.Execute(execCtx, spec)
-	if task.Scanner == adapters.ScannerZAPBaseline && result != nil && execErr == nil && result.ExitCode == 0 {
-		completed := time.Now().UTC()
-		started := completed.Add(-result.Duration)
-		envelope, normalizeErr := adapters.NormalizeZAPReport(task, result.Findings, metadata.VersionPolicy.ScannerVersion, started, completed)
-		if normalizeErr == nil {
-			normalizeErr = registry.StampOutput(job.Type, &envelope)
-		}
-		if normalizeErr == nil {
-			result.OutputEnvelope, normalizeErr = adapters.EncodeOutputEnvelope(envelope)
-		}
-		if normalizeErr != nil {
-			execErr = fmt.Errorf("invalid ZAP report: %w", normalizeErr)
-		}
-	}
+
 	processResult(jobLog, q, job, task, result, execErr, ctx, cfg.Metrics)
 }
 
