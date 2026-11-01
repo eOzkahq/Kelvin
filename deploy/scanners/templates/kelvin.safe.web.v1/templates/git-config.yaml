@@ -1,0 +1,27 @@
+id: git-config
+info:
+  name: Git Config Exposure
+  author: kelvin-security
+  severity: medium
+  description: Detects exposure of git repository configuration (.git/config).
+  classification:
+    cwe-id:
+      - CWE-200
+  metadata:
+    review_status: approved
+    request_type: http-get
+    safety_tier: passive-read
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.git/config"
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: word
+        words:
+          - "[core]"
+          - "repositoryformatversion"
+        part: body
