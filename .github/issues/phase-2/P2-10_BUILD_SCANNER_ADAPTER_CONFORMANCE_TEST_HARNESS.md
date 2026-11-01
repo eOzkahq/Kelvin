@@ -47,11 +47,11 @@ Create reusable tests that verify whether a scanner adapter follows KELVIN's int
 
 ## ✅ Acceptance Criteria
 
-- [ ] The harness can test any conforming adapter.
-- [ ] At least one external scanner adapter and one built-in adapter pass the harness.
-- [ ] Failure scenarios are covered.
-- [ ] Tests run in CI without requiring unrestricted internet access.
-- [ ] Usage documentation is available.
+- [x] The harness can test conforming adapters through scanner-provided configs, tasks, and scenarios.
+- [x] A built-in preflight reference adapter and an external ZAP-style reference adapter pass the harness (contract fixtures; production scanner integrations are not implied).
+- [x] Failure scenarios cover malformed and empty output, partial output, scanner failure, and cancellation.
+- [x] Tests run in worker CI without requiring unrestricted internet access.
+- [x] Usage documentation is available in `docs/architecture/SCANNER_ADAPTER_CONFORMANCE.md`.
 
 ---
 
