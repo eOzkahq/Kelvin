@@ -1,6 +1,4 @@
-// Package adapters defines the scanner adapter contract and registry
-// (Nmap, Nuclei, OpenVAS, Trivy, ... — concrete adapters land with the
-// Phase 2 engine milestones; ADR-0005 governs their sandboxing).
+// Package adapters defines the scanner adapter lifecycle contract and registry.
 //
 // See docs/architecture/EXECUTION_ISOLATION.md §5 for the normative adapter
 // contract: task ingestion, sandbox execution, and structured finding egress.
@@ -11,18 +9,16 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+
+	"go.uber.org/zap"
 )
 
-// Adapter is one registered scanner engine (name-only, for backward
-// compatibility with adapters that have not yet adopted Execute).
+// Adapter is the identity shared by registered scanner implementations.
 type Adapter interface {
 	Name() string
 }
 
-// Executable is implemented by scanner adapters that run inside the worker
-// sandbox and return structured findings. Execute receives a validated Task
-// and a context carrying the hard execution deadline; cancellation kills the
-// container.
+// Executable is the execution subset of ScannerAdapter.
 type Executable interface {
 	Adapter
 	Execute(context.Context, Task) (Result, error)
@@ -31,16 +27,19 @@ type Executable interface {
 // Registry maps adapter names to implementations, built once at startup.
 type Registry struct {
 	mu       sync.RWMutex
-	adapters map[string]Adapter
+	adapters map[string]ScannerAdapter
 }
 
 // NewRegistry returns an empty registry.
 func NewRegistry() *Registry {
-	return &Registry{adapters: make(map[string]Adapter)}
+	return &Registry{adapters: make(map[string]ScannerAdapter)}
 }
 
 // Register adds an adapter; duplicate names are rejected.
-func (r *Registry) Register(a Adapter) error {
+func (r *Registry) Register(a ScannerAdapter) error {
+	if a == nil {
+		return fmt.Errorf("adapters: adapter must not be nil")
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	name := a.Name()
@@ -54,8 +53,20 @@ func (r *Registry) Register(a Adapter) error {
 	return nil
 }
 
+// Initialize initializes every registered adapter before the worker starts
+// consuming jobs. The first failure aborts startup so the worker fails closed.
+func (r *Registry) Initialize(ctx context.Context, logger *zap.Logger) error {
+	for _, name := range r.Names() {
+		a, _ := r.Lookup(name)
+		if err := a.Initialize(ctx, logger); err != nil {
+			return fmt.Errorf("adapters: initialize %q: %w", name, err)
+		}
+	}
+	return nil
+}
+
 // Lookup returns the adapter with the given name.
-func (r *Registry) Lookup(name string) (Adapter, bool) {
+func (r *Registry) Lookup(name string) (ScannerAdapter, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	a, ok := r.adapters[name]
@@ -64,15 +75,14 @@ func (r *Registry) Lookup(name string) (Adapter, bool) {
 
 // LookupExecutable returns the adapter with the given name if it implements
 // Executable; otherwise ok is false.
-func (r *Registry) LookupExecutable(name string) (Executable, bool) {
+func (r *Registry) LookupExecutable(name string) (ScannerAdapter, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	a, ok := r.adapters[name]
 	if !ok {
 		return nil, false
 	}
-	exec, ok := a.(Executable)
-	return exec, ok
+	return a, true
 }
 
 // Names lists registered adapter names in sorted order.

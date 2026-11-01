@@ -27,6 +27,9 @@ type Config struct {
 }
 
 func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, registry *adapters.Registry) error {
+	if err := registry.Initialize(ctx, log); err != nil {
+		return err
+	}
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = 5 * time.Second
 	}
@@ -75,7 +78,8 @@ func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, regist
 
 func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adapters.Registry, job queue.Job, cfg Config) {
 	jobLog := log.With(zap.String("job_id", job.ID), zap.String("job_type", job.Type), zap.String("correlation_id", job.CorrelationID))
-	if _, ok := registry.LookupExecutable(job.Type); !ok {
+	adapter, ok := registry.LookupExecutable(job.Type)
+	if !ok {
 		fail(jobLog, q, ctx, job, "no executable adapter registered for job type")
 		return
 	}
@@ -85,6 +89,14 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 	}
 	if err != nil {
 		fail(jobLog, q, ctx, job, err.Error())
+		return
+	}
+	if err := adapter.ValidateConfig(task.Payload); err != nil {
+		fail(jobLog, q, ctx, job, "invalid scanner configuration: "+err.Error())
+		return
+	}
+	if err := adapter.Health(ctx); err != nil {
+		fail(jobLog, q, ctx, job, "scanner adapter unavailable: "+err.Error())
 		return
 	}
 	if cfg.Executor == nil {

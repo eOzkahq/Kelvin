@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -42,9 +43,17 @@ func (r *recordingQueue) Fail(ctx context.Context, j queue.Job, _ string) error 
 
 type stubAdapter struct{ name string }
 
-func (s stubAdapter) Name() string { return s.name }
+func (s stubAdapter) Name() string                                  { return s.name }
+func (s stubAdapter) Initialize(context.Context, *zap.Logger) error { return nil }
+func (s stubAdapter) ValidateConfig(json.RawMessage) error          { return nil }
+func (s stubAdapter) Capabilities() adapters.Capabilities           { return adapters.Capabilities{} }
 func (s stubAdapter) Execute(context.Context, adapters.Task) (adapters.Result, error) {
 	return adapters.Result{}, nil
+}
+func (s stubAdapter) Cancel() error                { return nil }
+func (s stubAdapter) Health(context.Context) error { return nil }
+func (s stubAdapter) Result() (adapters.Result, error) {
+	return adapters.Result{}, adapters.ErrNoResult
 }
 
 func runWorker(t *testing.T, q *recordingQueue, registry *adapters.Registry, executor sandbox.Executor) (context.CancelFunc, <-chan error) {
