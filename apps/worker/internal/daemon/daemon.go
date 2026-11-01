@@ -15,6 +15,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/apps/worker/internal/workspace"
+	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
 	"github.com/kelvin/kelvin/packages/common/tenant"
 	"go.uber.org/zap"
 )
@@ -135,15 +136,49 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		_ = hb.Heartbeat(ctx, job.ID, cfg.WorkerID, cfg.HeartbeatEvery*3)
 	}
 
+	jobCtx, cancelJob := context.WithCancel(ctx)
+	defer cancelJob()
+
+	// Cancellation watcher: polls queue for cancellation events out-of-band
+	if statusGetter, ok := q.(interface {
+		GetStatus(context.Context, string) (commonqueue.Status, error)
+	}); ok {
+		stopWatch := make(chan struct{})
+		defer close(stopWatch)
+		go func() {
+			pollInterval := cfg.HeartbeatEvery
+			if pollInterval <= 0 || pollInterval > 50*time.Millisecond {
+				pollInterval = 20 * time.Millisecond
+			}
+			ticker := time.NewTicker(pollInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-stopWatch:
+					return
+				case <-jobCtx.Done():
+					return
+				case <-ticker.C:
+					status, err := statusGetter.GetStatus(ctx, job.ID)
+					if err == nil && status.State == "CANCELLED" {
+						jobLog.Info("cancellation signal received for active job", zap.String("job_id", job.ID))
+						cancelJob()
+						return
+					}
+				}
+			}
+		}()
+	}
+
 	orchestrator := NewOrchestrator(registry, cfg.Executor, cfg.ReadinessChecker, cfg.WorkspaceManager, cfg.Metrics, jobLog)
 
 	var result *sandbox.Result
 	var execErr error
 
 	if job.Type == JobTypeAssessment || job.Type == JobTypePipeline {
-		result, execErr = orchestrator.ExecutePipeline(ctx, jobLog, task, cfg)
+		result, execErr = orchestrator.ExecutePipeline(jobCtx, jobLog, task, cfg)
 	} else {
-		result, execErr = orchestrator.ExecuteScanner(ctx, jobLog, task, cfg)
+		result, execErr = orchestrator.ExecuteScanner(jobCtx, jobLog, task, cfg)
 	}
 
 	processResult(jobLog, q, job, task, result, execErr, ctx, cfg.Metrics)
@@ -162,7 +197,7 @@ func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.
 		}
 		log.Info("job terminated", zap.String("cause", string(c)))
 	}
-	if result != nil && result.Cancelled {
+	if (result != nil && result.Cancelled) || errors.Is(execErr, sandbox.ErrCancelled) || errors.Is(execErr, context.Canceled) {
 		mark(metrics.CauseCancelled)
 		fail(log, q, ctx, job, "execution cancelled")
 		return
