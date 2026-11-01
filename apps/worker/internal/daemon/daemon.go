@@ -11,6 +11,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/limits"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
+	"github.com/kelvin/kelvin/apps/worker/internal/progress"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
@@ -30,6 +31,7 @@ type Config struct {
 	ReadinessChecker *readiness.Checker
 	WorkspaceManager    *workspace.Manager
 	ScopePolicyProvider adapters.ScopePolicyProvider
+	ProgressPublisher   progress.Publisher
 }
 
 func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, registry *adapters.Registry) error {
@@ -170,7 +172,16 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		}()
 	}
 
+	if cfg.ProgressPublisher == nil {
+		if pub, ok := q.(progress.Publisher); ok {
+			cfg.ProgressPublisher = pub
+		}
+	}
+
 	orchestrator := NewOrchestrator(registry, cfg.Executor, cfg.ReadinessChecker, cfg.WorkspaceManager, cfg.Metrics, jobLog)
+	if cfg.ProgressPublisher != nil {
+		orchestrator.SetProgressPublisher(cfg.ProgressPublisher)
+	}
 
 	var result *sandbox.Result
 	var execErr error

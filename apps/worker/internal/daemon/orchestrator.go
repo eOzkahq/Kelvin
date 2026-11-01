@@ -13,6 +13,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/egress"
 	"github.com/kelvin/kelvin/apps/worker/internal/limits"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
+	"github.com/kelvin/kelvin/apps/worker/internal/progress"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/apps/worker/internal/scannerprocess"
@@ -57,6 +58,7 @@ type Orchestrator struct {
 	readiness *readiness.Checker
 	wsManager *workspace.Manager
 	logger    *zap.Logger
+	publisher progress.Publisher
 }
 
 func NewOrchestrator(registry *adapters.Registry, executor sandbox.Executor, checker *readiness.Checker, wsMgr *workspace.Manager, reg *metrics.Registry, logger *zap.Logger) *Orchestrator {
@@ -70,6 +72,14 @@ func NewOrchestrator(registry *adapters.Registry, executor sandbox.Executor, che
 		wsManager: wsMgr,
 		metrics:   reg,
 		logger:    logger,
+		publisher: progress.NewNopPublisher(),
+	}
+}
+
+// SetProgressPublisher configures the progress event broadcaster.
+func (o *Orchestrator) SetProgressPublisher(p progress.Publisher) {
+	if p != nil {
+		o.publisher = p
 	}
 }
 
@@ -89,7 +99,15 @@ func (o *Orchestrator) ensureWorkspaceManager(cfg Config) *workspace.Manager {
 // ExecuteScanner executes an individual resolved scanner adapter, choosing in-process
 // execution or OCI container sandboxing based on the adapter's declared capabilities.
 func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, task adapters.Task, cfg Config) (*sandbox.Result, error) {
+	pub := o.publisher
+	if cfg.ProgressPublisher != nil {
+		pub = cfg.ProgressPublisher
+	}
+	tracker := progress.NewTracker(task.AssessmentID, task.JobID, task.TenantID, task.Scanner, pub, jobLog)
+	_ = tracker.TransitionTo(ctx, progress.StagePreflight, "running scope checks and pre-execution verification")
+
 	if errors.Is(ctx.Err(), context.Canceled) {
+		_ = tracker.FailStage(ctx, progress.StageStatusCancelled, "execution cancelled before start")
 		if cfg.Metrics != nil {
 			cfg.Metrics.IncTermination(metrics.CauseCancelled)
 		}
@@ -107,29 +125,41 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 
 	adapter, ok := o.registry.LookupExecutable(task.Scanner)
 	if !ok {
-		return nil, fmt.Errorf("no executable adapter registered for scanner %q", task.Scanner)
+		err := fmt.Errorf("no executable adapter registered for scanner %q", task.Scanner)
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+		return nil, err
 	}
 
 	if err := o.registry.VerifyRuntime(ctx, task.Scanner); err != nil {
-		return nil, fmt.Errorf("scanner version compatibility check failed: %w", err)
+		err = fmt.Errorf("scanner version compatibility check failed: %w", err)
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+		return nil, err
 	}
 
 	metadata, ok := o.registry.Metadata(task.Scanner)
 	if !ok {
-		return nil, fmt.Errorf("scanner metadata unavailable for %q", task.Scanner)
+		err := fmt.Errorf("scanner metadata unavailable for %q", task.Scanner)
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+		return nil, err
 	}
 
 	if err := adapter.ValidateConfig(task.Payload); err != nil {
-		return nil, fmt.Errorf("invalid scanner configuration: %w", err)
+		err = fmt.Errorf("invalid scanner configuration: %w", err)
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+		return nil, err
 	}
 
 	if err := adapter.Health(ctx); err != nil {
-		return nil, fmt.Errorf("scanner adapter unavailable: %w", err)
+		err = fmt.Errorf("scanner adapter unavailable: %w", err)
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+		return nil, err
 	}
 
 	executionDeadline, err := scannerprocess.EffectiveDeadline(task)
 	if err != nil {
-		return nil, fmt.Errorf("scanner duration policy rejected: %w", err)
+		err = fmt.Errorf("scanner duration policy rejected: %w", err)
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+		return nil, err
 	}
 	if d, ok := ctx.Deadline(); ok {
 		if remaining := time.Until(d); remaining < executionDeadline {
@@ -137,6 +167,7 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 		}
 	}
 	if executionDeadline <= 0 {
+		_ = tracker.FailStage(ctx, progress.StageStatusTimedOut, "scanner execution deadline already expired")
 		if cfg.Metrics != nil {
 			cfg.Metrics.IncResourceViolation(metrics.ViolationDeadline)
 			cfg.Metrics.IncTermination(metrics.CauseDeadline)
@@ -162,7 +193,9 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 	wsMgr := o.ensureWorkspaceManager(cfg)
 	ws, err := wsMgr.Create(ctx, task.TenantID, task.AssessmentID, task.JobID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create execution workspace: %w", err)
+		err = fmt.Errorf("failed to create execution workspace: %w", err)
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+		return nil, err
 	}
 	defer func() {
 		if err := ws.Cleanup(); err != nil {
@@ -170,9 +203,17 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 		}
 	}()
 
+	_ = tracker.TransitionTo(ctx, progress.StageScannerInitialization, "initializing scanner runtime and bounds")
+
 	// 1. In-process execution (requires no external sandbox/container)
 	if !metadata.Capabilities.RequiresSandbox {
-		res, err := adapter.Execute(execCtx, task)
+		_ = tracker.TransitionTo(ctx, progress.StageScannerExecution, "executing scanner process")
+		execCtxWithReporter := progress.WithReporter(execCtx, tracker)
+		if !metadata.Capabilities.SupportsProgress {
+			_ = tracker.ReportProgress(execCtxWithReporter, progress.NewIndeterminateProgress(fmt.Sprintf("executing scanner %q", task.Scanner)))
+		}
+
+		res, err := adapter.Execute(execCtxWithReporter, task)
 		isCancelled := errors.Is(ctx.Err(), context.Canceled) ||
 			errors.Is(execCtx.Err(), context.Canceled) ||
 			errors.Is(err, context.Canceled) ||
@@ -180,6 +221,7 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 			res.Status == adapters.StatusCancelled
 
 		if isCancelled {
+			_ = tracker.FailStage(ctx, progress.StageStatusCancelled, "scanner execution cancelled")
 			if cfg.Metrics != nil {
 				cfg.Metrics.IncTermination(metrics.CauseCancelled)
 			}
@@ -210,6 +252,7 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 
 		isTimeout := execCtx.Err() == context.DeadlineExceeded || errors.Is(err, context.DeadlineExceeded) || res.Status == adapters.StatusTimedOut
 		if isTimeout {
+			_ = tracker.FailStage(ctx, progress.StageStatusTimedOut, "scanner execution deadline exceeded")
 			if cfg.Metrics != nil {
 				cfg.Metrics.IncResourceViolation(metrics.ViolationDeadline)
 				cfg.Metrics.IncTermination(metrics.CauseDeadline)
@@ -239,17 +282,27 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 			}, sandbox.ErrDeadlineExceeded
 		}
 		if err != nil {
+			_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
 			return nil, err
 		}
 
+		_ = tracker.TransitionTo(ctx, progress.StageOutputCollection, "collecting scanner output and diagnostics")
+		_ = tracker.TransitionTo(ctx, progress.StageResultNormalization, "normalizing findings into canonical schema")
+
 		if err := o.registry.StampOutput(task.Scanner, &res); err != nil {
-			return nil, fmt.Errorf("stamp output failed: %w", err)
+			err = fmt.Errorf("stamp output failed: %w", err)
+			_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+			return nil, err
 		}
 
 		encoded, err := adapters.EncodeOutputEnvelope(res)
 		if err != nil {
-			return nil, fmt.Errorf("encode output envelope failed: %w", err)
+			err = fmt.Errorf("encode output envelope failed: %w", err)
+			_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+			return nil, err
 		}
+
+		_ = tracker.CompleteStage(ctx, "scanner execution completed successfully")
 
 		duration := time.Duration(res.DurationMS) * time.Millisecond
 		if duration <= 0 {
@@ -270,12 +323,16 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 
 	// 2. Sandboxed container execution
 	if cfg.Executor == nil {
-		return nil, fmt.Errorf("no sandbox executor configured for containerized scanner %q", task.Scanner)
+		err := fmt.Errorf("no sandbox executor configured for containerized scanner %q", task.Scanner)
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+		return nil, err
 	}
 
 	invocation, err := scannerprocess.Build(task)
 	if err != nil {
-		return nil, fmt.Errorf("scanner invocation rejected: %w", err)
+		err = fmt.Errorf("scanner invocation rejected: %w", err)
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+		return nil, err
 	}
 
 	spec := specFromTask(task, metadata.VersionPolicy.ImageReference, invocation, ws.RootDir)
@@ -319,10 +376,18 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 		if cfg.Metrics != nil {
 			cfg.Metrics.IncTermination(metrics.CauseSpecInvalid)
 		}
-		return nil, fmt.Errorf("sandbox spec violates isolation profile: %w", err)
+		err = fmt.Errorf("sandbox spec violates isolation profile: %w", err)
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+		return nil, err
 	}
 
-	result, execErr := cfg.Executor.Execute(execCtx, spec)
+	_ = tracker.TransitionTo(ctx, progress.StageScannerExecution, "executing containerized scanner process")
+	execCtxWithReporter := progress.WithReporter(execCtx, tracker)
+	if !metadata.Capabilities.SupportsProgress {
+		_ = tracker.ReportProgress(execCtxWithReporter, progress.NewIndeterminateProgress(fmt.Sprintf("executing scanner %q", task.Scanner)))
+	}
+
+	result, execErr := cfg.Executor.Execute(execCtxWithReporter, spec)
 	if result != nil && result.OOMKilled {
 		if cfg.Metrics != nil {
 			cfg.Metrics.IncResourceViolation(metrics.ViolationOOM)
@@ -342,6 +407,7 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 		errors.Is(execErr, context.Canceled)
 
 	if isCancelled {
+		_ = tracker.FailStage(ctx, progress.StageStatusCancelled, "scanner execution cancelled")
 		if result == nil {
 			result = &sandbox.Result{
 				Duration:  0,
@@ -370,6 +436,7 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 		execCtx.Err() == context.DeadlineExceeded
 
 	if isDeadlineExceeded {
+		_ = tracker.FailStage(ctx, progress.StageStatusTimedOut, "hard execution deadline exceeded")
 		if result == nil {
 			result = &sandbox.Result{
 				Duration:         task.HardDeadline,
@@ -402,6 +469,10 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 			zap.Int("violations_count", egressProxy.ViolationsCount()),
 		)
 	}
+
+	_ = tracker.TransitionTo(ctx, progress.StageOutputCollection, "collecting scanner output and diagnostics")
+	_ = tracker.TransitionTo(ctx, progress.StageResultNormalization, "normalizing findings into canonical schema")
+
 	if task.Scanner == adapters.ScannerZAPBaseline && result != nil && execErr == nil && result.ExitCode == 0 {
 		completed := time.Now().UTC()
 		started := completed.Add(-result.Duration)
@@ -414,6 +485,7 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 		}
 		if normalizeErr != nil {
 			execErr = fmt.Errorf("invalid ZAP report: %w", normalizeErr)
+			_ = tracker.FailStage(ctx, progress.StageStatusFailed, execErr.Error())
 		}
 	} else if isNucleiAdapter(adapter) && result != nil && execErr == nil && result.ExitCode == 0 {
 		completed := time.Now().UTC()
@@ -431,7 +503,14 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 		}
 		if normalizeErr != nil {
 			execErr = fmt.Errorf("invalid Nuclei report: %w", normalizeErr)
+			_ = tracker.FailStage(ctx, progress.StageStatusFailed, execErr.Error())
 		}
+	}
+
+	if execErr != nil {
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, execErr.Error())
+	} else {
+		_ = tracker.CompleteStage(ctx, "scanner execution completed successfully")
 	}
 
 	return result, execErr
@@ -543,10 +622,19 @@ func buildCancelledEnvelope(task adapters.Task, scannerVersion string, duration 
 
 // ExecutePipeline coordinates execution of all scanners defined by an assessment profile.
 func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, task adapters.Task, cfg Config) (*sandbox.Result, error) {
+	pub := o.publisher
+	if cfg.ProgressPublisher != nil {
+		pub = cfg.ProgressPublisher
+	}
+	pipelineTracker := progress.NewTracker(task.AssessmentID, task.JobID, task.TenantID, "pipeline", pub, jobLog)
+
 	profile, err := adapters.GetAssessmentProfile(task.ProfileID)
 	if err != nil {
+		_ = pipelineTracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
 		return nil, fmt.Errorf("invalid assessment profile %q: %w", task.ProfileID, err)
 	}
+
+	_ = pipelineTracker.TransitionTo(ctx, progress.StagePreflight, fmt.Sprintf("pipeline preflight for profile %q", profile.ProfileID))
 
 	started := time.Now().UTC()
 	report := AssessmentPipelineReport{
@@ -558,6 +646,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 	}
 
 	if errors.Is(ctx.Err(), context.Canceled) {
+		_ = pipelineTracker.FailStage(ctx, progress.StageStatusCancelled, "assessment execution was cancelled before execution began")
 		if cfg.Metrics != nil {
 			cfg.Metrics.IncTermination(metrics.CauseCancelled)
 		}
@@ -616,6 +705,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 	}
 
 	if assessmentDeadline <= 0 {
+		_ = pipelineTracker.FailStage(ctx, progress.StageStatusTimedOut, "assessment execution deadline exceeded before execution began")
 		if cfg.Metrics != nil {
 			cfg.Metrics.IncResourceViolation(metrics.ViolationDeadline)
 			cfg.Metrics.IncTermination(metrics.CauseDeadline)
@@ -664,6 +754,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 	assessmentCancelled := false
 	prevPhaseSucceeded := true
 
+	totalPhases := int64(len(profile.DefaultScannerOrder))
 	for _, phase := range profile.DefaultScannerOrder {
 		phaseRes := PhaseResult{
 			PhaseIndex: phase.PhaseIndex,
@@ -671,6 +762,9 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			Scanners:   phase.Scanners,
 			Success:    true,
 		}
+
+		_ = pipelineTracker.TransitionTo(assessmentCtx, progress.StageScannerExecution, fmt.Sprintf("executing phase %d/%d (%s)", phase.PhaseIndex+1, totalPhases, phase.PhaseName))
+		_ = pipelineTracker.ReportProgress(assessmentCtx, progress.NewDeterminateProgress(int64(phase.PhaseIndex), totalPhases, "phases", fmt.Sprintf("running phase %s", phase.PhaseName)))
 
 		if phase.RequirePrev && !prevPhaseSucceeded {
 			phaseRes.Success = false
@@ -817,6 +911,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 	var diagnostics []adapters.ExecutionDiagnostic
 
 	if assessmentCancelled {
+		_ = pipelineTracker.FailStage(ctx, progress.StageStatusCancelled, "assessment execution was cancelled")
 		status = adapters.StatusCancelled
 		exitCode = -1
 		diagnostics = []adapters.ExecutionDiagnostic{
@@ -827,6 +922,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			},
 		}
 	} else if assessmentTimedOut {
+		_ = pipelineTracker.FailStage(ctx, progress.StageStatusTimedOut, "assessment execution deadline exceeded")
 		status = adapters.StatusTimedOut
 		exitCode = -1
 		diagnostics = []adapters.ExecutionDiagnostic{
@@ -836,6 +932,8 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 				Message: "assessment execution deadline exceeded",
 			},
 		}
+	} else {
+		_ = pipelineTracker.CompleteStage(ctx, "assessment pipeline completed successfully")
 	}
 
 	envelope := adapters.ScannerOutputEnvelope{
