@@ -1,0 +1,61 @@
+{
+    "schema_version":  "1",
+    "catalog_id":  "kelvin.safe.web.v1",
+    "version":  "1.0.0",
+    "description":  "Curated safe web assessment templates for Kelvin MVP",
+    "created_at":  "2026-11-01T21:00:00Z",
+    "review_policy":  {
+                          "status":  "approved",
+                          "reviewer":  "product-security",
+                          "intrusive_checks_allowed":  false,
+                          "dos_checks_allowed":  false,
+                          "exploit_payloads_allowed":  false,
+                          "state_changing_methods_allowed":  false
+                      },
+    "templates":  [
+                      {
+                          "id":  "git-config",
+                          "path":  "templates/git-config.yaml",
+                          "severity":  "medium",
+                          "category":  "exposure",
+                          "methods":  [
+                                          "GET"
+                                      ],
+                          "review_status":  "approved",
+                          "sha256":  "1b7ec1bf7178c8b2b9336c262272d03804476d3b5eb9ba86d421db6f6eff68c1"
+                      },
+                      {
+                          "id":  "env-file",
+                          "path":  "templates/env-file.yaml",
+                          "severity":  "high",
+                          "category":  "exposure",
+                          "methods":  [
+                                          "GET"
+                                      ],
+                          "review_status":  "approved",
+                          "sha256":  "55558a0bb7d8b2c121a496c307070dbd77ed158404d014d49764f2d096350195"
+                      },
+                      {
+                          "id":  "robots-txt",
+                          "path":  "templates/robots-txt.yaml",
+                          "severity":  "info",
+                          "category":  "discovery",
+                          "methods":  [
+                                          "GET"
+                                      ],
+                          "review_status":  "approved",
+                          "sha256":  "38a726d57db8b021ecb0100a3109d9abe1ee7b27947d4fcab626a770678d060d"
+                      },
+                      {
+                          "id":  "security-txt",
+                          "path":  "templates/security-txt.yaml",
+                          "severity":  "info",
+                          "category":  "discovery",
+                          "methods":  [
+                                          "GET"
+                                      ],
+                          "review_status":  "approved",
+                          "sha256":  "9361ebefb6af3ef1daeeb6272248218abcac09df7341cac1cd4f96816b43183a"
+                      }
+                  ]
+}

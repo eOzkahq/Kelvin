@@ -1,0 +1,26 @@
+id: robots-txt
+info:
+  name: Robots.txt Informational Discovery
+  author: kelvin-security
+  severity: info
+  description: Checks availability and contents of robots.txt for sensitive disallow directives.
+  classification:
+    cwe-id:
+      - CWE-200
+  metadata:
+    review_status: approved
+    request_type: http-get
+    safety_tier: passive-read
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/robots.txt"
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: word
+        words:
+          - "User-agent:"
+        part: body

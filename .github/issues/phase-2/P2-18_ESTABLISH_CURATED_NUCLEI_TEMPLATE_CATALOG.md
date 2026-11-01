@@ -48,11 +48,19 @@ Define a controlled collection of Nuclei templates that KELVIN permits in its MV
 
 ## ✅ Acceptance Criteria
 
-- [ ] A versioned, curated catalog exists.
-- [ ] Each included template has review metadata.
-- [ ] Disallowed templates cannot be selected.
-- [ ] Template catalog changes are traceable.
-- [ ] CI or an equivalent validation process verifies catalog integrity.
+- [x] A versioned, curated catalog exists.
+- [x] Each included template has review metadata.
+- [x] Disallowed templates cannot be selected.
+- [x] Template catalog changes are traceable.
+- [x] CI or an equivalent validation process verifies catalog integrity.
+
+## Implementation Notes
+
+- Created curated catalog `kelvin.safe.web.v1` in `deploy/scanners/templates/kelvin.safe.web.v1` containing approved non-intrusive safe checks (`git-config`, `env-file`, `robots-txt`, `security-txt`) with cryptographic SHA-256 integrity verification.
+- Added catalog manifest `catalog.json` establishing review metadata, approval status, permitted HTTP methods (read-only `GET`), and disallowing intrusive, destructive, or DoS payloads.
+- Implemented `CuratedCatalogManifest` loader and validator with automated test harness in `apps/worker/internal/adapters/nuclei_catalog.go` and `nuclei_catalog_test.go`.
+- Updated Nuclei Dockerfile to package the curated templates at `/opt/kelvin/templates/kelvin.safe.web.v1`.
+- Documented catalog governance and update/rollback policy in `docs/architecture/CURATED_NUCLEI_TEMPLATE_CATALOG.md`.
 
 ---
 
@@ -63,3 +71,4 @@ Define a controlled collection of Nuclei templates that KELVIN permits in its MV
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- Curated Nuclei Template Catalog: [`docs/architecture/CURATED_NUCLEI_TEMPLATE_CATALOG.md`](../../../docs/architecture/CURATED_NUCLEI_TEMPLATE_CATALOG.md)

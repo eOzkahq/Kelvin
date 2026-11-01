@@ -14,6 +14,7 @@ LABEL org.opencontainers.image.title="Kelvin Nuclei runtime" \
       org.opencontainers.image.vendor="Kelvin"
 
 COPY --from=upstream /usr/local/bin/nuclei /nuclei
+COPY deploy/scanners/templates/kelvin.safe.web.v1 /opt/kelvin/templates/kelvin.safe.web.v1
 ENV HOME=/tmp \
     XDG_CONFIG_HOME=/tmp/.config \
     XDG_CACHE_HOME=/tmp/.cache
