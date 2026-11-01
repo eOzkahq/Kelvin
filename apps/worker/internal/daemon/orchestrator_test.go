@@ -32,10 +32,15 @@ type inProcessMockAdapter struct {
 func (m inProcessMockAdapter) Name() string    { return m.name }
 func (m inProcessMockAdapter) Version() string { return m.version }
 func (m inProcessMockAdapter) VerifyRuntimeVersion(ctx context.Context) (adapters.RuntimeVersionInfo, error) {
-	return adapters.RuntimeVersionInfo{
+	info := adapters.RuntimeVersionInfo{
 		ScannerVersion: m.version,
 		AdapterVersion: m.version,
-	}, nil
+	}
+	if m.name == adapters.ScannerNuclei {
+		info.TemplateCatalogVersion = "kelvin.safe.web.v1"
+		info.TemplateCatalogDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	}
+	return info, nil
 }
 func (m inProcessMockAdapter) Initialize(context.Context, *zap.Logger) error { return nil }
 func (m inProcessMockAdapter) ValidateConfig(json.RawMessage) error          { return nil }
@@ -86,6 +91,11 @@ func registerInProcess(registry *adapters.Registry, name string) error {
 
 func registerMock(registry *adapters.Registry, adapter inProcessMockAdapter) error {
 	caps := adapter.Capabilities()
+	vp := adapters.VersionPolicy{ScannerVersion: "1.0.0"}
+	if adapter.name == adapters.ScannerNuclei {
+		vp.TemplateCatalogVersion = "kelvin.safe.web.v1"
+		vp.TemplateCatalogDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	}
 	return registry.RegisterAdapter(adapters.Metadata{
 		ID:               adapter.name,
 		DisplayName:      adapter.name,
@@ -93,7 +103,7 @@ func registerMock(registry *adapters.Registry, adapter inProcessMockAdapter) err
 		SupportedTargets: []string{"url"},
 		Capabilities:     caps,
 		ConfigVersion:    adapters.ScannerConfigVersion,
-		VersionPolicy:    adapters.VersionPolicy{ScannerVersion: "1.0.0"},
+		VersionPolicy:    vp,
 	}, func() adapters.ScannerAdapter { return adapter })
 }
 
@@ -879,6 +889,7 @@ func TestExecuteScannerProgressStageTransitions(t *testing.T) {
 	}
 
 	memPub := progress.NewMemoryPublisher()
+
 	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
 	orch.SetProgressPublisher(memPub)
 
@@ -942,6 +953,7 @@ func TestExecuteScannerHonestIndeterminateProgress(t *testing.T) {
 	}
 
 	memPub := progress.NewMemoryPublisher()
+
 	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
 
 	task := adapters.Task{
@@ -1018,6 +1030,7 @@ func TestExecuteScannerDeterminateProgressFromAdapter(t *testing.T) {
 	}
 
 	memPub := progress.NewMemoryPublisher()
+
 	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
 
 	task := adapters.Task{
@@ -1078,6 +1091,7 @@ func TestExecuteScannerCancellationStageInterruption(t *testing.T) {
 	}
 
 	memPub := progress.NewMemoryPublisher()
+
 	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
 
 	task := adapters.Task{
@@ -1125,10 +1139,26 @@ func TestExecutePipelineProgressPhases(t *testing.T) {
 	makeAdapter := func(name string) {
 		a := &adapters.ReferenceAdapter{
 			AdapterName: name,
-			Caps:        adapters.Capabilities{RequiresSandbox: false},
+			Caps:        adapters.Capabilities{RequiresSandbox: false, SupportedTargetTypes: []string{"url"}},
 			Run: func(ctx context.Context, task adapters.Task) (adapters.Result, error) {
 				exitZero := 0
-				return adapters.Result{Status: adapters.StatusCompleted, ExitCode: &exitZero}, nil
+				now := time.Now().UTC()
+				return adapters.Result{
+					SchemaVersion: adapters.OutputEnvelopeVersion,
+					Metadata: adapters.OutputMetadata{
+						AssessmentID:   task.AssessmentID,
+						ScannerID:      task.Scanner,
+						ScannerVersion: "1.0.0",
+						AdapterVersion: "1.0.0",
+						RunID:          uuid.New().String(),
+						StartedAt:      now.Add(-time.Second),
+						CompletedAt:    now,
+					},
+					Status:      adapters.StatusCompleted,
+					ExitCode:    &exitZero,
+					Findings:    []json.RawMessage{},
+					Diagnostics: []adapters.ExecutionDiagnostic{},
+				}, nil
 			},
 		}
 		_ = a.Initialize(context.Background(), zap.NewNop())
@@ -1143,13 +1173,17 @@ func TestExecutePipelineProgressPhases(t *testing.T) {
 		}, func() adapters.ScannerAdapter { return a })
 	}
 
+	makeAdapter("http_preflight")
+	makeAdapter("tls_assessor")
+	makeAdapter("http_security_headers")
 	makeAdapter("nuclei")
-	makeAdapter("zap-baseline")
+	makeAdapter("zap")
 	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
 		t.Fatal(err)
 	}
 
 	memPub := progress.NewMemoryPublisher()
+
 	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
 
 	task := adapters.Task{
@@ -1305,6 +1339,210 @@ func TestExecuteScannerDoesNotRetryTerminalFailure(t *testing.T) {
 	}
 	if atomic.LoadInt32(&attemptCount) != 1 {
 		t.Fatalf("expected exactly 1 execution attempt for terminal failure, observed %d", atomic.LoadInt32(&attemptCount))
+	}
+}
+
+func TestExecutePipelinePartialCompletionPreservesSuccessfulFindings(t *testing.T) {
+	registry := adapters.NewRegistry()
+
+	registerCustom := func(name string, shouldFail bool, findings []json.RawMessage) {
+		adapter := inProcessMockAdapter{
+			name:    name,
+			version: "1.0.0",
+			run: func(ctx context.Context, task adapters.Task) (adapters.Result, error) {
+				if shouldFail {
+					return adapters.Result{}, errors.New("scanner container crashed")
+				}
+				exitZero := 0
+				now := time.Now().UTC()
+				return adapters.Result{
+					SchemaVersion: adapters.OutputEnvelopeVersion,
+					Metadata: adapters.OutputMetadata{
+						AssessmentID:   task.AssessmentID,
+						ScannerID:      task.Scanner,
+						ScannerVersion: "1.0.0",
+						AdapterVersion: "1.0.0",
+						RunID:          uuid.New().String(),
+						StartedAt:      now.Add(-time.Second),
+						CompletedAt:    now,
+					},
+					Status:      adapters.StatusCompleted,
+					ExitCode:    &exitZero,
+					DurationMS:  1000,
+					Findings:    findings,
+					Diagnostics: []adapters.ExecutionDiagnostic{},
+				}, nil
+			},
+		}
+		_ = registerMock(registry, adapter)
+	}
+
+	finding1 := json.RawMessage(`{
+		"schema_version": "1.0",
+		"title": "Missing Security Headers",
+		"severity": "INFORMATIONAL",
+		"confidence": 0.5,
+		"target": {"asset": "example.com"},
+		"vulnerability": {"template_id": "headers-missing"},
+		"scanner": {"name": "http_preflight", "adapter_version": "1.0.0"},
+		"discovered_at": "2026-10-28T00:00:00Z"
+	}`)
+	finding2 := json.RawMessage(`{
+		"schema_version": "1.0",
+		"title": "TLS 1.0 Enabled",
+		"severity": "MEDIUM",
+		"confidence": 0.8,
+		"target": {"asset": "example.com"},
+		"vulnerability": {"template_id": "tls-deprecated"},
+		"scanner": {"name": "tls_assessor", "adapter_version": "1.0.0"},
+		"discovered_at": "2026-10-28T00:00:00Z"
+	}`)
+
+	registerCustom("http_preflight", false, []json.RawMessage{finding1})
+	registerCustom("tls_assessor", false, []json.RawMessage{finding2})
+	registerCustom("http_security_headers", false, []json.RawMessage{})
+	registerCustom("nuclei", false, []json.RawMessage{})
+	registerCustom("zap", true, nil) // ZAP fails!
+
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
+
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      JobTypeAssessment,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileStandard,
+		HardDeadline: 15 * time.Second,
+	}
+
+	res, err := orch.ExecutePipeline(context.Background(), zap.NewNop(), task, Config{})
+	if err != nil {
+		t.Fatalf("expected ExecutePipeline to complete with partial status, got err: %v", err)
+	}
+
+	env, err := adapters.DecodeOutputEnvelope(res.OutputEnvelope)
+	if err != nil {
+		t.Fatalf("failed to decode envelope: %v", err)
+	}
+
+	if env.Status != adapters.StatusPartial {
+		t.Fatalf("expected status PARTIAL, got %s", env.Status)
+	}
+	if !env.Partial {
+		t.Fatalf("expected env.Partial = true")
+	}
+	if len(env.Findings) != 2 {
+		t.Fatalf("expected 2 preserved findings from preflight and tls, got %d", len(env.Findings))
+	}
+
+	var report AssessmentPipelineReport
+	if err := json.Unmarshal([]byte(res.Stdout), &report); err != nil {
+		t.Fatalf("failed to unmarshal stdout pipeline report: %v", err)
+	}
+
+	if report.OverallStatus != adapters.StatusPartial {
+		t.Fatalf("expected report.OverallStatus = PARTIAL, got %s", report.OverallStatus)
+	}
+	if len(report.ScannersFailed) != 1 || report.ScannersFailed[0] != "zap" {
+		t.Fatalf("expected scanners_failed to contain zap, got %+v, phases=%+v", report.ScannersFailed, report.PhaseResults)
+	}
+	if report.DegradationWarning == "" {
+		t.Fatalf("expected non-empty degradation warning in report")
+	}
+}
+
+func TestExecutePipelineFailsWhenEssentialPreflightFails(t *testing.T) {
+	registry := adapters.NewRegistry()
+
+	registerCustom := func(name string, shouldFail bool) {
+		adapter := inProcessMockAdapter{
+			name:    name,
+			version: "1.0.0",
+			run: func(ctx context.Context, task adapters.Task) (adapters.Result, error) {
+				if shouldFail {
+					return adapters.Result{}, errors.New("reachability failed: host down")
+				}
+				exitZero := 0
+				now := time.Now().UTC()
+				return adapters.Result{
+					SchemaVersion: adapters.OutputEnvelopeVersion,
+					Metadata: adapters.OutputMetadata{
+						AssessmentID:   task.AssessmentID,
+						ScannerID:      task.Scanner,
+						ScannerVersion: "1.0.0",
+						AdapterVersion: "1.0.0",
+						RunID:          uuid.New().String(),
+						StartedAt:      now.Add(-time.Second),
+						CompletedAt:    now,
+					},
+					Status:      adapters.StatusCompleted,
+					ExitCode:    &exitZero,
+					DurationMS:  1000,
+					Findings:    []json.RawMessage{},
+					Diagnostics: []adapters.ExecutionDiagnostic{},
+				}, nil
+			},
+		}
+		_ = registerMock(registry, adapter)
+	}
+
+	registerCustom("http_preflight", true) // Preflight fails!
+	registerCustom("tls_assessor", false)
+	registerCustom("http_security_headers", false)
+	registerCustom("nuclei", false)
+	registerCustom("zap", false)
+
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
+
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      JobTypeAssessment,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileStandard,
+		HardDeadline: 15 * time.Second,
+	}
+
+	res, err := orch.ExecutePipeline(context.Background(), zap.NewNop(), task, Config{})
+	if err != nil {
+		t.Fatalf("expected ExecutePipeline to complete with FAILED envelope, got err: %v", err)
+	}
+
+	env, err := adapters.DecodeOutputEnvelope(res.OutputEnvelope)
+	if err != nil {
+		t.Fatalf("failed to decode envelope: %v", err)
+	}
+
+	if env.Status != adapters.StatusFailed {
+		t.Fatalf("expected status FAILED when essential preflight fails, got %s", env.Status)
+	}
+	if env.Partial {
+		t.Fatalf("expected env.Partial = false")
+	}
+
+	var report AssessmentPipelineReport
+	if err := json.Unmarshal([]byte(res.Stdout), &report); err != nil {
+		t.Fatalf("failed to unmarshal stdout pipeline report: %v", err)
+	}
+
+	if report.OverallStatus != adapters.StatusFailed {
+		t.Fatalf("expected report.OverallStatus = FAILED, got %s", report.OverallStatus)
+	}
+	if len(report.ScannersFailed) == 0 || report.ScannersFailed[0] != "http_preflight" {
+		t.Fatalf("expected scanners_failed to contain http_preflight, got %+v", report.ScannersFailed)
+	}
+	if len(report.ScannersSkipped) == 0 {
+		t.Fatalf("expected downstream scanners to be skipped, got %+v", report.ScannersSkipped)
 	}
 }
 

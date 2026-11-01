@@ -13,13 +13,16 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/classification"
 	"github.com/kelvin/kelvin/apps/worker/internal/egress"
 	"github.com/kelvin/kelvin/apps/worker/internal/limits"
+	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/pacing"
 	"github.com/kelvin/kelvin/apps/worker/internal/progress"
+	"github.com/kelvin/kelvin/apps/worker/internal/provenance"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/retry"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/apps/worker/internal/scannerprocess"
+	"github.com/kelvin/kelvin/apps/worker/internal/scopevalidator"
 	"github.com/kelvin/kelvin/apps/worker/internal/workspace"
 	"go.uber.org/zap"
 )
@@ -31,17 +34,22 @@ const (
 
 // AssessmentPipelineReport details multi-phase scanner pipeline execution.
 type AssessmentPipelineReport struct {
-	AssessmentID  string                           `json:"assessment_id"`
-	TenantID      string                           `json:"tenant_id"`
-	ProfileID     string                           `json:"profile_id"`
-	Target        string                           `json:"target"`
-	StartedAt     time.Time                        `json:"started_at"`
-	CompletedAt   time.Time                        `json:"completed_at"`
-	Duration      time.Duration                    `json:"duration_ms"`
-	ScannersRun   []string                         `json:"scanners_run"`
-	PhaseResults  []PhaseResult                    `json:"phase_results"`
-	TotalFindings int                              `json:"total_findings"`
-	Envelopes     []adapters.ScannerOutputEnvelope `json:"envelopes"`
+	AssessmentID       string                           `json:"assessment_id"`
+	TenantID           string                           `json:"tenant_id"`
+	ProfileID          string                           `json:"profile_id"`
+	Target             string                           `json:"target"`
+	StartedAt          time.Time                        `json:"started_at"`
+	CompletedAt        time.Time                        `json:"completed_at"`
+	Duration           time.Duration                    `json:"duration_ms"`
+	OverallStatus      adapters.ExecutionStatus         `json:"overall_status"`
+	ScannersRun        []string                         `json:"scanners_run"`
+	ScannersFailed     []string                         `json:"scanners_failed,omitempty"`
+	ScannersSkipped    []string                         `json:"scanners_skipped,omitempty"`
+	PhaseResults       []PhaseResult                    `json:"phase_results"`
+	TotalFindings      int                              `json:"total_findings"`
+	DegradationWarning string                           `json:"degradation_warning,omitempty"`
+	ManifestDigest     string                           `json:"manifest_digest,omitempty"`
+	Envelopes          []adapters.ScannerOutputEnvelope `json:"envelopes"`
 }
 
 type PhaseResult struct {
@@ -182,6 +190,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		pub = cfg.ProgressPublisher
 	}
 	tracker := progress.NewTracker(task.AssessmentID, task.JobID, task.TenantID, task.Scanner, pub, jobLog)
+	provCollector := provenance.NewCollector(task.TenantID, task.AssessmentID, task.JobID, task.Scanner, task.CorrelationID, 0, jobLog)
 	_ = tracker.TransitionTo(ctx, progress.StagePreflight, "running scope checks and pre-execution verification")
 
 	if errors.Is(ctx.Err(), context.Canceled) {
@@ -291,6 +300,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 			_ = tracker.ReportProgress(execCtxWithReporter, progress.NewIndeterminateProgress(fmt.Sprintf("executing scanner %q", task.Scanner)))
 		}
 
+		provCollector.RecordStart([]string{task.Scanner}, nil)
 		res, err := adapter.Execute(execCtxWithReporter, task)
 		isCancelled := errors.Is(ctx.Err(), context.Canceled) ||
 			errors.Is(execCtx.Err(), context.Canceled) ||
@@ -481,6 +491,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		_ = tracker.ReportProgress(execCtxWithReporter, progress.NewIndeterminateProgress(fmt.Sprintf("executing scanner %q", task.Scanner)))
 	}
 
+	provCollector.RecordStart(spec.Invocation.Args, spec.Env)
 	result, execErr := cfg.Executor.Execute(execCtxWithReporter, spec)
 	if result != nil && result.OOMKilled {
 		if cfg.Metrics != nil {
@@ -564,6 +575,14 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		)
 	}
 
+	exitCode := 0
+	duration := time.Duration(0)
+	if result != nil {
+		exitCode = result.ExitCode
+		duration = result.Duration
+	}
+	provCollector.RecordCompletion(exitCode, duration, 0, 0, 0)
+
 	if execErr != nil || (result != nil && result.ExitCode != 0) {
 		egressBlocked := egressProxy != nil && egressProxy.ViolationsCount() > 0
 		exitCode := 0
@@ -594,6 +613,17 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 			zap.String("failure_code", cf.Code),
 			zap.Bool("retryable", cf.Retryable),
 			zap.String("message", cf.Message),
+		)
+	}
+
+	if result != nil && (result.StdoutTruncated || result.StderrTruncated) {
+		o.logger.Warn("scanner output stream was truncated due to buffer limits",
+			zap.String("job_id", task.JobID),
+			zap.String("scanner", task.Scanner),
+			zap.Bool("stdout_truncated", result.StdoutTruncated),
+			zap.Int64("stdout_bytes", result.StdoutBytes),
+			zap.Bool("stderr_truncated", result.StderrTruncated),
+			zap.Int64("stderr_bytes", result.StderrBytes),
 		)
 	}
 
@@ -877,9 +907,57 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 	assessmentCtx, cancelAssessment := context.WithTimeout(ctx, assessmentDeadline)
 	defer cancelAssessment()
 
+	manifestBuilder := manifest.NewBuilder(task.TenantID, task.AssessmentID, task.JobID, task.Target, task.ProfileID)
+	manifestBuilder.SetStartedAt(started)
+	manifestBuilder.SetResourceLimits(manifest.ResourceLimits{
+		HardDeadlineSeconds: int64(assessmentDeadline.Seconds()),
+	})
+	for _, phase := range profile.DefaultScannerOrder {
+		for _, scID := range phase.Scanners {
+			scVer := "1.0.0"
+			adVer := "1.0.0"
+			imgDigest := ""
+			rulesetCat := ""
+			rulesetDig := ""
+			if meta, ok := o.registry.Metadata(scID); ok {
+				if meta.VersionPolicy.ScannerVersion != "" {
+					scVer = meta.VersionPolicy.ScannerVersion
+				}
+				imgDigest = meta.VersionPolicy.ImageDigest
+				rulesetCat = meta.VersionPolicy.TemplateCatalogVersion
+				rulesetDig = meta.VersionPolicy.TemplateCatalogDigest
+			}
+			if a, ok := o.registry.Lookup(scID); ok {
+				adVer = a.Version()
+				if scVer == "" {
+					scVer = a.Version()
+				}
+			}
+			manifestBuilder.AddScanner(manifest.ScannerComponent{
+				ScannerID:      scID,
+				ScannerVersion: scVer,
+				AdapterVersion: adVer,
+				ImageDigest:    imgDigest,
+				RulesetCatalog: rulesetCat,
+				RulesetDigest:  rulesetDig,
+			})
+		}
+	}
+	if execManifest, mErr := manifestBuilder.Build(); mErr == nil {
+		report.ManifestDigest = execManifest.Digest
+		jobLog.Info("recorded immutable assessment execution manifest",
+			zap.String("manifest_digest", execManifest.Digest),
+			zap.Int("scanners_count", len(execManifest.Scanners)),
+		)
+	}
+
 	assessmentTimedOut := false
 	assessmentCancelled := false
 	prevPhaseSucceeded := true
+	var scannersFailed []string
+	var scannersSkipped []string
+	allFindings := []json.RawMessage{}
+	var scopeViolations []scopevalidator.ScopeViolation
 
 	totalPhases := int64(len(profile.DefaultScannerOrder))
 	for _, phase := range profile.DefaultScannerOrder {
@@ -896,6 +974,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 		if phase.RequirePrev && !prevPhaseSucceeded {
 			phaseRes.Success = false
 			phaseRes.Error = "skipped because previous prerequisite phase failed"
+			scannersSkipped = append(scannersSkipped, phase.Scanners...)
 			report.PhaseResults = append(report.PhaseResults, phaseRes)
 			jobLog.Warn("skipping assessment phase due to prerequisite failure",
 				zap.Int("phase_index", phase.PhaseIndex),
@@ -907,6 +986,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(assessmentCtx.Err(), context.Canceled) {
 			phaseRes.Success = false
 			phaseRes.Error = "assessment execution cancelled"
+			scannersSkipped = append(scannersSkipped, phase.Scanners...)
 			report.PhaseResults = append(report.PhaseResults, phaseRes)
 			assessmentCancelled = true
 			break
@@ -915,6 +995,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 		if assessmentCtx.Err() != nil {
 			phaseRes.Success = false
 			phaseRes.Error = "assessment execution deadline exceeded"
+			scannersSkipped = append(scannersSkipped, phase.Scanners...)
 			report.PhaseResults = append(report.PhaseResults, phaseRes)
 			assessmentTimedOut = true
 			break
@@ -924,6 +1005,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 		if remainingAssessment <= 0 {
 			phaseRes.Success = false
 			phaseRes.Error = "assessment execution deadline exceeded"
+			scannersSkipped = append(scannersSkipped, phase.Scanners...)
 			report.PhaseResults = append(report.PhaseResults, phaseRes)
 			assessmentTimedOut = true
 			break
@@ -934,6 +1016,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 				phaseRes.Success = false
 				phaseRes.Error = fmt.Sprintf("scanner %q is not ready", scannerID)
 				prevPhaseSucceeded = false
+				scannersFailed = append(scannersFailed, scannerID)
 				break
 			}
 
@@ -966,10 +1049,12 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 				phaseRes.Error = fmt.Sprintf("scanner %q execution cancelled", scannerID)
 				prevPhaseSucceeded = false
 				assessmentCancelled = true
+				scannersFailed = append(scannersFailed, scannerID)
 				if subResult != nil && len(subResult.OutputEnvelope) > 0 {
 					env, decErr := adapters.DecodeOutputEnvelope(subResult.OutputEnvelope)
 					if decErr == nil {
 						report.Envelopes = append(report.Envelopes, env)
+						allFindings = append(allFindings, env.Findings...)
 					}
 				}
 				report.PhaseResults = append(report.PhaseResults, phaseRes)
@@ -985,6 +1070,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 				phaseRes.Success = false
 				phaseRes.Error = fmt.Sprintf("scanner %q execution deadline exceeded", scannerID)
 				prevPhaseSucceeded = false
+				scannersFailed = append(scannersFailed, scannerID)
 				if assessmentCtx.Err() != nil {
 					assessmentTimedOut = true
 				}
@@ -992,6 +1078,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 					env, decErr := adapters.DecodeOutputEnvelope(subResult.OutputEnvelope)
 					if decErr == nil {
 						report.Envelopes = append(report.Envelopes, env)
+						allFindings = append(allFindings, env.Findings...)
 					}
 				}
 				break
@@ -1005,6 +1092,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 					phaseRes.Error = fmt.Sprintf("scanner exited with code %d", subResult.ExitCode)
 				}
 				prevPhaseSucceeded = false
+				scannersFailed = append(scannersFailed, scannerID)
 				break
 			}
 
@@ -1013,8 +1101,16 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			if len(subResult.OutputEnvelope) > 0 {
 				env, err := adapters.DecodeOutputEnvelope(subResult.OutputEnvelope)
 				if err == nil {
+					if scopeVal, vErr := scopevalidator.NewFromTarget(task.Target, jobLog); vErr == nil {
+						accepted, violations, _ := scopeVal.FilterFindings(assessmentCtx, env.Findings)
+						env.Findings = accepted
+						if len(violations) > 0 {
+							scopeViolations = append(scopeViolations, violations...)
+						}
+					}
 					report.Envelopes = append(report.Envelopes, env)
 					report.TotalFindings += len(env.Findings)
+					allFindings = append(allFindings, env.Findings...)
 				}
 			}
 		}
@@ -1028,14 +1124,10 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 	report.CompletedAt = time.Now().UTC()
 	report.Duration = report.CompletedAt.Sub(started)
 
-	rawReport, err := json.Marshal(report)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal pipeline report: %w", err)
-	}
-
 	status := adapters.StatusCompleted
 	exitCode := 0
-	var diagnostics []adapters.ExecutionDiagnostic
+	partial := false
+	diagnostics := []adapters.ExecutionDiagnostic{}
 
 	if assessmentCancelled {
 		_ = pipelineTracker.FailStage(ctx, progress.StageStatusCancelled, "assessment execution was cancelled")
@@ -1049,18 +1141,93 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			},
 		}
 	} else if assessmentTimedOut {
-		_ = pipelineTracker.FailStage(ctx, progress.StageStatusTimedOut, "assessment execution deadline exceeded")
-		status = adapters.StatusTimedOut
-		exitCode = -1
-		diagnostics = []adapters.ExecutionDiagnostic{
-			{
-				Level:   "error",
-				Code:    "DEADLINE_EXCEEDED",
-				Message: "assessment execution deadline exceeded",
-			},
+		if len(allFindings) > 0 {
+			_ = pipelineTracker.FailStage(ctx, progress.StageStatusTimedOut, "assessment timed out with partial results")
+			status = adapters.StatusPartial
+			partial = true
+			exitCode = 0
+			report.DegradationWarning = fmt.Sprintf("assessment timed out after executing %d scanner(s); partial findings preserved", len(report.ScannersRun))
+			diagnostics = []adapters.ExecutionDiagnostic{
+				{
+					Level:   "warning",
+					Code:    "PARTIAL_TIMED_OUT",
+					Message: report.DegradationWarning,
+				},
+			}
+		} else {
+			_ = pipelineTracker.FailStage(ctx, progress.StageStatusTimedOut, "assessment execution deadline exceeded")
+			status = adapters.StatusTimedOut
+			exitCode = -1
+			diagnostics = []adapters.ExecutionDiagnostic{
+				{
+					Level:   "error",
+					Code:    "DEADLINE_EXCEEDED",
+					Message: "assessment execution deadline exceeded",
+				},
+			}
 		}
 	} else {
-		_ = pipelineTracker.CompleteStage(ctx, "assessment pipeline completed successfully")
+		preflightSucceeded := len(report.PhaseResults) > 0 && report.PhaseResults[0].Success
+
+		if len(scannersFailed) == 0 && len(scannersSkipped) == 0 {
+			_ = pipelineTracker.CompleteStage(ctx, "assessment pipeline completed successfully")
+			status = adapters.StatusCompleted
+			exitCode = 0
+		} else if !preflightSucceeded {
+			_ = pipelineTracker.FailStage(ctx, progress.StageStatusFailed, "essential baseline preflight failed")
+			status = adapters.StatusFailed
+			exitCode = 1
+			diagnostics = []adapters.ExecutionDiagnostic{
+				{
+					Level:   "error",
+					Code:    "PREFLIGHT_FAILED",
+					Message: "essential baseline preflight reachability check failed; dependent scans aborted",
+				},
+			}
+		} else {
+			failedList := strings.Join(scannersFailed, ", ")
+			skippedList := strings.Join(scannersSkipped, ", ")
+			warningMsg := fmt.Sprintf("assessment partially completed: failed scanners [%s], skipped scanners [%s]", failedList, skippedList)
+			report.DegradationWarning = warningMsg
+
+			if len(allFindings) > 0 {
+				_ = pipelineTracker.CompleteStage(ctx, "assessment pipeline partially completed")
+				status = adapters.StatusPartial
+				partial = true
+				exitCode = 0
+				diagnostics = []adapters.ExecutionDiagnostic{
+					{
+						Level:   "warning",
+						Code:    "PARTIAL_SCANNER_FAILURE",
+						Message: warningMsg,
+					},
+				}
+			} else {
+				_ = pipelineTracker.CompleteStage(ctx, "assessment pipeline completed with warnings")
+				status = adapters.StatusCompletedWithWarnings
+				exitCode = 0
+				diagnostics = []adapters.ExecutionDiagnostic{
+					{
+						Level:   "warning",
+						Code:    "DEGRADED_SCANNER_FAILURE",
+						Message: warningMsg,
+					},
+				}
+			}
+		}
+	}
+
+	if len(scopeViolations) > 0 {
+		diagnostics = append(diagnostics, scopevalidator.ToDiagnostics(scopeViolations)...)
+	}
+
+	report.OverallStatus = status
+	report.ScannersFailed = scannersFailed
+	report.ScannersSkipped = scannersSkipped
+
+	rawReport, err := json.Marshal(report)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal pipeline report: %w", err)
 	}
 
 	envelope := adapters.ScannerOutputEnvelope{
@@ -1076,24 +1243,28 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			CorrelationID:  task.CorrelationID,
 		},
 		Status:      status,
+		Partial:     partial,
 		ExitCode:    intPtr(exitCode),
-		Findings:    []json.RawMessage{},
+		Findings:    allFindings,
 		Diagnostics: diagnostics,
 	}
-	encodedEnv, _ := adapters.EncodeOutputEnvelope(envelope)
+	encodedEnv, err := adapters.EncodeOutputEnvelope(envelope)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode output envelope: %w", err)
+	}
 
 	res := &sandbox.Result{
 		Duration:         report.Duration,
 		Stdout:           string(rawReport),
 		OutputEnvelope:   encodedEnv,
-		ExitCode:         exitCode,
-		DeadlineExceeded: assessmentTimedOut,
+		ExitCode:         0,
+		DeadlineExceeded: assessmentTimedOut && !partial,
 		Cancelled:        assessmentCancelled,
 	}
 	if assessmentCancelled {
 		return res, sandbox.ErrCancelled
 	}
-	if assessmentTimedOut {
+	if assessmentTimedOut && !partial {
 		return res, sandbox.ErrDeadlineExceeded
 	}
 	return res, nil
