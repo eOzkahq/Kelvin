@@ -51,7 +51,7 @@ func (s stubAdapter) VerifyRuntimeVersion(ctx context.Context) (adapters.Runtime
 		return adapters.RuntimeVersionInfo{}, err
 	}
 	digest := "sha256:" + strings.Repeat("a", 64)
-	return adapters.RuntimeVersionInfo{ScannerVersion: s.Version(), AdapterVersion: s.Version(), ImageReference: "test/scanner@" + digest, ImageDigest: digest}, nil
+	return adapters.RuntimeVersionInfo{ScannerVersion: s.Version(), AdapterVersion: s.Version(), ImageReference: "test/scanner@" + digest, ImageDigest: digest, TemplateCatalogVersion: "kelvin.safe.web.v1", TemplateCatalogDigest: digest}, nil
 }
 func (s stubAdapter) Initialize(context.Context, *zap.Logger) error { return nil }
 func (s stubAdapter) ValidateConfig(json.RawMessage) error          { return nil }
@@ -60,13 +60,13 @@ func (s stubAdapter) Capabilities() adapters.Capabilities {
 }
 
 func registerStub(registry *adapters.Registry) error {
-	adapter := stubAdapter{name: "stub"}
+	adapter := stubAdapter{name: adapters.ScannerNuclei}
 	caps := adapter.Capabilities()
 	digest := "sha256:" + strings.Repeat("a", 64)
 	return registry.RegisterAdapter(adapters.Metadata{
-		ID: "stub", DisplayName: "Stub", Version: "1.0.0",
+		ID: adapters.ScannerNuclei, DisplayName: "Stub", Version: "1.0.0",
 		SupportedTargets: []string{"url"}, Capabilities: caps, ConfigVersion: adapters.ScannerConfigVersion,
-		VersionPolicy: adapters.VersionPolicy{ScannerVersion: "1.0.0", ImageReference: "test/scanner@" + digest, ImageDigest: digest},
+		VersionPolicy: adapters.VersionPolicy{ScannerVersion: "1.0.0", ImageReference: "test/scanner@" + digest, ImageDigest: digest, TemplateCatalogVersion: "kelvin.safe.web.v1", TemplateCatalogDigest: digest},
 	}, func() adapters.ScannerAdapter { return adapter })
 }
 func (s stubAdapter) Execute(context.Context, adapters.Task) (adapters.Result, error) {
@@ -104,7 +104,7 @@ func TestRunProcessesRegisteredJob(t *testing.T) {
 	}
 	executor := sandbox.NewFake().WithResult(sandbox.Result{ExitCode: 0, Findings: schemas.MustRead("fixtures/positive/nmap.tls-cbc.json"), Duration: time.Second})
 	cancel, done := runWorker(t, q, registry, executor)
-	q.inner.Push(queue.Job{ID: "22222222-2222-2222-2222-222222222222", AssessmentID: "33333333-3333-3333-3333-333333333333", TenantID: "123e4567-e89b-12d3-a456-426614174000", Type: "stub", Payload: []byte(`{"target":"example.com","profile_id":"standard","hard_deadline_seconds":10}`)})
+	q.inner.Push(queue.Job{ID: "22222222-2222-2222-2222-222222222222", AssessmentID: "33333333-3333-3333-3333-333333333333", TenantID: "123e4567-e89b-12d3-a456-426614174000", Type: adapters.ScannerNuclei, Payload: []byte(`{"target":"https://example.com","profile_id":"standard","hard_deadline_seconds":10}`)})
 	waitEvent(t, q)
 	cancel()
 	if err := <-done; err != nil {

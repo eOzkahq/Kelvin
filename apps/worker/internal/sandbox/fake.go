@@ -59,13 +59,16 @@ func (f *FakeExecutor) WithResult(result Result) *FakeExecutor {
 	return f
 }
 
-// Execute simulates container execution. It respects ctx cancellation by
-// returning ErrDeadlineExceeded when the context is already done.
+// Execute simulates container execution and distinguishes cancellation from a
+// hard execution deadline.
 func (f *FakeExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 	if err := spec.Validate(); err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return &Result{Cancelled: true, ExitCode: -1}, ErrCancelled
+		}
 		return &Result{DeadlineExceeded: true, ExitCode: -1}, ErrDeadlineExceeded
 	}
 	f.Last = spec

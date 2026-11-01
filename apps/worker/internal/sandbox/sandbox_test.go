@@ -6,6 +6,7 @@ package sandbox
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -13,10 +14,9 @@ import (
 
 func validSpec() Spec {
 	return Spec{
-		Image:           "kelvin/scanner-nuclei:3.3.0@sha256:deadbeef",
-		Command:         []string{"/kelvin/bin/nuclei-adapter"},
-		Args:            []string{"-target", "example.com", "-profile", "kelvin.profile.standard.v1"},
-		User:            "scanner",
+		Image:           "kelvin/scanner-nuclei:3.3.0@sha256:" + strings.Repeat("a", 64),
+		Invocation:      ProcessInvocation{Executable: "/nuclei", Args: []string{"-u", "https://example.com"}},
+		User:            "10001:10001",
 		Env:             []string{"KELVIN_JOB_ID=job-1"},
 		WorkingDir:      "/home/scanner",
 		MemoryLimit:     "512m",
@@ -27,7 +27,7 @@ func validSpec() Spec {
 		CapDrop:         []string{"ALL"},
 		CapAdd:          []string{},
 		NetworkDisabled: false,
-		SecurityOpt:     []string{"seccomp=scan.json", "apparmor=kelvin-scan"},
+		SecurityOpt:     []string{"no-new-privileges", "seccomp=scan.json", "apparmor=kelvin-scan"},
 		Deadline:        30 * time.Minute,
 		Labels:          map[string]string{"job_id": "job-1", "tenant_id": "tenant-a", "scanner": "nuclei"},
 	}
@@ -57,6 +57,14 @@ func TestValidateSpecRejectsMissingRootfs(t *testing.T) {
 	spec.ReadOnlyRootfs = false
 	if err := spec.Validate(); err == nil {
 		t.Error("read-only rootfs is mandatory; expected rejection")
+	}
+}
+
+func TestValidateSpecRequiresNoNewPrivileges(t *testing.T) {
+	spec := validSpec()
+	spec.SecurityOpt = []string{"seccomp=scan.json", "apparmor=kelvin-scan"}
+	if err := spec.Validate(); err == nil {
+		t.Fatal("no-new-privileges omission should be rejected")
 	}
 }
 
@@ -101,7 +109,7 @@ func TestValidateSpecRejectsEmptyImageAndCommand(t *testing.T) {
 		t.Error("image must not be empty")
 	}
 	spec = validSpec()
-	spec.Command = nil
+	spec.Invocation = ProcessInvocation{}
 	if err := spec.Validate(); err == nil {
 		t.Error("command must not be empty")
 	}
@@ -163,8 +171,8 @@ func TestFakeExecutorRespectsContextCancellation(t *testing.T) {
 	f := &FakeExecutor{Mode: "success"}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := f.Execute(ctx, validSpec()); !errors.Is(err, ErrDeadlineExceeded) {
-		t.Fatalf("expected ErrDeadlineExceeded on cancelled ctx, got %v", err)
+	if _, err := f.Execute(ctx, validSpec()); !errors.Is(err, ErrCancelled) {
+		t.Fatalf("expected ErrCancelled on cancelled ctx, got %v", err)
 	}
 }
 
@@ -204,18 +212,19 @@ func TestBuildArgsContainsHardeningFlags(t *testing.T) {
 	joined := strings.Join(args, " ")
 	required := []string{
 		"--rm",
-		"--user", "scanner",
+		"--user", "10001:10001",
 		"--cap-drop=ALL",
 		"--read-only",
 		"--tmpfs=/tmp:noexec,size=64m",
 		"--memory=512m",
 		"--cpus=2",
 		"--pids-limit", "64",
+		"--security-opt=no-new-privileges",
 		"--security-opt=seccomp=scan.json",
 		"--security-opt=apparmor=kelvin-scan",
-		"kelvin/scanner-nuclei:3.3.0@sha256:deadbeef",
-		"/kelvin/bin/nuclei-adapter",
-		"-target", "example.com",
+		"--entrypoint", "/nuclei",
+		"kelvin/scanner-nuclei:3.3.0@sha256:" + strings.Repeat("a", 64),
+		"-u", "https://example.com",
 	}
 	for _, flag := range required {
 		if !strings.Contains(joined, flag) {
@@ -231,13 +240,51 @@ func TestBuildArgsContainsHardeningFlags(t *testing.T) {
 	}
 }
 
-// TestOCIExecutorDeadlinePropagation verifies Execute returns ErrDeadlineExceeded
-// when ctx is already cancelled, without requiring a runtime.
+// TestOCIExecutorDeadlinePropagation verifies cancellation and deadline errors
+// without requiring a runtime.
 func TestOCIExecutorDeadlinePropagation(t *testing.T) {
 	e := &OCIExecutor{runtime: "podman"}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := e.Execute(ctx, validSpec()); !errors.Is(err, ErrDeadlineExceeded) {
-		t.Fatalf("expected ErrDeadlineExceeded on cancelled ctx, got %v", err)
+	if _, err := e.Execute(ctx, validSpec()); !errors.Is(err, ErrCancelled) {
+		t.Fatalf("expected ErrCancelled on cancelled ctx, got %v", err)
+	}
+	expired, stop := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer stop()
+	if _, err := e.Execute(expired, validSpec()); !errors.Is(err, ErrDeadlineExceeded) {
+		t.Fatalf("expected ErrDeadlineExceeded on expired ctx, got %v", err)
+	}
+}
+
+func TestProcessInvocationRejectsShellAndNonAbsoluteExecutable(t *testing.T) {
+	for _, executable := range []string{"sh", "/bin/sh", "powershell", "relative/scanner", "/tmp/custom-scanner"} {
+		if err := (ProcessInvocation{Executable: executable}).Validate(); err == nil {
+			t.Errorf("executable %q should be rejected", executable)
+		}
+	}
+	if err := (ProcessInvocation{Executable: "/nuclei", Args: []string{"bad\x00arg"}}).Validate(); err == nil {
+		t.Fatal("NUL in argv should be rejected")
+	}
+}
+
+func TestBoundedBufferCapsOutputWhileWriting(t *testing.T) {
+	buffer := newBoundedBuffer(1024)
+	input := strings.Repeat("x", 4096)
+	if n, err := io.WriteString(buffer, input); err != nil || n != len(input) {
+		t.Fatalf("Write() = %d, %v", n, err)
+	}
+	got := buffer.String()
+	if len(got) > 1024 || !strings.HasSuffix(got, truncationMarker) {
+		t.Fatalf("buffer did not cap output with a truncation marker: len=%d", len(got))
+	}
+}
+
+func TestRuntimeEnvironmentDropsUnapprovedVariables(t *testing.T) {
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret")
+	t.Setenv("KELVIN_TEST_EXTRA", "not-forwarded")
+	for _, entry := range runtimeEnvironment() {
+		if strings.HasPrefix(entry, "AWS_SECRET_ACCESS_KEY=") || strings.HasPrefix(entry, "KELVIN_TEST_EXTRA=") {
+			t.Fatalf("unapproved host environment variable was inherited: %s", entry)
+		}
 	}
 }

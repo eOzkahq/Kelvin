@@ -7,18 +7,22 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
 const maxCaptureBytes = 4 * 1024 * 1024
+const truncationMarker = "\n[output truncated by worker sandbox]"
 
 type OCIExecutor struct{ runtime string }
 
 func NewOCIExecutor() (*OCIExecutor, error) {
 	for _, candidate := range []string{"podman", "docker"} {
-		if _, err := exec.LookPath(candidate); err == nil {
-			return &OCIExecutor{runtime: candidate}, nil
+		if path, err := exec.LookPath(candidate); err == nil {
+			return &OCIExecutor{runtime: path}, nil
 		}
 	}
 	return nil, errors.New("sandbox: no OCI runtime (podman/docker) found")
@@ -29,6 +33,9 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return &Result{Cancelled: true, ExitCode: -1}, ErrCancelled
+		}
 		return &Result{DeadlineExceeded: true, ExitCode: -1}, ErrDeadlineExceeded
 	}
 	start := time.Now()
@@ -38,19 +45,20 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 	}
 	containerName := "kelvin-job-" + hex.EncodeToString(nonce[:])
 	args := e.buildArgs(spec)
-	imageIndex := len(args) - len(spec.Command) - len(spec.Args) - 1
+	imageIndex := len(args) - len(spec.Invocation.Args) - 1
 	namedArgs := make([]string, 0, len(args)+2)
 	namedArgs = append(namedArgs, args[:imageIndex]...)
 	namedArgs = append(namedArgs, "--name", containerName)
 	namedArgs = append(namedArgs, args[imageIndex:]...)
-	cmd := exec.Command(e.runtime, namedArgs...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	cmd := (ProcessInvocation{Executable: e.runtime, Args: namedArgs}).Command()
+	cmd.Env = runtimeEnvironment()
+	stdout, stderr := newBoundedBuffer(maxCaptureBytes), newBoundedBuffer(maxCaptureBytes)
+	cmd.Stdout, cmd.Stderr = stdout, stderr
 	done := make(chan error, 1)
 	go func() { done <- cmd.Run() }()
 	select {
 	case err := <-done:
-		result := &Result{Duration: time.Since(start), Stdout: truncate(stdout.String()), Stderr: truncate(stderr.String())}
+		result := &Result{Duration: time.Since(start), Stdout: stdout.String(), Stderr: stderr.String()}
 		if err == nil {
 			return result, nil
 		}
@@ -64,19 +72,26 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 		return result, &ExitError{Spec: spec, Result: result, Err: err}
 	case <-ctx.Done():
 		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_ = exec.CommandContext(stopCtx, e.runtime, "stop", "--time=2", containerName).Run()
+		stop := exec.CommandContext(stopCtx, e.runtime, "stop", "--time=2", containerName)
+		stop.Env = runtimeEnvironment()
+		_ = stop.Run()
 		cancel()
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
 		<-done
-		result := &Result{Duration: time.Since(start), Stdout: truncate(stdout.String()), Stderr: truncate(stderr.String()), DeadlineExceeded: true, ExitCode: -1}
-		return result, &ExitError{Spec: spec, Result: result, Err: ErrDeadlineExceeded}
+		cancelled := errors.Is(ctx.Err(), context.Canceled)
+		result := &Result{Duration: time.Since(start), Stdout: stdout.String(), Stderr: stderr.String(), DeadlineExceeded: !cancelled, Cancelled: cancelled, ExitCode: -1}
+		cause := ErrDeadlineExceeded
+		if cancelled {
+			cause = ErrCancelled
+		}
+		return result, &ExitError{Spec: spec, Result: result, Err: cause}
 	}
 }
 
 func (e *OCIExecutor) buildArgs(spec Spec) []string {
-	args := []string{"run", "--rm", "--user", spec.User, "--cap-drop=ALL"}
+	args := []string{"run", "--rm", "--user", spec.User, "--cap-drop=ALL", "--entrypoint", spec.Invocation.Executable}
 	for _, cap := range spec.CapAdd {
 		args = append(args, "--cap-add="+cap)
 	}
@@ -119,14 +134,56 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 		args = append(args, "--label", key+"="+value)
 	}
 	args = append(args, spec.Image)
-	args = append(args, spec.Command...)
-	args = append(args, spec.Args...)
+	args = append(args, spec.Invocation.Args...)
 	return args
 }
 
-func truncate(s string) string {
-	if len(s) <= maxCaptureBytes {
-		return s
-	}
-	return s[:maxCaptureBytes] + "\n[output truncated by worker sandbox]"
+type boundedBuffer struct {
+	buf       bytes.Buffer
+	maxBytes  int
+	truncated bool
 }
+
+func newBoundedBuffer(maxBytes int) *boundedBuffer { return &boundedBuffer{maxBytes: maxBytes} }
+
+func (b *boundedBuffer) Write(p []byte) (int, error) {
+	limit := b.maxBytes - len(truncationMarker)
+	remaining := limit - b.buf.Len()
+	if remaining > 0 {
+		if len(p) > remaining {
+			_, _ = b.buf.Write(p[:remaining])
+		} else {
+			_, _ = b.buf.Write(p)
+		}
+	}
+	if len(p) > remaining {
+		b.truncated = true
+	}
+	return len(p), nil
+}
+
+func (b *boundedBuffer) String() string {
+	if b.truncated {
+		return b.buf.String() + truncationMarker
+	}
+	return b.buf.String()
+}
+
+func runtimeEnvironment() []string {
+	allowed := map[string]bool{
+		"PATH": true, "HOME": true, "DOCKER_HOST": true, "DOCKER_CONFIG": true,
+		"DOCKER_CERT_PATH": true, "DOCKER_TLS_VERIFY": true, "CONTAINER_HOST": true,
+		"REGISTRY_AUTH_FILE": true, "XDG_RUNTIME_DIR": true,
+		"SYSTEMROOT": true, "WINDIR": true, "TEMP": true, "TMP": true,
+	}
+	var filtered []string
+	for _, entry := range os.Environ() {
+		key, _, ok := strings.Cut(entry, "=")
+		if ok && allowed[strings.ToUpper(key)] {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
+}
+
+var _ io.Writer = (*boundedBuffer)(nil)
