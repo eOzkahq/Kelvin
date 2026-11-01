@@ -10,6 +10,7 @@ import (
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
+	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/packages/schemas"
 	"go.uber.org/zap"
@@ -149,5 +150,85 @@ func TestRunRejectsInvalidTenant(t *testing.T) {
 	defer q.mu.Unlock()
 	if len(q.failed) != 1 {
 		t.Fatalf("expected one failure, got %d", len(q.failed))
+	}
+}
+
+func TestDaemonPreflightReadinessCheckFailure(t *testing.T) {
+	q, registry := newRecordingQueue(), adapters.NewRegistry()
+	checker := readiness.NewChecker(zap.NewNop())
+	checker.RegisterSystemProbe(readiness.FunctionProbe{
+		ProbeName:   "broken_system",
+		ProbeTarget: "system",
+		CheckFn: func(ctx context.Context) readiness.ProbeResult {
+			return readiness.ProbeResult{
+				Name:   "broken_system",
+				Target: "system",
+				Status: readiness.StatusUnavailable,
+				Error:  "critical dependency missing",
+			}
+		},
+	})
+
+	err := Run(context.Background(), zap.NewNop(), Config{
+		WorkerID:         "test-worker",
+		PollInterval:     time.Millisecond,
+		Executor:         sandbox.NewFake(),
+		ReadinessChecker: checker,
+	}, q, registry)
+
+	if err == nil {
+		t.Fatal("expected Run to fail with pre-flight readiness error, got nil")
+	}
+}
+
+func TestDaemonRejectsJobWhenScannerNotReady(t *testing.T) {
+	q, registry := newRecordingQueue(), adapters.NewRegistry()
+	if err := registerStub(registry); err != nil {
+		t.Fatal(err)
+	}
+
+	checker := readiness.NewChecker(zap.NewNop())
+	// Register scanner as unavailable
+	checker.RegisterScannerProbe(adapters.ScannerNuclei, readiness.FunctionProbe{
+		ProbeName:   "nuclei_unready",
+		ProbeTarget: adapters.ScannerNuclei,
+		CheckFn: func(ctx context.Context) readiness.ProbeResult {
+			return readiness.ProbeResult{
+				Name:   "nuclei_unready",
+				Target: adapters.ScannerNuclei,
+				Status: readiness.StatusUnavailable,
+				Error:  "container image not pulled",
+			}
+		},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, zap.NewNop(), Config{
+			WorkerID:         "test-worker",
+			PollInterval:     time.Millisecond,
+			Executor:         sandbox.NewFake(),
+			ReadinessChecker: checker,
+		}, q, registry)
+	}()
+
+	q.inner.Push(queue.Job{
+		ID:           "55555555-5555-5555-5555-555555555555",
+		TenantID:     "123e4567-e89b-12d3-a456-426614174000",
+		Type:         adapters.ScannerNuclei,
+		Payload:      []byte(`{"target":"https://example.com"}`),
+	})
+
+	waitEvent(t, q)
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.failed) != 1 || len(q.completed) != 0 {
+		t.Fatalf("expected job to fail due to unready scanner: completed=%d failed=%d", len(q.completed), len(q.failed))
 	}
 }
