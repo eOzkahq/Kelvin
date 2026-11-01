@@ -3,7 +3,10 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
@@ -112,6 +115,28 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 	if err != nil {
 		return nil, fmt.Errorf("scanner duration policy rejected: %w", err)
 	}
+	if d, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(d); remaining < executionDeadline {
+			executionDeadline = remaining
+		}
+	}
+	if executionDeadline <= 0 {
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncResourceViolation(metrics.ViolationDeadline)
+			cfg.Metrics.IncTermination(metrics.CauseDeadline)
+		}
+		o.logger.Error("scanner execution deadline already expired",
+			zap.String("job_id", task.JobID),
+			zap.String("scanner", task.Scanner),
+		)
+		result := &sandbox.Result{
+			Duration:         0,
+			DeadlineExceeded: true,
+			ExitCode:         -1,
+		}
+		result.OutputEnvelope = buildTimedOutEnvelope(task, metadata.VersionPolicy.ScannerVersion, 0)
+		return result, sandbox.ErrDeadlineExceeded
+	}
 	task.HardDeadline = executionDeadline
 
 	execCtx, cancel := context.WithTimeout(ctx, task.HardDeadline)
@@ -132,6 +157,36 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 	// 1. In-process execution (requires no external sandbox/container)
 	if !metadata.Capabilities.RequiresSandbox {
 		res, err := adapter.Execute(execCtx, task)
+		isTimeout := execCtx.Err() == context.DeadlineExceeded || errors.Is(err, context.DeadlineExceeded) || res.Status == adapters.StatusTimedOut
+		if isTimeout {
+			if cfg.Metrics != nil {
+				cfg.Metrics.IncResourceViolation(metrics.ViolationDeadline)
+				cfg.Metrics.IncTermination(metrics.CauseDeadline)
+			}
+			o.logger.Error("scanner execution exceeded hard execution deadline",
+				zap.String("job_id", task.JobID),
+				zap.String("scanner", task.Scanner),
+				zap.Duration("deadline", task.HardDeadline),
+			)
+			if res.Status != adapters.StatusTimedOut {
+				res.Status = adapters.StatusTimedOut
+				code := -1
+				res.ExitCode = &code
+				res.Diagnostics = append(res.Diagnostics, adapters.ExecutionDiagnostic{
+					Level:   "error",
+					Code:    "DEADLINE_EXCEEDED",
+					Message: fmt.Sprintf("scanner %q execution exceeded hard execution deadline of %s", task.Scanner, task.HardDeadline),
+				})
+			}
+			_ = o.registry.StampOutput(task.Scanner, &res)
+			encoded, _ := adapters.EncodeOutputEnvelope(res)
+			return &sandbox.Result{
+				Duration:         task.HardDeadline,
+				OutputEnvelope:   encoded,
+				DeadlineExceeded: true,
+				ExitCode:         -1,
+			}, sandbox.ErrDeadlineExceeded
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -150,10 +205,15 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 			duration = time.Millisecond
 		}
 
+		exitCode := 0
+		if res.ExitCode != nil {
+			exitCode = *res.ExitCode
+		}
+
 		return &sandbox.Result{
 			Duration:       duration,
 			OutputEnvelope: encoded,
-			ExitCode:       0,
+			ExitCode:       exitCode,
 		}, nil
 	}
 
@@ -181,8 +241,10 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 	spec.MemoryLimit = spec.Limits.MemoryLimit
 	spec.CPUQuota = spec.Limits.CPUQuota
 	spec.PIDsLimit = spec.Limits.MaxPIDs
-	if spec.Limits.HardDeadline > 0 {
+	if spec.Limits.HardDeadline > 0 && spec.Limits.HardDeadline < task.HardDeadline {
 		spec.Deadline = spec.Limits.HardDeadline
+	} else {
+		spec.Deadline = task.HardDeadline
 	}
 
 	var egressProxy *egress.Proxy
@@ -221,7 +283,20 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 			zap.String("memory_limit", spec.Limits.MemoryLimit),
 		)
 	}
-	if result != nil && result.DeadlineExceeded {
+	isDeadlineExceeded := (result != nil && result.DeadlineExceeded) ||
+		errors.Is(execErr, sandbox.ErrDeadlineExceeded) ||
+		execCtx.Err() == context.DeadlineExceeded
+
+	if isDeadlineExceeded {
+		if result == nil {
+			result = &sandbox.Result{
+				Duration:         task.HardDeadline,
+				DeadlineExceeded: true,
+				ExitCode:         -1,
+			}
+		} else {
+			result.DeadlineExceeded = true
+		}
 		if cfg.Metrics != nil {
 			cfg.Metrics.IncResourceViolation(metrics.ViolationDeadline)
 			cfg.Metrics.IncTermination(metrics.CauseDeadline)
@@ -231,6 +306,12 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 			zap.String("scanner", task.Scanner),
 			zap.Duration("deadline", spec.Deadline),
 		)
+		if len(result.OutputEnvelope) == 0 {
+			result.OutputEnvelope = buildTimedOutEnvelope(task, metadata.VersionPolicy.ScannerVersion, result.Duration)
+		}
+		if execErr == nil {
+			execErr = sandbox.ErrDeadlineExceeded
+		}
 	}
 	if egressProxy != nil && egressProxy.ViolationsCount() > 0 {
 		o.logger.Warn("assessment execution recorded egress policy violations",
@@ -274,6 +355,74 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 	return result, execErr
 }
 
+// TimeoutType distinguishes between an execution deadline timeout and a network connection timeout.
+type TimeoutType string
+
+const (
+	TimeoutExecution  TimeoutType = "EXECUTION_DEADLINE"
+	TimeoutConnection TimeoutType = "CONNECTION_TIMEOUT"
+	TimeoutNone       TimeoutType = "NONE"
+)
+
+// ClassifyTimeout categorizes whether an error/result represents an execution timeout
+// or a network connection timeout.
+func ClassifyTimeout(err error, res *sandbox.Result) TimeoutType {
+	if (res != nil && res.DeadlineExceeded) || errors.Is(err, sandbox.ErrDeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
+		return TimeoutExecution
+	}
+	if err != nil {
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return TimeoutConnection
+		}
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "connection timed out") ||
+			strings.Contains(errStr, "i/o timeout") ||
+			strings.Contains(errStr, "tls handshake timeout") ||
+			strings.Contains(errStr, "dial tcp: i/o timeout") ||
+			strings.Contains(errStr, "connect: connection refused") {
+			return TimeoutConnection
+		}
+	}
+	return TimeoutNone
+}
+
+func buildTimedOutEnvelope(task adapters.Task, scannerVersion string, duration time.Duration) []byte {
+	completed := time.Now().UTC()
+	started := completed.Add(-duration)
+	code := -1
+	ver := scannerVersion
+	if ver == "" {
+		ver = "1.0.0"
+	}
+	env := adapters.ScannerOutputEnvelope{
+		SchemaVersion: adapters.OutputEnvelopeVersion,
+		Metadata: adapters.OutputMetadata{
+			AssessmentID:   task.AssessmentID,
+			ScannerID:      task.Scanner,
+			ScannerVersion: ver,
+			AdapterVersion: "1.0.0",
+			RunID:          task.JobID,
+			StartedAt:      started,
+			CompletedAt:    completed,
+			CorrelationID:  task.CorrelationID,
+		},
+		Status:      adapters.StatusTimedOut,
+		ExitCode:    &code,
+		DurationMS:  duration.Milliseconds(),
+		Findings:    []json.RawMessage{},
+		Diagnostics: []adapters.ExecutionDiagnostic{
+			{
+				Level:   "error",
+				Code:    "DEADLINE_EXCEEDED",
+				Message: fmt.Sprintf("scanner %q execution exceeded hard execution deadline of %s", task.Scanner, task.HardDeadline),
+			},
+		},
+	}
+	encoded, _ := adapters.EncodeOutputEnvelope(env)
+	return encoded
+}
+
 // ExecutePipeline coordinates execution of all scanners defined by an assessment profile.
 func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, task adapters.Task, cfg Config) (*sandbox.Result, error) {
 	profile, err := adapters.GetAssessmentProfile(task.ProfileID)
@@ -290,6 +439,69 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 		StartedAt:    started,
 	}
 
+	assessmentDeadline := task.HardDeadline
+	if assessmentDeadline <= 0 {
+		if profile.Budget.MaxDuration > 0 {
+			assessmentDeadline = profile.Budget.MaxDuration
+		} else {
+			assessmentDeadline = limits.PlatformCeiling.HardDeadline
+		}
+	}
+	if assessmentDeadline > limits.PlatformCeiling.HardDeadline {
+		assessmentDeadline = limits.PlatformCeiling.HardDeadline
+	}
+	if d, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(d); remaining < assessmentDeadline {
+			assessmentDeadline = remaining
+		}
+	}
+
+	if assessmentDeadline <= 0 {
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncResourceViolation(metrics.ViolationDeadline)
+			cfg.Metrics.IncTermination(metrics.CauseDeadline)
+		}
+		completed := time.Now().UTC()
+		report.CompletedAt = completed
+		report.Duration = 0
+		rawReport, _ := json.Marshal(report)
+		envelope := adapters.ScannerOutputEnvelope{
+			SchemaVersion: adapters.OutputEnvelopeVersion,
+			Metadata: adapters.OutputMetadata{
+				AssessmentID:   task.AssessmentID,
+				ScannerID:      "pipeline",
+				ScannerVersion: "1.0.0",
+				AdapterVersion: "1.0.0",
+				RunID:          task.JobID,
+				StartedAt:      started,
+				CompletedAt:    completed,
+				CorrelationID:  task.CorrelationID,
+			},
+			Status:      adapters.StatusTimedOut,
+			ExitCode:    intPtr(-1),
+			Findings:    []json.RawMessage{},
+			Diagnostics: []adapters.ExecutionDiagnostic{
+				{
+					Level:   "error",
+					Code:    "DEADLINE_EXCEEDED",
+					Message: "assessment execution deadline exceeded before execution began",
+				},
+			},
+		}
+		encodedEnv, _ := adapters.EncodeOutputEnvelope(envelope)
+		return &sandbox.Result{
+			Duration:         0,
+			Stdout:           string(rawReport),
+			OutputEnvelope:   encodedEnv,
+			ExitCode:         -1,
+			DeadlineExceeded: true,
+		}, sandbox.ErrDeadlineExceeded
+	}
+
+	assessmentCtx, cancelAssessment := context.WithTimeout(ctx, assessmentDeadline)
+	defer cancelAssessment()
+
+	assessmentTimedOut := false
 	prevPhaseSucceeded := true
 
 	for _, phase := range profile.DefaultScannerOrder {
@@ -311,8 +523,25 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			break
 		}
 
+		if assessmentCtx.Err() != nil {
+			phaseRes.Success = false
+			phaseRes.Error = "assessment execution deadline exceeded"
+			report.PhaseResults = append(report.PhaseResults, phaseRes)
+			assessmentTimedOut = true
+			break
+		}
+
+		remainingAssessment := time.Until(started.Add(assessmentDeadline))
+		if remainingAssessment <= 0 {
+			phaseRes.Success = false
+			phaseRes.Error = "assessment execution deadline exceeded"
+			report.PhaseResults = append(report.PhaseResults, phaseRes)
+			assessmentTimedOut = true
+			break
+		}
+
 		for _, scannerID := range phase.Scanners {
-			if o.readiness != nil && !o.readiness.IsScannerReady(ctx, scannerID) {
+			if o.readiness != nil && !o.readiness.IsScannerReady(assessmentCtx, scannerID) {
 				phaseRes.Success = false
 				phaseRes.Error = fmt.Sprintf("scanner %q is not ready", scannerID)
 				prevPhaseSucceeded = false
@@ -322,7 +551,42 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			subTask := task
 			subTask.Scanner = scannerID
 
-			subResult, err := o.ExecuteScanner(ctx, jobLog, subTask, cfg)
+			// Propagate bounded deadline: scanner cannot exceed assessment remaining time
+			scannerDeadline := subTask.HardDeadline
+			if scannerDeadline <= 0 {
+				if scLimits, err := limits.ForScanner(scannerID, cfg.Limits); err == nil && scLimits.HardDeadline > 0 {
+					scannerDeadline = scLimits.HardDeadline
+				} else {
+					scannerDeadline = remainingAssessment
+				}
+			}
+			if scannerDeadline > remainingAssessment {
+				scannerDeadline = remainingAssessment
+			}
+			subTask.HardDeadline = scannerDeadline
+
+			subResult, err := o.ExecuteScanner(assessmentCtx, jobLog, subTask, cfg)
+			isTimedOut := (subResult != nil && subResult.DeadlineExceeded) ||
+				errors.Is(err, sandbox.ErrDeadlineExceeded) ||
+				errors.Is(err, context.DeadlineExceeded) ||
+				assessmentCtx.Err() != nil
+
+			if isTimedOut {
+				phaseRes.Success = false
+				phaseRes.Error = fmt.Sprintf("scanner %q execution deadline exceeded", scannerID)
+				prevPhaseSucceeded = false
+				if assessmentCtx.Err() != nil {
+					assessmentTimedOut = true
+				}
+				if subResult != nil && len(subResult.OutputEnvelope) > 0 {
+					env, decErr := adapters.DecodeOutputEnvelope(subResult.OutputEnvelope)
+					if decErr == nil {
+						report.Envelopes = append(report.Envelopes, env)
+					}
+				}
+				break
+			}
+
 			if err != nil || (subResult != nil && subResult.ExitCode != 0) {
 				phaseRes.Success = false
 				if err != nil {
@@ -359,8 +623,24 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 		return nil, fmt.Errorf("failed to marshal pipeline report: %w", err)
 	}
 
+	status := adapters.StatusCompleted
+	exitCode := 0
+	var diagnostics []adapters.ExecutionDiagnostic
+
+	if assessmentTimedOut {
+		status = adapters.StatusTimedOut
+		exitCode = -1
+		diagnostics = []adapters.ExecutionDiagnostic{
+			{
+				Level:   "error",
+				Code:    "DEADLINE_EXCEEDED",
+				Message: "assessment execution deadline exceeded",
+			},
+		}
+	}
+
 	envelope := adapters.ScannerOutputEnvelope{
-		SchemaVersion: "1.0",
+		SchemaVersion: adapters.OutputEnvelopeVersion,
 		Metadata: adapters.OutputMetadata{
 			AssessmentID:   task.AssessmentID,
 			ScannerID:      "pipeline",
@@ -371,19 +651,24 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			CompletedAt:    report.CompletedAt,
 			CorrelationID:  task.CorrelationID,
 		},
-		Status:      adapters.StatusCompleted,
-		ExitCode:    intPtr(0),
+		Status:      status,
+		ExitCode:    intPtr(exitCode),
 		Findings:    []json.RawMessage{},
-		Diagnostics: []adapters.ExecutionDiagnostic{},
+		Diagnostics: diagnostics,
 	}
 	encodedEnv, _ := adapters.EncodeOutputEnvelope(envelope)
 
-	return &sandbox.Result{
-		Duration:       report.Duration,
-		Stdout:         string(rawReport),
-		OutputEnvelope: encodedEnv,
-		ExitCode:       0,
-	}, nil
+	res := &sandbox.Result{
+		Duration:         report.Duration,
+		Stdout:           string(rawReport),
+		OutputEnvelope:   encodedEnv,
+		ExitCode:         exitCode,
+		DeadlineExceeded: assessmentTimedOut,
+	}
+	if assessmentTimedOut {
+		return res, sandbox.ErrDeadlineExceeded
+	}
+	return res, nil
 }
 
 func intPtr(i int) *int {

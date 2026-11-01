@@ -79,8 +79,9 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 		}
 		return result, &ExitError{Spec: spec, Result: result, Err: err}
 	case <-ctx.Done():
-		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		stop := exec.CommandContext(stopCtx, e.runtime, "stop", "--time=2", containerName)
+		// Grace period enforcement: issue stop with 10-second SIGTERM grace period before SIGKILL
+		stopCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		stop := exec.CommandContext(stopCtx, e.runtime, "stop", "--time=10", containerName)
 		stop.Env = runtimeEnvironment()
 		_ = stop.Run()
 		cancel()
