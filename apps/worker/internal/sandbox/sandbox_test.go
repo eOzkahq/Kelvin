@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/kelvin/kelvin/apps/worker/internal/outputcapture"
 )
 
 func validSpec() Spec {
@@ -295,14 +297,17 @@ func TestProcessInvocationRejectsShellAndNonAbsoluteExecutable(t *testing.T) {
 }
 
 func TestBoundedBufferCapsOutputWhileWriting(t *testing.T) {
-	buffer := newBoundedBuffer(1024)
+	buffer := outputcapture.NewBoundedWriter(1024)
 	input := strings.Repeat("x", 4096)
 	if n, err := io.WriteString(buffer, input); err != nil || n != len(input) {
 		t.Fatalf("Write() = %d, %v", n, err)
 	}
 	got := buffer.String()
-	if len(got) > 1024 || !strings.HasSuffix(got, truncationMarker) {
+	if len(got) > 1024 || !strings.HasSuffix(got, outputcapture.TruncationMarker) {
 		t.Fatalf("buffer did not cap output with a truncation marker: len=%d", len(got))
+	}
+	if !buffer.Truncated() {
+		t.Fatalf("expected buffer to be marked as truncated")
 	}
 }
 

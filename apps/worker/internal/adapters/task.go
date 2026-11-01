@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kelvin/kelvin/apps/worker/internal/parserguard"
 )
 
 var (
@@ -85,8 +86,11 @@ func ValidateTask(t Task) error {
 // values cause rejection. Production ingestion should additionally validate
 // against the full draft-2020-12 schema via a JSON Schema validator.
 func ValidateFindings(raw []byte) error {
-	if len(raw) == 0 {
-		return fmt.Errorf("adapters: findings payload must not be empty")
+	if err := parserguard.ValidatePayload(raw); err != nil {
+		return fmt.Errorf("adapters: %w", err)
+	}
+	if err := parserguard.CheckJSONNestingDepth(raw, parserguard.MaxNestingDepth); err != nil {
+		return fmt.Errorf("adapters: %w", err)
 	}
 	var v any
 	if err := json.Unmarshal(raw, &v); err != nil {
