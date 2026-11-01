@@ -24,6 +24,25 @@ Define exactly what information a scanner receives when KELVIN requests an asses
 
 ---
 
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    subgraph InputSources ["Validated Sources"]
+        AssessmentContext["Tenant & Assessment Context"]
+        TargetScope["Validated Scope Context (Phase 1)"]
+        ScanProfile["Scan Profile Limits (Rate/Deadline)"]
+        SandboxPolicy["ADR-0005 Sandbox Policy"]
+    end
+
+    InputSources --> Envelope["InvocationInput (v1.0)"]
+    Envelope --> ValidationGate{"ValidateInvocationInput"}
+    ValidationGate -->|"Pass"| Adapter["ScannerAdapter.Execute"]
+    ValidationGate -->|"Scope Violation / Injection"| Reject["Fail Closed"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define the scanner execution input structure (`ExecutionInput`).
@@ -46,17 +65,19 @@ Define exactly what information a scanner receives when KELVIN requests an asses
 
 ## ✅ Acceptance Criteria
 
-- [ ] A versioned execution input contract exists.
-- [ ] Required and optional fields are documented.
-- [ ] Invalid or incomplete inputs are rejected.
-- [ ] Inputs cannot override Phase 1 authorization or scope restrictions.
-- [ ] Contract tests cover valid and invalid payloads.
+- [x] A versioned execution input contract exists.
+- [x] Required and optional fields are documented.
+- [x] Invalid or incomplete inputs are rejected.
+- [x] Inputs cannot override Phase 1 authorization or scope restrictions.
+- [x] Contract tests cover valid and invalid payloads.
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- Scanner Invocation Contract Specification: [`docs/architecture/SCANNER_INVOCATION_CONTRACT.md`](../../../docs/architecture/SCANNER_INVOCATION_CONTRACT.md)
+- Scanner Adapter Interface Specification: [`docs/architecture/SCANNER_ADAPTER_INTERFACE.md`](../../../docs/architecture/SCANNER_ADAPTER_INTERFACE.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
