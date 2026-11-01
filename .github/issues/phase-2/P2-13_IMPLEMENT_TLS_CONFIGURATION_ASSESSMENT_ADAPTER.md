@@ -48,11 +48,11 @@ Provide a built-in or controlled-tool adapter for evaluating the TLS configurati
 
 ## ✅ Acceptance Criteria
 
-- [ ] The adapter evaluates approved HTTPS targets.
-- [ ] Certificate and protocol information is captured.
-- [ ] Findings are returned through the common output envelope.
-- [ ] Rule versions are traceable.
-- [ ] Tests cover valid certificates, expired certificates, protocol issues, and connection failures.
+- [x] The adapter evaluates approved HTTPS targets through a trusted Phase 1 scope provider and pinned transport.
+- [x] Certificate chain, validity, SAN/hostname, negotiated protocol, and cipher information are captured.
+- [x] TLS findings use canonical finding objects in the common output envelope; handshake/connect failures remain diagnostics.
+- [x] Rule version `kelvin.tls.rules.v1` is recorded in output metadata.
+- [x] Local TLS tests cover valid/expired/untrusted/mismatched certificates, TLS 1.0/CBC, and connection failures.
 
 ---
 
@@ -63,3 +63,4 @@ Provide a built-in or controlled-tool adapter for evaluating the TLS configurati
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- TLS Assessment Adapter: [`docs/architecture/TLS_ASSESSMENT_ADAPTER.md`](../../../docs/architecture/TLS_ASSESSMENT_ADAPTER.md)
