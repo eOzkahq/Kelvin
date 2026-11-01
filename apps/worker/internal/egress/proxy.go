@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
+	"github.com/kelvin/kelvin/apps/worker/internal/pacing"
 	"go.uber.org/zap"
 )
 
@@ -29,6 +30,7 @@ type MetricsRecorder interface {
 // emits observable security alarms when violations occur.
 type Proxy struct {
 	policy      *ScannerEgressPolicy
+	pacer       pacing.Pacer
 	listener    net.Listener
 	server      *http.Server
 	logger      *zap.Logger
@@ -101,6 +103,13 @@ func (p *Proxy) Endpoint() string {
 	return p.endpoint
 }
 
+// SetPacer configures a per-target request rate limiter for the proxy.
+func (p *Proxy) SetPacer(pacer pacing.Pacer) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.pacer = pacer
+}
+
 // Addr returns the net.Addr of this proxy listener.
 func (p *Proxy) Addr() net.Addr {
 	return p.listener.Addr()
@@ -166,6 +175,24 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	p.mu.Lock()
+	pacer := p.pacer
+	p.mu.Unlock()
+
+	if pacer != nil {
+		event, err := pacer.Acquire(r.Context(), host)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("egress: pacing rejected: %v", err), http.StatusGatewayTimeout)
+			return
+		}
+		if event.Throttled {
+			p.logger.Debug("egress: connect tunnel throttled by pacing",
+				zap.String("target", host),
+				zap.Duration("wait", event.WaitDuration),
+			)
+		}
+	}
+
 	// Destination is compliant; establish pinned tunnel
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
@@ -228,6 +255,24 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	p.mu.Lock()
+	pacer := p.pacer
+	p.mu.Unlock()
+
+	if pacer != nil {
+		event, err := pacer.Acquire(r.Context(), host)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("egress: pacing rejected: %v", err), http.StatusGatewayTimeout)
+			return
+		}
+		if event.Throttled {
+			p.logger.Debug("egress: http request throttled by pacing",
+				zap.String("target", host),
+				zap.Duration("wait", event.WaitDuration),
+			)
+		}
+	}
+
 	// Clone request for pinned forwarding
 	outReq := r.Clone(r.Context())
 	outReq.RequestURI = "" // Required by http.Client
@@ -250,6 +295,10 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
+
+	if pacer != nil && (resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable) {
+		pacer.ReportBackoff(host, pacing.ParseRetryAfter(resp.Header.Get("Retry-After")))
+	}
 
 	// Copy response headers
 	for k, vv := range resp.Header {

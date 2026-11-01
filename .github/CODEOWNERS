@@ -2,25 +2,28 @@
 # Critical security and architectural modules have designated code owners.
 # PRs touching these paths require approval from the listed owners.
 
+# Default owners for all files across the repository
+* @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
+
 # --- Security-critical modules (require Product Security approval) ---
-/apps/api/internal/scope/ @kelvin/security
-/apps/api/internal/auth/ @kelvin/security
-/apps/worker/internal/sandbox/ @kelvin/security
-/apps/worker/internal/egress/ @kelvin/security
-/docs/security/ @kelvin/security
+/apps/api/internal/scope/ @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
+/apps/api/internal/auth/ @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
+/apps/worker/internal/sandbox/ @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
+/apps/worker/internal/egress/ @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
+/docs/security/ @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
 
 # --- Architectural modules (require Platform Engineering approval) ---
-/apps/api/ @kelvin/platform
-/apps/worker/ @kelvin/platform
-/packages/schemas/ @kelvin/platform
-/docs/architecture/ @kelvin/platform
+/apps/api/ @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
+/apps/worker/ @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
+/packages/schemas/ @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
+/docs/architecture/ @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
 
 # --- Frontend (require Frontend Engineering approval) ---
-/apps/web/ @kelvin/frontend
+/apps/web/ @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
 
 # --- Documentation ---
-/docs/ @kelvin/docs
+/docs/ @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
 
 # --- Root-level files ---
-/CONTRIBUTING.md @kelvin/platform @kelvin/docs
-/README.md @kelvin/platform @kelvin/docs
+/CONTRIBUTING.md @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing
+/README.md @Kush05Bhardwaj @MRINALPRAKASHFSD @Inkesk-dozing

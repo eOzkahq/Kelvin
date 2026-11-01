@@ -13,6 +13,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/egress"
 	"github.com/kelvin/kelvin/apps/worker/internal/limits"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
+	"github.com/kelvin/kelvin/apps/worker/internal/pacing"
 	"github.com/kelvin/kelvin/apps/worker/internal/progress"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
@@ -365,6 +366,22 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 				if err == nil {
 					egressProxy = proxy
 					defer proxy.Close()
+
+					effectiveRPS := pacing.EffectiveRate(task.Scanner, 0, 0)
+					pacerCfg := pacing.DefaultConfig(task.Scanner, task.Target)
+					pacerCfg.RequestsPerSecond = effectiveRPS
+					pacer := pacing.NewTokenBucketPacer(pacerCfg)
+					defer pacer.Close()
+					pacer.AddListener(func(ev pacing.PacingEvent) {
+						o.logger.Warn("scanner request throttled by per-target pacing",
+							zap.String("job_id", task.JobID),
+							zap.String("target", ev.Target),
+							zap.String("scanner", task.Scanner),
+							zap.Duration("wait", ev.WaitDuration),
+						)
+					})
+					proxy.SetPacer(pacer)
+
 					spec.NetworkDisabled = false
 					spec.EgressProxy = proxy.Endpoint()
 				}
