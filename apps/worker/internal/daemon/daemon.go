@@ -12,6 +12,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/limits"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
+	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/apps/worker/internal/scannerprocess"
 	"github.com/kelvin/kelvin/packages/common/tenant"
@@ -19,17 +20,32 @@ import (
 )
 
 type Config struct {
-	WorkerID       string
-	PollInterval   time.Duration
-	HeartbeatEvery time.Duration
-	Executor       sandbox.Executor
-	Limits         limits.Limits
-	Metrics        *metrics.Registry
+	WorkerID         string
+	PollInterval     time.Duration
+	HeartbeatEvery   time.Duration
+	Executor         sandbox.Executor
+	Limits           limits.Limits
+	Metrics          *metrics.Registry
+	ReadinessChecker *readiness.Checker
 }
 
 func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, registry *adapters.Registry) error {
 	if err := registry.Initialize(ctx, log); err != nil {
 		return err
+	}
+	if cfg.ReadinessChecker != nil {
+		report := cfg.ReadinessChecker.EvaluateAll(ctx)
+		if report.ApplicationStatus == readiness.StatusUnavailable {
+			log.Error("worker pre-flight readiness check failed; refusing to accept jobs",
+				zap.String("application_status", string(report.ApplicationStatus)),
+				zap.String("worker_id", cfg.WorkerID),
+			)
+			return fmt.Errorf("daemon: pre-flight readiness check failed")
+		}
+		log.Info("worker pre-flight readiness verified",
+			zap.String("application_status", string(report.ApplicationStatus)),
+			zap.String("worker_id", cfg.WorkerID),
+		)
 	}
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = 5 * time.Second
@@ -79,6 +95,10 @@ func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, regist
 
 func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adapters.Registry, job queue.Job, cfg Config) {
 	jobLog := log.With(zap.String("job_id", job.ID), zap.String("job_type", job.Type), zap.String("correlation_id", job.CorrelationID))
+	if cfg.ReadinessChecker != nil && !cfg.ReadinessChecker.IsScannerReady(ctx, job.Type) {
+		fail(jobLog, q, ctx, job, fmt.Sprintf("scanner %q runtime readiness check failed", job.Type))
+		return
+	}
 	adapter, ok := registry.LookupExecutable(job.Type)
 	if !ok {
 		fail(jobLog, q, ctx, job, "no executable adapter registered for job type")
