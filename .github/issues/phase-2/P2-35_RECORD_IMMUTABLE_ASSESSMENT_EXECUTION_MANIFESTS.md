@@ -24,30 +24,6 @@ Make each assessment execution reproducible and auditable by recording the exact
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    Job["Completed Assessment Run"] --> Collector["Manifest Collector"]
-
-    subgraph Components ["Manifest Elements"]
-        C1["Run Metadata (id, timestamps, tenant_id)"]
-        C2["Target Specification & Pinned DNS"]
-        C3["Scanner Tool Versions & OCI Image SHAs"]
-        C4["Active Configuration & Flags"]
-        C5["Hash of Raw Output Streams"]
-    end
-
-    Collector --> Components
-    Components --> Hasher["Calculate SHA-256 Digest"]
-    Hasher --> Manifest["Immutable Execution Manifest Record"]
-    Manifest --> DB["Persist in PostgreSQL assessment_manifests Table"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Create an execution manifest at assessment start.

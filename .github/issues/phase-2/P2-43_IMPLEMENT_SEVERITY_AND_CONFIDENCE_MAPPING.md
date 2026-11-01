@@ -24,33 +24,6 @@ Translate scanner-specific severity and confidence indicators into KELVIN's comm
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart LR
-    subgraph ScannerSeverities ["Scanner-Specific Scales"]
-        ZAP["ZAP: 0 (Info), 1 (Low), 2 (Medium), 3 (High)"]
-        Nuc["Nuclei: info, low, medium, high, critical"]
-        Builtin["Built-in: informational, warning, violation"]
-    end
-
-    subgraph Mapper ["Mapping Matrix Engine"]
-        Rule["Consistent Level & Confidence Translation"]
-    end
-
-    subgraph UnifiedScale ["Kelvin Canonical Scale"]
-        Sev["Severity: INFO | LOW | MEDIUM | HIGH | CRITICAL"]
-        Conf["Confidence: TENTATIVE | FIRM | CERTAIN"]
-    end
-
-    ScannerSeverities --> Mapper
-    Mapper --> UnifiedScale
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Define mappings from each scanner's severity levels to KELVIN's canonical severity values (`INFORMATIONAL`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`).

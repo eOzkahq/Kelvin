@@ -24,33 +24,6 @@ Define exactly what information a scanner receives when KELVIN requests an asses
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    Queue["Job Queue / Redis"] --> Worker["Assessment Worker"]
-    Worker --> Builder["Invocation Input Builder"]
-
-    subgraph InputContract ["ScannerInvocationInput Contract"]
-        T["target: Validated Target URL"]
-        IP["pinned_ip: Verified DNS Resolution"]
-        SC["scope: Allowed Hosts & IP CIDRs"]
-        P["profile: Scan Configuration & Rules"]
-        TO["timeout: Per-Scanner Deadline"]
-        RL["rate_limit: Requests Per Second"]
-        ENV["env_vars: Strict Non-Root Context"]
-    end
-
-    Builder --> InputContract
-    InputContract --> InvariantCheck{"Scope & Policy Valid?"}
-    InvariantCheck -- No --> Abort["Reject Job & Log Policy Violation"]
-    InvariantCheck -- Yes --> Adapter["Dispatch to ScannerAdapter"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Define the scanner execution input structure (`ExecutionInput`).

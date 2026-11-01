@@ -24,29 +24,6 @@ Convert scanner-specific results into the canonical finding and evidence model e
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    RawFindings["Disparate Scanner Outputs"] --> Normalizer["Canonical Normalizer (ADR-0002)"]
-
-    subgraph CanonicalSchema ["finding.v1.json Specification"]
-        C1["id: UUIDv7 & run_id"]
-        C2["fingerprint: sha256(tenant_id + target + rule_id)"]
-        C3["severity: INFO | LOW | MEDIUM | HIGH | CRITICAL"]
-        C4["confidence: TENTATIVE | FIRM | CERTAIN"]
-        C5["title, description, remediation"]
-        C6["evidence: { request, response, snippet }"]
-    end
-
-    Normalizer --> CanonicalSchema
-    CanonicalSchema --> Validate["Schema Validation Gate"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Implement a shared normalization layer.

@@ -24,30 +24,6 @@ Convert ZAP Baseline output into KELVIN's internal scanner result representation
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    RawJSON["ZAP JSON Output Report"] --> StreamParser["ZAP Parser Engine"]
-    StreamParser --> Alerts["Iterate Over Alert Items"]
-
-    subgraph AlertFields ["ZAP Alert Mapping"]
-        F1["alert -> title"]
-        F2["riskdesc / confidence -> severity / confidence"]
-        F3["desc / solution -> description / remediation"]
-        F4["instances (uri, param, evidence) -> evidence list"]
-        F5["cweid / wascid -> taxonomies"]
-    end
-
-    Alerts --> AlertFields
-    AlertFields --> Normalizer["Map to Kelvin Finding Envelope"]
-    Normalizer --> Output["Return Canonical Finding Records"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Support the approved ZAP output format.

@@ -24,22 +24,6 @@ Provide isolated temporary storage for scanner configuration, intermediate data,
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    Job["Start Assessment Job"] --> Create["Create Isolated Dir: /tmp/kelvin/runs/{run_id}"]
-    Create --> Perms["Chown UID 10001:10001 & Chmod 0700"]
-    Perms --> Mount["Mount as /workspace into Container Sandbox"]
-    Mount --> Exec["Scanner Execution Writes Raw Output"]
-    Exec --> Harvest["Ingest Artifacts into Assessment Pipeline"]
-    Harvest --> Cleanup["Secure Shred & Directory Removal (defer/cleanup)"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Create a dedicated workspace for each assessment execution.
