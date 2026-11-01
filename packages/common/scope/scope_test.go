@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -125,6 +126,78 @@ func TestRedirectScopeIsRevalidated(t *testing.T) {
 	_, err := client.Get("http://" + ip)
 	if err == nil || !errors.Is(err, ErrOutOfScope) {
 		t.Fatalf("redirect should be blocked as out of scope: %v", err)
+	}
+}
+
+func TestRedirectLoopIsRejected(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next := "/a"
+		if r.URL.Path == "/a" {
+			next = "/b"
+		}
+		http.Redirect(w, r, next, http.StatusFound)
+	}))
+	defer server.Close()
+	policy := Policy{labMode: true, Prefixes: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}}
+	_, err := policy.NewHTTPClient().Get(server.URL + "/a")
+	if !errors.Is(err, ErrRedirectLoop) {
+		t.Fatalf("redirect loop error=%v, want ErrRedirectLoop", err)
+	}
+}
+
+func TestRedirectHopLimitIsEnforced(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		hop, _ := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/"))
+		if hop < MaxRedirectHops+2 {
+			http.Redirect(w, r, "/"+strconv.Itoa(hop+1), http.StatusFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	policy := Policy{labMode: true, Prefixes: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}}
+	_, err := policy.NewHTTPClient().Get(server.URL + "/0")
+	if !errors.Is(err, ErrRedirectLimit) {
+		t.Fatalf("redirect limit error=%v, want ErrRedirectLimit", err)
+	}
+	if requests != MaxRedirectHops+1 {
+		t.Fatalf("requests=%d, want initial request plus exactly %d redirects", requests, MaxRedirectHops)
+	}
+}
+
+func TestRedirectToUnapprovedPortIsRejectedBeforeFollow(t *testing.T) {
+	var destinationRequests int
+	destination := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { destinationRequests++ }))
+	defer destination.Close()
+	destinationURL, err := url.Parse(destination.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "http://127.0.0.1:"+destinationURL.Port()+"/target", http.StatusFound)
+	}))
+	defer server.Close()
+	policy := Policy{labMode: true, Prefixes: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}}
+	_, err = policy.NewHTTPClient().Get(server.URL)
+	if !errors.Is(err, ErrRedirectPort) {
+		t.Fatalf("redirect port error=%v, want ErrRedirectPort", err)
+	}
+	if destinationRequests != 0 {
+		t.Fatalf("unapproved redirect destination received %d requests", destinationRequests)
+	}
+}
+
+func TestRedirectToUnsupportedSchemeIsRejected(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "ftp://127.0.0.1/resource", http.StatusFound)
+	}))
+	defer server.Close()
+	policy := Policy{labMode: true, Prefixes: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}}
+	_, err := policy.NewHTTPClient().Get(server.URL)
+	if !errors.Is(err, ErrRedirectScheme) {
+		t.Fatalf("redirect scheme error=%v, want ErrRedirectScheme", err)
 	}
 }
 

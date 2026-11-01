@@ -48,11 +48,11 @@ Ensure scanners handle redirects without escaping the authorized assessment scop
 
 ## ✅ Acceptance Criteria
 
-- [ ] Each redirect destination is validated before being followed.
-- [ ] Out-of-scope redirects are blocked.
-- [ ] Redirect loops and excessive chains are handled safely.
-- [ ] Redirect behavior is covered by automated tests.
-- [ ] Blocked redirects are observable in assessment diagnostics.
+- [x] Each redirect destination is validated before being followed by the shared scope-aware HTTP client.
+- [x] Out-of-scope hosts and prohibited addresses are blocked before a socket is opened.
+- [x] Redirect loops, chains over ten hops, HTTPS downgrades, unsupported schemes, and unapproved ports are rejected.
+- [x] Local automated tests cover redirect scope, loops, hop limits, schemes, and ports.
+- [x] The HTTP preflight adapter records blocked redirects using structured diagnostic codes.
 
 ---
 
@@ -63,3 +63,4 @@ Ensure scanners handle redirects without escaping the authorized assessment scop
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- Safe Redirect Chain Evaluation: [`docs/architecture/REDIRECT_CHAIN_EVALUATION.md`](../../../docs/architecture/REDIRECT_CHAIN_EVALUATION.md)

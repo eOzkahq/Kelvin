@@ -15,6 +15,9 @@ before sending traffic, uses the scope package's pinned HTTP transport, and
 revalidates each redirect before following it. Do not build the provider from
 scanner config or user-controlled payload fields.
 
+Redirect hop, loop, scheme, and port rules are specified in
+[`REDIRECT_CHAIN_EVALUATION.md`](REDIRECT_CHAIN_EVALUATION.md).
+
 ```go
 adapter := adapters.NewHTTPPreflightAdapter(func(ctx context.Context, task adapters.Task) (scope.Policy, error) {
     // Resolve the task's authorized scope from trusted worker context here.
