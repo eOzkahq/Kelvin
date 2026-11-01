@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
+	"github.com/kelvin/kelvin/apps/worker/internal/classification"
 	"github.com/kelvin/kelvin/apps/worker/internal/egress"
 	"github.com/kelvin/kelvin/apps/worker/internal/limits"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
@@ -484,6 +485,39 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 			zap.String("job_id", task.JobID),
 			zap.String("scanner", task.Scanner),
 			zap.Int("violations_count", egressProxy.ViolationsCount()),
+		)
+	}
+
+	if execErr != nil || (result != nil && result.ExitCode != 0) {
+		egressBlocked := egressProxy != nil && egressProxy.ViolationsCount() > 0
+		exitCode := 0
+		oomKilled := false
+		timedOut := isDeadlineExceeded
+		stdout := ""
+		stderr := ""
+		if result != nil {
+			exitCode = result.ExitCode
+			oomKilled = result.OOMKilled
+			stdout = string(result.Stdout)
+			stderr = string(result.Stderr)
+		}
+		cf := classification.Classify(ctx, classification.ClassificationInput{
+			Scanner:       task.Scanner,
+			ExitCode:      exitCode,
+			Stdout:        stdout,
+			Stderr:        stderr,
+			Err:           execErr,
+			OOMKilled:     oomKilled,
+			TimedOut:      timedOut,
+			EgressBlocked: egressBlocked,
+		})
+		o.logger.Warn("classified scanner failure",
+			zap.String("job_id", task.JobID),
+			zap.String("scanner", task.Scanner),
+			zap.String("failure_category", string(cf.Category)),
+			zap.String("failure_code", cf.Code),
+			zap.Bool("retryable", cf.Retryable),
+			zap.String("message", cf.Message),
 		)
 	}
 
