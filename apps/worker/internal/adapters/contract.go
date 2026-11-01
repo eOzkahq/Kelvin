@@ -117,6 +117,9 @@ func (a *ReferenceAdapter) Execute(ctx context.Context, task Task) (Result, erro
 
 	result, err := a.Run(execCtx, task)
 	cancel()
+	if err == nil {
+		err = result.Validate()
+	}
 	a.mu.Lock()
 	a.cancel = nil
 	if err == nil {
@@ -157,6 +160,34 @@ func (a *ReferenceAdapter) Result() (Result, error) {
 		return Result{}, ErrNoResult
 	}
 	result := a.result
+	result.Findings = cloneRawMessages(result.Findings)
+	result.Diagnostics = append([]ExecutionDiagnostic(nil), result.Diagnostics...)
+	if result.ExitCode != nil {
+		code := *result.ExitCode
+		result.ExitCode = &code
+	}
+	if result.RawPayload != nil {
+		payload := *result.RawPayload
+		result.RawPayload = &payload
+	}
+	if result.ScannerMetadata != nil {
+		metadata := make(map[string]json.RawMessage, len(result.ScannerMetadata))
+		for key, value := range result.ScannerMetadata {
+			metadata[key] = append(json.RawMessage(nil), value...)
+		}
+		result.ScannerMetadata = metadata
+	}
+	return result, nil
+}
+
+func cloneRawMessages(values []json.RawMessage) []json.RawMessage {
+	cloned := make([]json.RawMessage, len(values))
+	for i, value := range values {
+		cloned[i] = append(json.RawMessage(nil), value...)
+	}
+	return cloned
+}
+
 	result.Findings = append([]byte(nil), result.Findings...)
 	return result, nil
 }
