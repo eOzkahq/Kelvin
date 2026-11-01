@@ -144,7 +144,8 @@ func (a *HTTPPreflightAdapter) run(ctx context.Context, task Task) (Result, erro
 		default:
 			status = StatusCompletedWithWarnings
 			exitCode = &zero
-			diagnostics = []ExecutionDiagnostic{{Level: "warning", Code: "TARGET_UNREACHABLE", Message: "HTTP preflight could not obtain a response"}}
+			code, message := preflightRedirectDiagnostic(requestErr)
+			diagnostics = []ExecutionDiagnostic{{Level: "warning", Code: code, Message: message}}
 		}
 	} else {
 		defer response.Body.Close()
@@ -240,6 +241,18 @@ func classifyPreflightError(ctx context.Context, err error) string {
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return "cancelled"
 	}
+	if errors.Is(err, scope.ErrRedirectLoop) {
+		return "redirect_loop"
+	}
+	if errors.Is(err, scope.ErrRedirectLimit) {
+		return "redirect_limit_exceeded"
+	}
+	if errors.Is(err, scope.ErrRedirectPort) {
+		return "redirect_port_rejected"
+	}
+	if errors.Is(err, scope.ErrRedirectScheme) {
+		return "redirect_scheme_rejected"
+	}
 	if errors.Is(err, scope.ErrOutOfScope) || errors.Is(err, scope.ErrProhibited) {
 		return "redirect_rejected_by_scope"
 	}
@@ -248,6 +261,23 @@ func classifyPreflightError(ctx context.Context, err error) string {
 		return "tls_error"
 	}
 	return "connection_error"
+}
+
+func preflightRedirectDiagnostic(err error) (string, string) {
+	switch {
+	case errors.Is(err, scope.ErrRedirectLoop):
+		return "REDIRECT_LOOP", "HTTP preflight stopped a redirect loop"
+	case errors.Is(err, scope.ErrRedirectLimit):
+		return "REDIRECT_LIMIT_EXCEEDED", "HTTP preflight reached the redirect hop limit"
+	case errors.Is(err, scope.ErrRedirectPort):
+		return "REDIRECT_PORT_REJECTED", "HTTP preflight blocked a redirect to an unapproved port"
+	case errors.Is(err, scope.ErrRedirectScheme):
+		return "REDIRECT_SCHEME_REJECTED", "HTTP preflight blocked an unsupported or downgraded redirect scheme"
+	case errors.Is(err, scope.ErrOutOfScope), errors.Is(err, scope.ErrProhibited):
+		return "REDIRECT_SCOPE_REJECTED", "HTTP preflight blocked a redirect outside the approved scope"
+	default:
+		return "TARGET_UNREACHABLE", "HTTP preflight could not obtain a response"
+	}
 }
 
 var _ ScannerAdapter = (*HTTPPreflightAdapter)(nil)

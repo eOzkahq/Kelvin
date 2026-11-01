@@ -54,15 +54,8 @@ func TestHTTPPreflightAdapterCapturesHTTPResponse(t *testing.T) {
 
 func TestHTTPPreflightAdapterRejectsOutOfScopeRedirect(t *testing.T) {
 	withLabMode(t)
-	var outsideRequests int
-	outside := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { outsideRequests++ }))
-	defer outside.Close()
-	outsideURL, err := url.Parse(outside.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "http://outside.test:"+outsideURL.Port()+"/", http.StatusFound)
+		http.Redirect(w, r, "http://outside.test/", http.StatusFound)
 	}))
 	defer server.Close()
 	policy := preflightPolicy(t, []string{"preflight.test"}, nil, netip.MustParseAddr("127.0.0.1"))
@@ -72,8 +65,32 @@ func TestHTTPPreflightAdapterRejectsOutOfScopeRedirect(t *testing.T) {
 		t.Fatalf("redirect result status = %s, want warning outcome", result.Status)
 	}
 	observation := decodeObservation(t, result)
-	if observation.Error != "redirect_rejected_by_scope" || !observation.Redirected || observation.StatusCode != http.StatusFound || outsideRequests != 0 {
-		t.Fatalf("out-of-scope redirect was followed or misclassified: observation=%+v outside requests=%d", observation, outsideRequests)
+	if observation.Error != "redirect_rejected_by_scope" || !observation.Redirected || observation.StatusCode != http.StatusFound {
+		t.Fatalf("out-of-scope redirect was followed or misclassified: observation=%+v", observation)
+	}
+	if len(result.Diagnostics) != 1 || result.Diagnostics[0].Code != "REDIRECT_SCOPE_REJECTED" {
+		t.Fatalf("blocked redirect diagnostic missing: %+v", result.Diagnostics)
+	}
+}
+
+func TestHTTPPreflightAdapterFollowsRedirectWithinAuthorizedPort(t *testing.T) {
+	withLabMode(t)
+	var requests int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.URL.Path == "/start" {
+			http.Redirect(w, r, "/final", http.StatusFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	policy := preflightPolicy(t, []string{"preflight.test"}, nil, netip.MustParseAddr("127.0.0.1"))
+	target := "http://preflight.test" + strings.TrimPrefix(server.URL, "http://127.0.0.1") + "/start"
+	result := executePreflight(t, policy, preflightTask(t, target))
+	observation := decodeObservation(t, result)
+	if result.Status != StatusCompleted || !observation.Redirected || !strings.HasSuffix(observation.FinalURL, "/final") || requests != 2 {
+		t.Fatalf("in-scope redirect was not followed and recorded: status=%s observation=%+v requests=%d", result.Status, observation, requests)
 	}
 }
 

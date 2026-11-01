@@ -24,6 +24,12 @@ import (
 var ErrTarget = errors.New("invalid target")
 var ErrProhibited = errors.New("prohibited target address")
 var ErrOutOfScope = errors.New("target is outside approved scope")
+var ErrRedirectLoop = errors.New("redirect loop detected")
+var ErrRedirectLimit = errors.New("redirect hop limit exceeded")
+var ErrRedirectPort = errors.New("redirect port is not permitted")
+var ErrRedirectScheme = errors.New("redirect scheme is not permitted")
+
+const MaxRedirectHops = 10
 
 type Target struct {
 	Canonical string
@@ -416,12 +422,67 @@ func (t *PinnedTransport) DialContext(ctx context.Context, network, address stri
 func (p Policy) NewHTTPClient() *http.Client {
 	transport := p.NewTransport()
 	return &http.Client{Transport: transport, CheckRedirect: func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 10 {
-			return errors.New("too many redirects")
+		if len(via) > MaxRedirectHops {
+			return fmt.Errorf("%w: maximum is %d", ErrRedirectLimit, MaxRedirectHops)
+		}
+		if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
+			return fmt.Errorf("%w: %s", ErrRedirectScheme, req.URL.Scheme)
+		}
+		if len(via) > 0 && via[0].URL.Scheme == "https" && req.URL.Scheme != "https" {
+			return fmt.Errorf("%w: HTTPS redirect downgrade is prohibited", ErrRedirectScheme)
+		}
+		if len(via) > 0 && !redirectPortAllowed(via[0].URL, req.URL) {
+			return fmt.Errorf("%w: %s", ErrRedirectPort, effectivePort(req.URL))
+		}
+		canonical := redirectCanonical(req.URL)
+		for _, previous := range via {
+			if redirectCanonical(previous.URL) == canonical {
+				return fmt.Errorf("%w: %s", ErrRedirectLoop, canonical)
+			}
 		}
 		_, _, err := p.Validate(req.Context(), req.URL.String())
-		return err
+		if err != nil {
+			return fmt.Errorf("redirect destination rejected: %w", err)
+		}
+		return nil
 	}}
+}
+
+// redirectPortAllowed permits the original target's port and standard web
+// ports. A redirect cannot pivot an approved host onto an unrelated service.
+func redirectPortAllowed(initial, destination *url.URL) bool {
+	port := effectivePort(destination)
+	return port == effectivePort(initial) ||
+		(destination.Scheme == "http" && port == "80") ||
+		(destination.Scheme == "https" && port == "443")
+}
+
+func effectivePort(u *url.URL) string {
+	if port := u.Port(); port != "" {
+		return port
+	}
+	if u.Scheme == "http" {
+		return "80"
+	}
+	return "443"
+}
+
+func redirectCanonical(u *url.URL) string {
+	copyURL := *u
+	copyURL.Fragment = ""
+	if copyURL.Path == "" {
+		copyURL.Path = "/"
+	}
+	port := copyURL.Port()
+	if (copyURL.Scheme == "http" && port == "80") || (copyURL.Scheme == "https" && port == "443") {
+		copyURL.Host = copyURL.Hostname()
+		if strings.Contains(copyURL.Hostname(), ":") {
+			copyURL.Host = "[" + copyURL.Hostname() + "]"
+		}
+	}
+	copyURL.Scheme = strings.ToLower(copyURL.Scheme)
+	copyURL.Host = strings.ToLower(copyURL.Host)
+	return copyURL.String()
 }
 
 // LabModeFromEnv enables isolated local-lab exceptions only when a dedicated
