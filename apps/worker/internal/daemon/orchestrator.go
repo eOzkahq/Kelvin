@@ -601,6 +601,17 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		)
 	}
 
+	if result != nil && (result.StdoutTruncated || result.StderrTruncated) {
+		o.logger.Warn("scanner output stream was truncated due to buffer limits",
+			zap.String("job_id", task.JobID),
+			zap.String("scanner", task.Scanner),
+			zap.Bool("stdout_truncated", result.StdoutTruncated),
+			zap.Int64("stdout_bytes", result.StdoutBytes),
+			zap.Bool("stderr_truncated", result.StderrTruncated),
+			zap.Int64("stderr_bytes", result.StderrBytes),
+		)
+	}
+
 	_ = tracker.TransitionTo(ctx, progress.StageOutputCollection, "collecting scanner output and diagnostics")
 	_ = tracker.TransitionTo(ctx, progress.StageResultNormalization, "normalizing findings into canonical schema")
 

@@ -1,7 +1,6 @@
 package sandbox
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -13,10 +12,11 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/kelvin/kelvin/apps/worker/internal/outputcapture"
 )
 
-const maxCaptureBytes = 4 * 1024 * 1024
-const truncationMarker = "\n[output truncated by worker sandbox]"
+const maxCaptureBytes = outputcapture.DefaultMaxCaptureBytes
 
 type OCIExecutor struct{ runtime string }
 
@@ -53,13 +53,21 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 	namedArgs = append(namedArgs, args[imageIndex:]...)
 	cmd := (ProcessInvocation{Executable: e.runtime, Args: namedArgs}).Command()
 	cmd.Env = runtimeEnvironment()
-	stdout, stderr := newBoundedBuffer(maxCaptureBytes), newBoundedBuffer(maxCaptureBytes)
+	stdout, stderr := outputcapture.NewBoundedWriter(maxCaptureBytes), outputcapture.NewBoundedWriter(maxCaptureBytes)
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	done := make(chan error, 1)
 	go func() { done <- cmd.Run() }()
 	select {
 	case err := <-done:
-		result := &Result{Duration: time.Since(start), Stdout: stdout.String(), Stderr: stderr.String()}
+		result := &Result{
+			Duration:        time.Since(start),
+			Stdout:          stdout.String(),
+			Stderr:          stderr.String(),
+			StdoutBytes:     stdout.TotalBytes(),
+			StderrBytes:     stderr.TotalBytes(),
+			StdoutTruncated: stdout.Truncated(),
+			StderrTruncated: stderr.Truncated(),
+		}
 		if spec.CaptureZAPReport {
 			if copyErr := e.captureZAPReport(containerName, result); copyErr != nil {
 				e.removeContainer(containerName)
@@ -95,7 +103,18 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 			_ = cmd.Process.Kill()
 		}
 		<-done
-		result := &Result{Duration: time.Since(start), Stdout: stdout.String(), Stderr: stderr.String(), DeadlineExceeded: !cancelled, Cancelled: cancelled, ExitCode: -1}
+		result := &Result{
+			Duration:         time.Since(start),
+			Stdout:           stdout.String(),
+			Stderr:           stderr.String(),
+			StdoutBytes:      stdout.TotalBytes(),
+			StderrBytes:      stderr.TotalBytes(),
+			StdoutTruncated:  stdout.Truncated(),
+			StderrTruncated:  stderr.Truncated(),
+			DeadlineExceeded: !cancelled,
+			Cancelled:        cancelled,
+			ExitCode:         -1,
+		}
 		cause := ErrDeadlineExceeded
 		if cancelled {
 			cause = ErrCancelled
@@ -194,9 +213,9 @@ func (e *OCIExecutor) captureZAPReport(containerName string, result *Result) err
 	args := []string{"cp", containerName + ":/tmp/kelvin-zap-report.json", destination}
 	cmd := exec.CommandContext(ctx, e.runtime, args...)
 	cmd.Env = runtimeEnvironment()
-	var stdout, stderr boundedBuffer
-	stdout.maxBytes, stderr.maxBytes = 16<<10, 16<<10
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	stdout := outputcapture.NewBoundedWriter(16 << 10)
+	stderr := outputcapture.NewBoundedWriter(16 << 10)
+	cmd.Stdout, cmd.Stderr = stdout, stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("OCI runtime report copy failed: %w", err)
 	}
@@ -224,36 +243,6 @@ func (e *OCIExecutor) removeContainer(name string) {
 	_ = cmd.Run()
 }
 
-type boundedBuffer struct {
-	buf       bytes.Buffer
-	maxBytes  int
-	truncated bool
-}
-
-func newBoundedBuffer(maxBytes int) *boundedBuffer { return &boundedBuffer{maxBytes: maxBytes} }
-
-func (b *boundedBuffer) Write(p []byte) (int, error) {
-	limit := b.maxBytes - len(truncationMarker)
-	remaining := limit - b.buf.Len()
-	if remaining > 0 {
-		if len(p) > remaining {
-			_, _ = b.buf.Write(p[:remaining])
-		} else {
-			_, _ = b.buf.Write(p)
-		}
-	}
-	if len(p) > remaining {
-		b.truncated = true
-	}
-	return len(p), nil
-}
-
-func (b *boundedBuffer) String() string {
-	if b.truncated {
-		return b.buf.String() + truncationMarker
-	}
-	return b.buf.String()
-}
 
 func runtimeEnvironment() []string {
 	allowed := map[string]bool{
@@ -272,4 +261,4 @@ func runtimeEnvironment() []string {
 	return filtered
 }
 
-var _ io.Writer = (*boundedBuffer)(nil)
+
