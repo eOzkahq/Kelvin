@@ -80,6 +80,20 @@ func (a *ReferenceAdapter) Initialize(ctx context.Context, logger *zap.Logger) e
 
 func (a *ReferenceAdapter) ValidateConfig(raw json.RawMessage) error {
 	if len(raw) == 0 || string(raw) == "null" {
+		_, err := DefaultScannerConfig(a.AdapterName)
+		if err == nil {
+			return nil
+		}
+		return nil // non-MVP reference adapters may define their own config contract
+	}
+	if _, err := DefaultScannerConfig(a.AdapterName); err == nil {
+		config, err := DecodeScannerConfig(raw)
+		if err != nil {
+			return err
+		}
+		if config.ScannerID != a.AdapterName {
+			return fmt.Errorf("adapters: scanner config id does not match adapter name")
+		}
 		return nil
 	}
 	var cfg map[string]json.RawMessage

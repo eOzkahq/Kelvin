@@ -21,14 +21,23 @@ func validExecutionInput(t *testing.T) ExecutionInput {
 	t.Helper()
 	task := validTask()
 	task.Target = "https://example.com/"
-	task.Payload = []byte(`{"severity":"low"}`)
+	config, err := DefaultScannerConfig(task.Scanner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task.Payload, err = json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
 	policy, err := scope.NewPolicy([]string{"example.com"}, nil, fixedResolver{ips: []netip.Addr{netip.MustParseAddr("93.184.216.34")}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	input, err := BuildExecutionInput(context.Background(), task,
 		InvocationAuthorization{ScopeID: "44444444-4444-4444-4444-444444444444", AuthorizationID: "55555555-5555-5555-5555-555555555555"},
-		policy, "kelvin.resource.standard.v1", limits.DefaultLimits(), 25, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC))
+		policy, "kelvin.resource.standard.v1", limits.DefaultLimits(), ProfileBudget{
+			RequestsPerSecond: 25, MaxConcurrency: 10, MaxRequestsPerTarget: 5000, MaxDuration: 10 * time.Minute,
+		}, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +52,7 @@ func TestBuildExecutionInputValidatesAndPinsTarget(t *testing.T) {
 	if in.Target.Canonical != "https://example.com/" || len(in.Target.PinnedIPs) != 1 || in.Target.PinnedIPs[0] != "93.184.216.34" {
 		t.Fatalf("unexpected target context: %+v", in.Target)
 	}
-	if in.Scope.Target != in.Target.Canonical || in.Execution.RequestsPerSecond != 25 {
+	if in.Scope.Target != in.Target.Canonical || in.Execution.RequestsPerSecond != 2 || in.Scanner.ConfigVersion != ScannerConfigVersion {
 		t.Fatalf("scope or resource context mismatch: %+v", in)
 	}
 	raw, err := json.Marshal(in)
@@ -53,6 +62,34 @@ func TestBuildExecutionInputValidatesAndPinsTarget(t *testing.T) {
 	decoded, err := DecodeExecutionInput(raw)
 	if err != nil || decoded.Target.Canonical != in.Target.Canonical {
 		t.Fatalf("DecodeExecutionInput() = %+v, %v", decoded, err)
+	}
+}
+
+func TestBuildExecutionInputSupportsShortBuiltInTimeout(t *testing.T) {
+	task := validTask()
+	task.Scanner = ScannerHTTPPreflight
+	task.Target = "https://example.com/"
+	defaults, err := DefaultScannerConfig(task.Scanner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task.Payload, err = json.Marshal(defaults)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, err := scope.NewPolicy([]string{"example.com"}, nil, fixedResolver{ips: []netip.Addr{netip.MustParseAddr("93.184.216.34")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := BuildExecutionInput(context.Background(), task,
+		InvocationAuthorization{ScopeID: "44444444-4444-4444-4444-444444444444"}, policy,
+		"kelvin.resource.standard.v1", limits.DefaultLimits(),
+		ProfileBudget{RequestsPerSecond: 25, MaxConcurrency: 10, MaxRequestsPerTarget: 5000, MaxDuration: 10 * time.Minute}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if in.Execution.TimeoutSeconds != 30 {
+		t.Fatalf("timeout_seconds = %d, want scanner default 30", in.Execution.TimeoutSeconds)
 	}
 }
 
@@ -70,18 +107,36 @@ func TestDecodeExecutionInputRejectsUnknownAndTrailingFields(t *testing.T) {
 	}
 }
 
-func TestBuildExecutionInputAllowsOpaqueSecretReference(t *testing.T) {
+func TestBuildExecutionInputRejectsUnsupportedCredentialReference(t *testing.T) {
 	task := validTask()
 	task.Target = "https://example.com/"
-	task.Payload = []byte(`{"credential_ref":"vault://tenant/scan-account"}`)
+	config, err := DefaultScannerConfig(task.Scanner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var withCredential map[string]any
+	if err := json.Unmarshal(encoded, &withCredential); err != nil {
+		t.Fatal(err)
+	}
+	withCredential["credential_ref"] = "vault://tenant/scan-account"
+	task.Payload, err = json.Marshal(withCredential)
+	if err != nil {
+		t.Fatal(err)
+	}
 	policy, err := scope.NewPolicy([]string{"example.com"}, nil, fixedResolver{ips: []netip.Addr{netip.MustParseAddr("93.184.216.34")}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := BuildExecutionInput(context.Background(), task,
 		InvocationAuthorization{ScopeID: "44444444-4444-4444-4444-444444444444"},
-		policy, "kelvin.resource.standard.v1", limits.DefaultLimits(), 25, time.Now()); err != nil {
-		t.Fatal(err)
+		policy, "kelvin.resource.standard.v1", limits.DefaultLimits(), ProfileBudget{
+			RequestsPerSecond: 25, MaxConcurrency: 10, MaxRequestsPerTarget: 5000, MaxDuration: 10 * time.Minute,
+		}, time.Now()); err == nil {
+		t.Fatal("BuildExecutionInput accepted a credential reference unsupported by the MVP scanner schema")
 	}
 }
 
@@ -91,7 +146,7 @@ func TestBuildExecutionInputRejectsOutOfScopeAndUnsafeConfig(t *testing.T) {
 		target string
 		config []byte
 	}{
-		{name: "out of scope", target: "https://outside.example/", config: []byte(`{}`)},
+		{name: "out of scope", target: "https://outside.example/"},
 		{name: "arbitrary args", target: "https://example.com/", config: []byte(`{"args":["-target","evil.example"]}`)},
 		{name: "environment injection", target: "https://example.com/", config: []byte(`{"env_vars":{"K":"V"}}`)},
 		{name: "nested credential", target: "https://example.com/", config: []byte(`{"options":{"api_key":"secret-value"}}`)},
@@ -100,14 +155,28 @@ func TestBuildExecutionInputRejectsOutOfScopeAndUnsafeConfig(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			task := validTask()
-			task.Target, task.Payload = tc.target, tc.config
+			task.Target = tc.target
+			if tc.config != nil {
+				task.Payload = tc.config
+			} else {
+				defaults, err := DefaultScannerConfig(task.Scanner)
+				if err != nil {
+					t.Fatal(err)
+				}
+				task.Payload, err = json.Marshal(defaults)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 			policy, err := scope.NewPolicy([]string{"example.com"}, nil, fixedResolver{ips: []netip.Addr{netip.MustParseAddr("93.184.216.34")}})
 			if err != nil {
 				t.Fatal(err)
 			}
 			_, err = BuildExecutionInput(context.Background(), task,
 				InvocationAuthorization{ScopeID: "44444444-4444-4444-4444-444444444444"},
-				policy, "kelvin.resource.standard.v1", limits.DefaultLimits(), 25, time.Now())
+				policy, "kelvin.resource.standard.v1", limits.DefaultLimits(), ProfileBudget{
+					RequestsPerSecond: 25, MaxConcurrency: 10, MaxRequestsPerTarget: 5000, MaxDuration: 10 * time.Minute,
+				}, time.Now())
 			if err == nil {
 				t.Fatal("BuildExecutionInput accepted invalid input")
 			}
