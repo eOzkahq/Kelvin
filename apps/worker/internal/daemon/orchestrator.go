@@ -17,6 +17,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/pacing"
 	"github.com/kelvin/kelvin/apps/worker/internal/progress"
+	"github.com/kelvin/kelvin/apps/worker/internal/provenance"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/retry"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
@@ -188,6 +189,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		pub = cfg.ProgressPublisher
 	}
 	tracker := progress.NewTracker(task.AssessmentID, task.JobID, task.TenantID, task.Scanner, pub, jobLog)
+	provCollector := provenance.NewCollector(task.TenantID, task.AssessmentID, task.JobID, task.Scanner, task.CorrelationID, 0, jobLog)
 	_ = tracker.TransitionTo(ctx, progress.StagePreflight, "running scope checks and pre-execution verification")
 
 	if errors.Is(ctx.Err(), context.Canceled) {
@@ -297,6 +299,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 			_ = tracker.ReportProgress(execCtxWithReporter, progress.NewIndeterminateProgress(fmt.Sprintf("executing scanner %q", task.Scanner)))
 		}
 
+		provCollector.RecordStart([]string{task.Scanner}, nil)
 		res, err := adapter.Execute(execCtxWithReporter, task)
 		isCancelled := errors.Is(ctx.Err(), context.Canceled) ||
 			errors.Is(execCtx.Err(), context.Canceled) ||
@@ -487,6 +490,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		_ = tracker.ReportProgress(execCtxWithReporter, progress.NewIndeterminateProgress(fmt.Sprintf("executing scanner %q", task.Scanner)))
 	}
 
+	provCollector.RecordStart(spec.Invocation.Args, spec.Env)
 	result, execErr := cfg.Executor.Execute(execCtxWithReporter, spec)
 	if result != nil && result.OOMKilled {
 		if cfg.Metrics != nil {
@@ -569,6 +573,14 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 			zap.Int("violations_count", egressProxy.ViolationsCount()),
 		)
 	}
+
+	exitCode := 0
+	duration := time.Duration(0)
+	if result != nil {
+		exitCode = result.ExitCode
+		duration = result.Duration
+	}
+	provCollector.RecordCompletion(exitCode, duration, 0, 0, 0)
 
 	if execErr != nil || (result != nil && result.ExitCode != 0) {
 		egressBlocked := egressProxy != nil && egressProxy.ViolationsCount() > 0
