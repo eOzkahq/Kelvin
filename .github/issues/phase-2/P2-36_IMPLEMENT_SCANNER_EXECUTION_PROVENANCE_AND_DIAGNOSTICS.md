@@ -24,6 +24,29 @@ Provide sufficient operational information to understand how a scanner executed 
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    Execution["Scanner Container Execution"] --> DiagEngine["Diagnostics Collector"]
+
+    subgraph DiagnosticData ["Collected Metrics & Provenance"]
+        M1["Exact Invocation Command-Line Arguments"]
+        M2["Effective Environment Variables (Redacted)"]
+        M3["Kernel Exit Status & Signal Numbers"]
+        M4["Peak Memory & CPU Usage (Cgroups stats)"]
+        M5["Network Bytes Transferred (Tx/Rx)"]
+    end
+
+    DiagEngine --> DiagnosticData
+    DiagnosticData --> Envelope["Attach Provenance to Assessment Metadata"]
+    Envelope --> AuditLog["Send to Security Audit Log"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Record scanner start and completion events.

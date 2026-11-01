@@ -24,6 +24,32 @@ Establish a validated configuration model for controlling scanner behavior witho
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    RawConfig["User / Job Profile Config (YAML/JSON)"] --> Validator["JSON Schema Validator (Draft-07)"]
+
+    subgraph SchemaRules ["Scanner Configuration Contract"]
+        R1["scanner_name: string (enum)"]
+        R2["execution_mode: PASSIVE | ACTIVE"]
+        R3["timeout_seconds: uint (min 1, max 3600)"]
+        R4["max_concurrency: uint (min 1, max 10)"]
+        R5["rate_limit: uint (req/sec limit)"]
+        R6["allowed_flags: whitelist only"]
+    end
+
+    Validator --> SchemaRules
+    SchemaRules --> ValidCheck{"Valid Against Schema?"}
+    ValidCheck -- No --> RFC7807["Return RFC 7807 Bad Request Error"]
+    ValidCheck -- Yes --> ConfigObj["Produce Strongly-Typed Config Struct"]
+    ConfigObj --> AdapterInit["Pass to Adapter.ValidateConfig()"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define configuration schemas for each selected scanner.

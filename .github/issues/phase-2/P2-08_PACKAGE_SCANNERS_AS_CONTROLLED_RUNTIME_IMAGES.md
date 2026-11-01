@@ -24,6 +24,28 @@ Create reproducible scanner runtime environments that can be deployed consistent
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    subgraph BuildPipeline ["Image Build & Packaging Pipeline"]
+        DF["Minimal Base Image (Distroless / Alpine)"]
+        Pin["Pin Binary & Dependencies by Digest"]
+        NonRoot["Enforce Non-Root UID 10001 / GID 10001"]
+        Strip["Strip Compilers, Shells, & Debug Utilities"]
+    end
+
+    DF --> Pin --> NonRoot --> Strip
+    Strip --> CI["CI Build & Trivy Vulnerability Scan"]
+    CI --> Sign["Cosign Cryptographic Signature"]
+    Sign --> Registry["Private OCI Image Registry"]
+    Registry --> Worker["Worker Pulls by Immutable SHA256 Digest"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Package external scanner dependencies in controlled container images.

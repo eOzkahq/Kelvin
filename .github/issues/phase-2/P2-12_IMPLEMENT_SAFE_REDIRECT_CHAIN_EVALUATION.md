@@ -24,6 +24,25 @@ Ensure scanners handle redirects without escaping the authorized assessment scop
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    Req["Initial HTTP Request"] --> Resp{"Response Code 3xx?"}
+    Resp -- No --> Final["Evaluate Final Target State"]
+    Resp -- Yes --> ExtractLoc["Extract Location Header"]
+    ExtractLoc --> CheckHops{"Hop Count > Max (10)?"}
+    CheckHops -- Yes --> ErrorHop["Fail: Redirect Loop / Excessive Chain"]
+    CheckHops -- No --> ScopeCheck{"Next Location In Scope & Anti-SSRF Valid?"}
+    ScopeCheck -- No --> AbortScope["Abort: Out-of-Scope Redirect Prohibited"]
+    ScopeCheck -- Yes --> Follow["Execute Next Hop Request"]
+    Follow --> Resp
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define how redirect responses are evaluated.

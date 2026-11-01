@@ -24,6 +24,34 @@ Provide a central registry through which KELVIN discovers and manages available 
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    subgraph RegistryCore ["ScannerRegistry (Thread-Safe Singleton)"]
+        Reg["RegisterAdapter(name, factory)"]
+        Lookup["GetAdapter(name)"]
+        Query["FindByCapability(capability_flag)"]
+        List["ListAvailable()"]
+    end
+
+    subgraph Adapters ["Discovered Adapters"]
+        A1["Preflight (built-in, network-reachability)"]
+        A2["TLS (built-in, cipher-audit, cert-validation)"]
+        A3["ZAP (external, passive-web, spider)"]
+        A4["Nuclei (external, curated-templates, triage)"]
+    end
+
+    Adapters --> Reg
+    JobReq["Assessment Profile Request"] --> Query
+    Query --> Lookup
+    Lookup --> Factory["Instantiate Adapter Instance"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Implement a registry for scanner adapters.

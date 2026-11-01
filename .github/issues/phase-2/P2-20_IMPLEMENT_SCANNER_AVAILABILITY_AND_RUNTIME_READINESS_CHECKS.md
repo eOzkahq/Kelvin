@@ -24,6 +24,29 @@ Ensure that KELVIN can determine whether each scanner is ready before attempting
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    Daemon["Worker Daemon Startup"] --> ReadinessCheck["Run Pre-Flight Readiness Probes"]
+
+    subgraph Probes ["Readiness Verification"]
+        P1["OCI Container Engine (Docker/Podman Socket Accessible)"]
+        P2["Required Container Images (ZAP, Nuclei) Pulled & Verified"]
+        P3["Curated Template Catalog SHA Integrity Intact"]
+        P4["Ephemeral Workspace Permissions (/tmp writable by UID 10001)"]
+    end
+
+    ReadinessCheck --> Probes
+    Probes --> AllPass{"All Readiness Probes OK?"}
+    AllPass -- No --> Unhealthy["Log Error & Do Not Accept Jobs from Redis"]
+    AllPass -- Yes --> Healthy["Register Worker as ACTIVE in Redis Pool"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Verify required scanner binaries or runtime images are available.

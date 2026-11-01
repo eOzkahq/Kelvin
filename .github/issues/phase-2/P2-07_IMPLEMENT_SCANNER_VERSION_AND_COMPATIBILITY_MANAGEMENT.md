@@ -24,6 +24,28 @@ Ensure KELVIN runs known, compatible scanner versions and can identify exactly w
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart LR
+    Profile["Job Profile Spec"] --> VCheck["Version Compatibility Engine"]
+
+    subgraph Versions ["Version Matrix"]
+        AV["Adapter Semantic Version (v1.2.0)"]
+        CV["Container Image Digest (sha256:...)"]
+        TV["Template Catalog Hash (git sha)"]
+    end
+
+    VCheck --> Versions
+    Versions --> CompatDecision{"Supported & Certified?"}
+    CompatDecision -- No --> Fail["Reject Job: Incompatible Scanner Version"]
+    CompatDecision -- Yes --> Launch["Proceed to Process Invocation"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define supported versions for every integrated scanner.

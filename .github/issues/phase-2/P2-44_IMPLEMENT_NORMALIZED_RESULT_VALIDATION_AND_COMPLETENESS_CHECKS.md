@@ -24,6 +24,29 @@ Ensure that normalized scanner results satisfy KELVIN's data quality and integri
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    CandidateFinding["Normalized Finding Object"] --> SchemaValidator["Validate Against finding.v1.json"]
+
+    subgraph IntegrityChecks ["Completeness & Quality Rules"]
+        R1["Mandatory Fields Present (title, target, severity)"]
+        R2["Evidence Bounds: Max Size < 64KB per finding"]
+        R3["Fingerprint Hash Correctly Computed"]
+        R4["Target Belongs to Assessed Scope"]
+    end
+
+    SchemaValidator --> IntegrityChecks
+    IntegrityChecks --> Valid{"Passes All Checks?"}
+    Valid -- Yes --> Database["Insert into PostgreSQL findings Table"]
+    Valid -- No --> Quarantine["Quarantine Malformed Finding & Log Diagnostics"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Validate normalized finding structures against the canonical schema.

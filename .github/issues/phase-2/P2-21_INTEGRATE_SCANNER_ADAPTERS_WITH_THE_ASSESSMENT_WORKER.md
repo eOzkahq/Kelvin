@@ -24,6 +24,32 @@ Connect the Phase 1 assessment worker and queue foundations to the scanner adapt
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+sequenceDiagram
+    participant Redis as Redis Job Queue
+    participant Worker as Assessment Worker
+    participant Reg as Scanner Registry
+    participant Adapter as Scanner Adapter
+    participant OCI as Container Runtime
+
+    Redis->>Worker: Dequeue Assessment Job
+    Worker->>Reg: Resolve Adapters for Selected Profile
+    Reg-->>Worker: Return Adapter Instances
+    loop For Each Scanner in Pipeline
+        Worker->>Adapter: Execute(ctx, input)
+        Adapter->>OCI: Run Isolated Scan
+        OCI-->>Adapter: Raw Output
+        Adapter-->>Worker: ScannerOutputEnvelope
+    end
+    Worker->>Worker: Aggregate Findings & Update Assessment State
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Resolve scanner adapters from the registry.

@@ -24,6 +24,29 @@ Ensure that the ZAP integration uses an approved, predictable scanning configura
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    ScanReq["ZAP Execution Request"] --> SafetyGuard["Safety Policy Enforcer"]
+
+    subgraph Constraints ["Mandatory Safety Constraints"]
+        C1["Enforce -j (Passive Mode Only)"]
+        C2["Explicitly Disable Active Attack Scanners"]
+        C3["Max Spider Depth: 2 | Max Scan Time: 10m"]
+        C4["Strict Out-of-Scope Regex Exclusion"]
+    end
+
+    SafetyGuard --> Constraints
+    Constraints --> Valid{"All Safety Invariants Met?"}
+    Valid -- No --> Reject["Reject Invocation: Unsafe ZAP Arguments"]
+    Valid -- Yes --> Exec["Generate Sanitized CLI Invocation"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define the permitted ZAP Baseline execution options.

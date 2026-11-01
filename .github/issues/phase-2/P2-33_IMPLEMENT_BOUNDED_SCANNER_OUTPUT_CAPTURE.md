@@ -24,6 +24,25 @@ Capture scanner output safely without allowing excessive output to exhaust memor
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart LR
+    Container["Scanner stdout / stderr"] --> Stream["Worker IO Pipe Reader"]
+    Stream --> Ring["Bounded Circular Buffer (Max 50MB)"]
+
+    Ring --> CheckLimit{"Exceeds 50MB?"}
+    CheckLimit -- Yes --> Truncate["Inject '[OUTPUT TRUNCATED]' Marker"]
+    CheckLimit -- No --> Keep["Retain Full Stream"]
+    Truncate --> Compress["Gzip Compression"]
+    Keep --> Compress
+    Compress --> Storage["Store Encrypted Output Artifact"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Capture standard output and standard error separately.

@@ -24,6 +24,29 @@ Expose meaningful execution progress from the assessment engine without dependin
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart LR
+    Container["Scanner Sandbox"] --> Logs["Stdout Stream"]
+    Logs --> Parser["Progress Regex / JSON Parser"]
+
+    subgraph Metrics ["Extracted Progress Metrics"]
+        P1["Percentage (0% - 100%)"]
+        P2["Current Phase (Spider, Scan, Analyze)"]
+        P3["Requests Sent / Rate"]
+    end
+
+    Parser --> Metrics
+    Metrics --> Heartbeat["Worker Heartbeat (Every 2s)"]
+    Heartbeat --> Redis["Update Redis Job State"]
+    Redis --> WS["Websocket Gateway -> Client UI"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define normalized execution stages: Preflight, Scanner initialization, Scanner execution, Output collection, Result normalization, Completion.

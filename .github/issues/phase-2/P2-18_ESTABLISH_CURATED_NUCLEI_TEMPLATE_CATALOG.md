@@ -24,6 +24,29 @@ Define a controlled collection of Nuclei templates that KELVIN permits in its MV
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    Community["Community Nuclei Templates"] --> ReviewGate["Security Review & Vetting Gate"]
+
+    subgraph GateCriteria ["Vetting Criteria"]
+        G1["Exclude RCE, Auth-Bypass Exploit Payloads"]
+        G2["Exclude Fuzzing & Heavy Network Floods"]
+        G3["Permit Misconfiguration & Version Detection"]
+        G4["Permit Information Leakage & CVE Exposure Checks"]
+    end
+
+    ReviewGate --> GateCriteria
+    GateCriteria --> Catalog["Curated Template Catalog (/templates/curated)"]
+    Catalog --> Sign["Sign Catalog Manifest (Git Commit / Hash)"]
+    Sign --> Distribution["Distribute to Workers via Read-Only Mount"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Establish a template review and approval process.

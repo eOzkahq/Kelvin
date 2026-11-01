@@ -24,6 +24,29 @@ Ensure that output from scanners cannot introduce findings or follow-up targets 
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    Parser["Parser Discovers Target in Finding"] --> Extractor["Extract URL / Host / IP"]
+    Extractor --> ScopeEngine["Phase 1 Target Scope Engine"]
+
+    subgraph ScopeRules ["Scope Verification"]
+        R1["Domain Match (Exact / Wildcard permitted)"]
+        R2["CIDR Match (Allowed IP Range)"]
+        R3["Anti-SSRF Exclusion (Private / Loopback IP)"]
+    end
+
+    ScopeEngine --> ScopeRules
+    ScopeRules --> InScope{"Target Strictly Within Scope?"}
+    InScope -- Yes --> Accept["Accept Finding into Pipeline"]
+    InScope -- No --> Reject["Drop Finding & Log Security Scope Violation"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Validate hostnames, URLs, ports, and other target references reported by scanners.

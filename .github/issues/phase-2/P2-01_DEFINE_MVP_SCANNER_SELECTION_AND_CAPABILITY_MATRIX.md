@@ -24,6 +24,42 @@ Select the initial scanner technologies that KELVIN will support in its MVP. Avo
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    subgraph CandidateEvaluation ["Scanner Evaluation Framework"]
+        E1["Licensing & Maintenance"]
+        E2["Resource Footprint"]
+        E3["Container Portability"]
+        E4["Target Scope Safety"]
+    end
+
+    CandidateEvaluation --> DecisionGate{"Capability & Safety Assessment"}
+
+    DecisionGate -->|"Approved (MVP Lineup)"| Approved
+    DecisionGate -->|"Excluded / Non-Goals"| Deferred
+
+    subgraph Approved ["Selected MVP Scanners"]
+        A1["Built-in HTTP/HTTPS Preflight Checks"]
+        A2["Built-in TLS Configuration Assessor"]
+        A3["Built-in Security Headers & Cookies"]
+        A4["OWASP ZAP Baseline (Passive Mode)"]
+        A5["Nuclei Engine (Vetted Safe Templates)"]
+    end
+
+    subgraph Deferred ["Deferred / Out of Scope"]
+        D1["Unrestricted Port Scanners (Nmap/Masscan)"]
+        D2["Destructive Exploit Modules"]
+        D3["Denial-of-Service Fuzzers"]
+        D4["Arbitrary Custom Nuclei Templates"]
+    end
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Evaluate potential scanners based on their capabilities, maintenance status, licensing, integration complexity, resource requirements, and compatibility with containerized workers.

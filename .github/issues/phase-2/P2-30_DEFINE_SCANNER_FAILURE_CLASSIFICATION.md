@@ -24,6 +24,31 @@ Create consistent failure categories so the assessment engine can distinguish sc
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    Failure["Scanner Process Exits Non-Zero / Error"] --> Classifier["Failure Classification Engine"]
+
+    Classifier --> Type{"Analyze Exit Code & Error Pattern"}
+
+    Type -->|"137 / Out of Memory"| OOM["ERR_OOM: Memory Limit Exceeded"]
+    Type -->|"124 / SIGKILL / Timeout"| TO["ERR_DEADLINE_EXCEEDED: Execution Timed Out"]
+    Type -->|"DNS / Connection Refused"| NET["ERR_NETWORK_UNREACHABLE: Target Down"]
+    Type -->|"Scope Egress Violation"| SCOPE["ERR_SCOPE_VIOLATION: Forbidden Target"]
+    Type -->|"Crash / Syntax / Bad Config"| INTERNAL["ERR_INTERNAL_SCANNER_FAULT"]
+
+    OOM --> Policy["Feed into Retry & Reporting Policy"]
+    TO --> Policy
+    NET --> Policy
+    SCOPE --> Policy
+    INTERNAL --> Policy
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define standard failure categories, including: Invalid scanner configuration, Unsupported scanner version, Target connection failure, Scope restriction failure, Scanner process failure, Scanner timeout, Resource exhaustion, Output parsing failure, Worker infrastructure failure.

@@ -24,6 +24,29 @@ Control the rate at which scanners send requests to a target.
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    Scanner["Scanner Adapter Request Engine"] --> TokenBucket["Token Bucket Rate Limiter"]
+
+    subgraph PacingRules ["Pacing Configuration"]
+        P1["Max Requests Per Second (e.g. 10 req/s)"]
+        P2["Burst Capacity Limit"]
+        P3["Jitter & Backoff on HTTP 429 / 503"]
+    end
+
+    TokenBucket --> PacingRules
+    PacingRules --> Gate{"Token Available?"}
+    Gate -- Yes --> Send["Transmit HTTP Request to Target"]
+    Gate -- No --> Wait["Delay Until Next Token Refill"]
+    Wait --> Send
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define request pacing defaults for each scanner.

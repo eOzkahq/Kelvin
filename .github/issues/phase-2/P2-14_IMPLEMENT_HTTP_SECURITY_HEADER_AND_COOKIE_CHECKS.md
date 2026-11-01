@@ -24,6 +24,36 @@ Implement KELVIN-native checks for common HTTP security configuration weaknesses
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    Response["HTTP Response Headers & Set-Cookie"] --> Evaluator["Security Baseline Evaluator"]
+
+    subgraph HeaderAudit ["Header Audits"]
+        H1["Strict-Transport-Security (HSTS)"]
+        H2["Content-Security-Policy (CSP)"]
+        H3["X-Content-Type-Options: nosniff"]
+        H4["X-Frame-Options / frame-ancestors"]
+        H5["Referrer-Policy & Permissions-Policy"]
+    end
+
+    subgraph CookieAudit ["Cookie Audits"]
+        C1["Secure Flag Present"]
+        C2["HttpOnly Flag Present"]
+        C3["SameSite (Strict / Lax) Configuration"]
+    end
+
+    Evaluator --> HeaderAudit
+    Evaluator --> CookieAudit
+    HeaderAudit --> Aggregate["Generate Finding Envelope"]
+    CookieAudit --> Aggregate
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Inspect relevant response headers.

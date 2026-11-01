@@ -24,6 +24,31 @@ Create reusable tests that verify whether a scanner adapter follows KELVIN's int
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    Harness["Conformance Test Runner"] --> Suite["Test Scenario Matrix"]
+
+    subgraph Suite ["Test Scenarios"]
+        S1["Lifecycle Initialization & Teardown"]
+        S2["Valid Config vs. Schema Violation"]
+        S3["Graceful Timeout Cancellation"]
+        S4["Malformed Raw Output Handling"]
+        S5["Out-of-Scope Target Rejection"]
+    end
+
+    Suite --> AdapterUT["Adapter Under Test (Mock / Live)"]
+    AdapterUT --> ResultCollector["Assert Expected Error / Output Envelope"]
+    ResultCollector --> PassFail{"All Invariants Satisfied?"}
+    PassFail -- Yes --> Certify["Certify Adapter for Production Registry"]
+    PassFail -- No --> Report["Generate Conformance Failure Diagnostics"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Build a reusable adapter test harness.

@@ -24,6 +24,42 @@ Establish a consistent Go interface through which KELVIN can integrate built-in 
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart LR
+    subgraph WorkerCore ["Assessment Worker Core"]
+        Engine["Worker Execution Loop"]
+    end
+
+    subgraph AdapterInterface ["ScannerAdapter Go Contract"]
+        Init["Initialize(ctx, logger)"]
+        Val["ValidateConfig(cfg)"]
+        Cap["Capabilities()"]
+        Exec["Execute(ctx, input)"]
+        Health["Health(ctx)"]
+        Cancel["Cancel()"]
+        Res["Result()"]
+    end
+
+    subgraph Implementations ["Concrete Implementations"]
+        P1["Built-in Preflight Adapter"]
+        P2["Built-in TLS Adapter"]
+        P3["OWASP ZAP Adapter"]
+        P4["Nuclei Adapter"]
+    end
+
+    Engine --> Init --> Val --> Cap --> Exec
+    Engine -.-> Health
+    Engine -.-> Cancel
+    Exec --> Res
+    AdapterInterface --> Implementations
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define a common scanner adapter interface (`ScannerAdapter`).

@@ -24,6 +24,26 @@ Connect Phase 1's scan profile model to the actual scanner integrations delivere
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    ProfileSel["Assessment Profile Selection"] --> Dispatcher{"Profile Dispatcher"}
+
+    Dispatcher -->|"Passive / Lightweight"| P1["Preflight + TLS + Security Headers"]
+    Dispatcher -->|"Baseline Web"| P2["Preflight + TLS + Headers + ZAP Baseline (Passive)"]
+    Dispatcher -->|"Triage Vulnerability"| P3["Preflight + TLS + Headers + Curated Nuclei"]
+
+    P1 --> Plan["Generate Execution Plan & Dependency Graph"]
+    P2 --> Plan
+    P3 --> Plan
+    Plan --> Worker["Submit to Worker Orchestrator"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Implement the initial assessment profiles approved for the MVP.

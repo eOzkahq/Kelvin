@@ -24,6 +24,29 @@ Integrate OWASP ZAP Baseline as the first external web application security scan
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart LR
+    Worker["Assessment Worker"] --> ZAPAdapter["OWASP ZAP Adapter"]
+    ZAPAdapter --> OCI["Launch zap-baseline.py in Sandbox"]
+
+    subgraph SandboxEnv ["Rootless OCI Container"]
+        Spider["Passive Spidering (Bounded Depth)"]
+        PassiveRules["Passive Security Inspection"]
+        Report["Generate zap-output.json"]
+    end
+
+    OCI --> SandboxEnv
+    SandboxEnv --> Report
+    Report --> Staging["Stage Raw Report in Ephemeral Dir"]
+    Staging --> Parser["Worker ZAP Parser"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Implement a Go adapter for the approved ZAP runtime.

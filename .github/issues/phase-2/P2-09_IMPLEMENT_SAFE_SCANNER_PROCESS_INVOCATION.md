@@ -24,6 +24,28 @@ Provide one controlled mechanism for invoking external scanner processes without
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+sequenceDiagram
+    participant Worker as Assessment Worker
+    participant OCI as Container Runtime (Docker/Podman)
+    participant Sandbox as Unprivileged Container
+    participant Egress as Egress Proxy Gate
+
+    Worker->>OCI: Run Container (Read-Only Root, tmpfs /tmp, No-New-Privs)
+    OCI->>Sandbox: Apply UID 10001, Drop All Caps, Seccomp Profile
+    Sandbox->>Egress: Outbound HTTP/HTTPS Request
+    Egress->>Egress: Validate Pinned Scope & Anti-SSRF
+    Egress-->>Sandbox: Forward or Deny Traffic
+    Sandbox-->>Worker: Stream Stdout/Stderr (Bounded Ring Buffer)
+    Sandbox-->>Worker: Exit Code & Completion Signal
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Implement a shared Go process invocation abstraction.

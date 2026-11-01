@@ -24,6 +24,31 @@ Create a consistent output envelope for results and diagnostics returned by diff
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    Scanner["Scanner Process (Container/Built-in)"] --> Raw["Process Exit & Output Streams"]
+
+    subgraph Envelope ["ScannerOutputEnvelope Schema"]
+        direction TB
+        Meta["metadata: scanner_id, version, run_id, timestamp"]
+        Status["status: COMPLETED | FAILED | TIMED_OUT | CANCELLED"]
+        ExitCode["exit_code: int"]
+        Dur["duration_ms: int64"]
+        Streams["raw_artifacts: { stdout_ref, stderr_ref }"]
+        Payload["payload: raw_json_or_text"]
+    end
+
+    Raw --> Envelope
+    Envelope --> Stage["Worker Ingestion & Output Staging"]
+    Stage --> Parser["Normalized Finding Parser"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define a common output structure containing: Assessment ID, Scanner identifier and version, Execution status, Start and completion timestamps, Findings collection, Execution diagnostics, Scanner-specific metadata, Partial-result indicator.

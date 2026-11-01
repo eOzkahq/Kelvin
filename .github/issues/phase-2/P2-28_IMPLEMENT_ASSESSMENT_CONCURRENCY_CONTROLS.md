@@ -24,6 +24,29 @@ Prevent uncontrolled simultaneous scanner execution from exhausting platform res
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    NewJob["New Assessment Ingested"] --> Gatekeeper["Concurrency Gatekeeper"]
+
+    subgraph Checks ["Capacity Checks"]
+        C1["System Global Worker Concurrency Limit"]
+        C2["Per-Tenant Active Assessment Limit"]
+        C3["Per-Target Host Concurrency (Max 1 concurrent)"]
+    end
+
+    Gatekeeper --> Checks
+    Checks --> Available{"Slot Available?"}
+    Available -- Yes --> Lease["Acquire Redis Distributed Semaphore"]
+    Lease --> Dispatch["Dispatch to Worker Fleet"]
+    Available -- No --> Queue["Retain in Delayed Priority Queue"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define global concurrency limits.
