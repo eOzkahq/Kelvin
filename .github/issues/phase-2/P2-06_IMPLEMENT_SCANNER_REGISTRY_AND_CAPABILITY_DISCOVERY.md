@@ -24,6 +24,30 @@ Provide a central registry through which KELVIN discovers and manages available 
 
 ---
 
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    subgraph StartupRegistration ["Worker Bootstrapping"]
+        Adapters["Built-in & Sandboxed Adapters"]
+    end
+
+    subgraph RegistryCore ["ScannerRegistry (apps/worker/internal/adapter)"]
+        Reg["Register(adapter, meta)"]
+        Lookup["Lookup(id)"]
+        Cap["GetCapabilities(id)"]
+        Health["CheckAvailability(ctx, id)"]
+    end
+
+    subgraph WorkerLoop ["Worker Execution Loop"]
+        Dispatch["Resolve & Execute Adapter"]
+    end
+
+    Adapters --> Reg --> Lookup & Cap & Health --> Dispatch
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Implement a registry for scanner adapters.
@@ -46,18 +70,21 @@ Provide a central registry through which KELVIN discovers and manages available 
 
 ## ✅ Acceptance Criteria
 
-- [ ] Scanner adapters can register with the registry.
-- [ ] The engine can discover available capabilities.
-- [ ] Unknown scanner identifiers are rejected safely.
-- [ ] Duplicate registrations are handled deterministically.
-- [ ] Registry behavior is covered by automated tests.
+- [x] Scanner adapters can register with the registry.
+- [x] The engine can discover available capabilities.
+- [x] Unknown scanner identifiers are rejected safely.
+- [x] Duplicate registrations are handled deterministically.
+- [x] Registry behavior is covered by automated tests.
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
-- Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
+- Scanner Registry Specification: [`docs/architecture/SCANNER_REGISTRY.md`](../../../docs/architecture/SCANNER_REGISTRY.md)
+- Scanner Configuration Schema Specification: [`docs/architecture/SCANNER_CONFIGURATION_SCHEMA.md`](../../../docs/architecture/SCANNER_CONFIGURATION_SCHEMA.md)
+- Scanner Output Envelope Specification: [`docs/architecture/SCANNER_OUTPUT_ENVELOPE.md`](../../../docs/architecture/SCANNER_OUTPUT_ENVELOPE.md)
+- Scanner Invocation Contract Specification: [`docs/architecture/SCANNER_INVOCATION_CONTRACT.md`](../../../docs/architecture/SCANNER_INVOCATION_CONTRACT.md)
+- Scanner Adapter Interface Specification: [`docs/architecture/SCANNER_ADAPTER_INTERFACE.md`](../../../docs/architecture/SCANNER_ADAPTER_INTERFACE.md)
+- MVP Scanner Selection Matrix: [`docs/architecture/MVP_SCANNER_SELECTION.md`](../../../docs/architecture/MVP_SCANNER_SELECTION.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
-- Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
-- Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
