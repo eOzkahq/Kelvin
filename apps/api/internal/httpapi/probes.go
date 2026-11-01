@@ -50,11 +50,12 @@ func (s *Server) handleHealthReady(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	now := time.Now().UTC().Format(time.RFC3339)
-	dbStatus := "UP"
-	redisStatus := "UP"
+	dbStatus := "NOT_CONFIGURED"
+	redisStatus := "NOT_CONFIGURED"
 	var checkFailed bool
 
 	if s.readyCheckers.DB != nil {
+		dbStatus = "UP"
 		if err := s.readyCheckers.DB.Ping(ctx); err != nil {
 			dbStatus = "DOWN"
 			checkFailed = true
@@ -62,6 +63,7 @@ func (s *Server) handleHealthReady(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.readyCheckers.Redis != nil {
+		redisStatus = "UP"
 		if err := s.readyCheckers.Redis.Ping(ctx); err != nil {
 			redisStatus = "DOWN"
 			checkFailed = true
@@ -86,4 +88,3 @@ func (s *Server) handleHealthReady(w http.ResponseWriter, r *http.Request) {
 		Timestamp: now,
 	}, nil)
 }
-

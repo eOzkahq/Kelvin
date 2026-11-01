@@ -5,7 +5,7 @@ info:
   version: 1.0.0-alpha
   summary: Control-plane REST API for the Kelvin security assessment platform.
   description: |
-    Canonical OpenAPI 3.1 contract for the Kelvin control plane (`/api/v1`).
+    OpenAPI 3.1 contract for the routes currently registered in the Kelvin control plane (`/api/v1`). Assessment create, list, and inspect operations remain planned and are intentionally omitted until handlers are implemented.
 
     This document is the **source of truth** for the API. Normative design rules
     (envelopes, RFC 7807 Problem Details, cursor pagination, correlation IDs,
@@ -14,8 +14,7 @@ info:
     `packages/schemas/api-error.schema.json`.
 
     **Contract-first rule:** no endpoint implementation merges without a
-    corresponding entry in this file. CI lints with Redocly and detects
-    breaking changes with oasdiff.
+    corresponding entry in this file. CI validates this document with Redocly.
   contact:
     name: Platform Engineering
   license:
@@ -33,13 +32,10 @@ tags:
   - name: health
     description: Liveness and contract introspection.
   - name: assessments
-    description: Assessment job lifecycle (create, list, inspect).
+    description: Assessment cancellation; create, list, and inspect handlers remain planned.
 
 security:
   - bearerAuth: []
-  - cookieAuth: []
-  - apiKeyAuth: []
-  - mutualTLS: []
 
 paths:
   /health:
@@ -47,7 +43,7 @@ paths:
       tags: [health]
       operationId: getHealth
       summary: Liveness probe.
-      description: Unauthenticated liveness check for load balancers and uptime probes. No tenant data.
+      description: Unauthenticated liveness check. No tenant data.
       security: []
       responses:
         "200":
@@ -59,161 +55,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthEnvelope"
-              example:
-                success: true
-                data:
-                  status: ok
-                  apiVersion: "1.0.0-alpha"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
-  /assessments:
-    get:
-      tags: [assessments]
-      operationId: listAssessments
-      summary: List assessment jobs.
-      description: >
-        Returns a cursor-paginated collection of assessments in the caller's
-        tenant. Never returns an unpaginated array.
-      parameters:
-        - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/Cursor"
-        - $ref: "#/components/parameters/Sort"
-        - name: status
-          in: query
-          required: false
-          description: Filter by one or more job states (comma-separated).
-          schema:
-            type: array
-            items:
-              $ref: "#/components/schemas/AssessmentStatus"
-          style: form
-          explode: false
-      responses:
-        "200":
-          description: One page of assessments.
-          headers:
-            X-Correlation-ID:
-              $ref: "#/components/headers/CorrelationID"
-            RateLimit-Limit:
-              $ref: "#/components/headers/RateLimitLimit"
-            RateLimit-Remaining:
-              $ref: "#/components/headers/RateLimitRemaining"
-            RateLimit-Reset:
-              $ref: "#/components/headers/RateLimitReset"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AssessmentCollectionEnvelope"
-              example:
-                success: true
-                data:
-                  - id: 6b8e1a40-9f2d-4c1e-8a7b-3d5f0c2e9b11
-                    name: External perimeter - Q4
-                    status: RUNNING
-                    createdAt: "2026-10-26T14:30:00Z"
-                meta:
-                  limit: 25
-                  count: 1
-                  next_cursor: eyJpZCI6IjZiOGUxYTQwIn0
-                  has_more: true
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "422":
-          $ref: "#/components/responses/ValidationFailed"
-        "429":
-          $ref: "#/components/responses/RateLimited"
-        "500":
-          $ref: "#/components/responses/InternalError"
+  /assessments/{id}/cancel:
     post:
       tags: [assessments]
-      operationId: createAssessment
-      summary: Submit an assessment job.
-      description: >
-        Validates target scope, persists the assessment in QUEUED state, and
-        enqueues execution. Returns 201 with the created resource; the scan
-        itself runs asynchronously on the worker fleet.
+      operationId: cancelAssessment
+      summary: Cancel an active assessment.
+      description: Cancels a queued or running assessment owned by the caller's tenant. The handler returns service unavailable until a job store is configured.
+      x-required-permission: assessment:cancel
       parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AssessmentCreate"
-            example:
-              name: External perimeter - Q4
-              profileId: 3f1c9a72-5d84-4e0b-9c6a-1b7e2d4f8a55
-              targets:
-                - host: shop.example.com
-      responses:
-        "201":
-          description: Assessment created and queued.
-          headers:
-            Location:
-              description: Canonical URI of the created assessment.
-              schema:
-                type: string
-                format: uri-reference
-            X-Correlation-ID:
-              $ref: "#/components/headers/CorrelationID"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AssessmentEnvelope"
-              example:
-                success: true
-                data:
-                  id: 6b8e1a40-9f2d-4c1e-8a7b-3d5f0c2e9b11
-                  name: External perimeter - Q4
-                  status: QUEUED
-                  createdAt: "2026-10-26T14:30:00Z"
-        "401":
-          $ref: "#/components/responses/Unauthenticated"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "413":
-          $ref: "#/components/responses/PayloadTooLarge"
-        "415":
-          $ref: "#/components/responses/UnsupportedMediaType"
-        "422":
-          $ref: "#/components/responses/ValidationFailed"
-        "429":
-          $ref: "#/components/responses/RateLimited"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /assessments/{id}:
-    parameters:
-      - $ref: "#/components/parameters/ResourceID"
-    get:
-      tags: [assessments]
-      operationId: getAssessment
-      summary: Fetch a single assessment.
+        - $ref: "#/components/parameters/ResourceID"
       responses:
         "200":
-          description: The requested assessment.
+          description: Cancellation accepted by the configured job store.
           headers:
             X-Correlation-ID:
               $ref: "#/components/headers/CorrelationID"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AssessmentEnvelope"
+                $ref: "#/components/schemas/SuccessEnvelope"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
-        "429":
-          $ref: "#/components/responses/RateLimited"
-        "500":
-          $ref: "#/components/responses/InternalError"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 
 components:
   securitySchemes:
@@ -222,20 +95,6 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: Short-lived OIDC access token (web dashboard session flow).
-    cookieAuth:
-      type: apiKey
-      in: cookie
-      name: kelvin_session
-      description: HttpOnly, Secure session cookie for the web dashboard.
-    apiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
-      description: Tenant-scoped API key for CLI and automation clients.
-    mutualTLS:
-      type: mutualTLS
-      description: Optional mTLS client certificate for machine-to-machine CLI (SYSTEM_ARCHITECTURE §3.1).
-
   parameters:
     ResourceID:
       name: id

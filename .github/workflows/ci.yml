@@ -13,6 +13,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  api-contract:
+    name: API contract (OpenAPI lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Lint OpenAPI contract
+        run: npx --yes @redocly/cli@2.64.1 lint apps/api/openapi/openapi.yaml
+
   # ----------------------------------------------------------------------------
   # 1. Secret Scanning (gitleaks)
   # ----------------------------------------------------------------------------

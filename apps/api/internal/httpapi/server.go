@@ -26,6 +26,7 @@ type Server struct {
 	readyCheckers    ReadyCheckers
 	jobStore         jobStoreIface     // nil means cancel endpoint returns 503
 	idempotencyStore idempotency.Store // nil means idempotency middleware is disabled
+	protectedRoute   func(http.Handler) http.Handler
 }
 
 // New builds the server with all registered routes.
@@ -46,6 +47,12 @@ func (s *Server) SetJobStore(store jobStoreIface) {
 // disabled and requests pass through unchanged.
 func (s *Server) SetIdempotencyStore(store idempotency.Store) {
 	s.idempotencyStore = store
+}
+
+// SetProtectedRouteMiddleware installs authentication and authorization for data routes.
+// Until configured, protected routes fail closed with 503.
+func (s *Server) SetProtectedRouteMiddleware(wrap func(http.Handler) http.Handler) {
+	s.protectedRoute = wrap
 }
 
 // jobStoreIface is the subset of job.Store used by the cancel endpoint, so
@@ -82,13 +89,23 @@ func (s *Server) routes() {
 	if s.idempotencyStore != nil {
 		cancelHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(cancelHandler)
 	}
-	s.mux.Handle("POST /api/v1/assessments/{id}/cancel", cancelHandler)
+	s.mux.Handle("POST /api/v1/assessments/{id}/cancel", s.protect(cancelHandler))
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
 		s.mux.Handle(method+" /health/live", methodNotAllowed("GET"))
 		s.mux.Handle(method+" /health/ready", methodNotAllowed("GET"))
 	}
 	s.mux.HandleFunc("/", s.handleNotFound)
+}
+
+func (s *Server) protect(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.protectedRoute == nil {
+			WriteProblem(w, r, &kelvinerrors.API{Type: kelvinerrors.ProblemServiceUnavailable, Title: "Service Unavailable", Status: http.StatusServiceUnavailable, Detail: "authentication is not configured"})
+			return
+		}
+		s.protectedRoute(next).ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) handleNotFound(w http.ResponseWriter, r *http.Request) {

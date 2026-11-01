@@ -33,7 +33,7 @@ Every secret in Kelvin is modeled as a typed field in Go configuration structs (
 | `POSTGRES_PASSWORD` | PostgreSQL (Dev Stack) | **High (Secret)** | *None — Must be injected* |
 | `KELVIN_REDIS_PASSWORD` | Redis Broker (ADR-0003) | **High (Secret)** | *None — Must be injected* |
 | `MINIO_ROOT_PASSWORD` / S3 Secret | Object Store (Evidence) | **High (Secret)** | *None — Must be injected* |
-| `JWT_SIGNING_KEY` | Auth Service (Phase 4) | **Critical (Key)** | *None — KMS / Vault Injected* |
+| `KELVIN_JWT_SECRET` | API access-token verification | **Critical (Key)** | Required in staging/production, at least 32 bytes; inject from a secret manager. Optional in development; protected routes fail closed without it. |
 
 ---
 

@@ -4,7 +4,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | Baseline — Peer Review Required (Security review mandatory) |
+| **Status** | Target design; runtime controls are partial and require verification |
 | **Milestone** | Phase 1 — Foundation & Core Architecture (`P1-28`) |
 | **Depends On** | `docs/architecture/SYSTEM_ARCHITECTURE.md` (`P1-06`), `docs/architecture/decisions/ADR-0005.md` (`P1-07`), `docs/architecture/JOB_LIFECYCLE.md`, `docs/architecture/JOB_QUEUE.md`, `docs/architecture/SCAN_PROFILES.md`, `docs/security/THREAT_MODEL.md` (`P1-03`) |
 | **Owner** | Platform Engineering / Product Security |

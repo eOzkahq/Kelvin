@@ -71,10 +71,11 @@ Correlation → AccessLog → Recover → BodyLimit → AuthN (auth.Middleware) 
 AuthZ (auth.RequireRole / auth.TenantGuard) → stub route handlers
 ```
 
-The stub handlers mirror the OpenAPI contract (`apps/api/openapi/openapi.yaml`) and the
-RBAC matrix: they return 2xx only after the production authZ middleware has passed, and
-404 for cross-tenant resources (indistinguishable from nonexistence, RBAC B-2). The harness
-therefore tests the actual enforcement code, not a re-implementation of it.
+The stub handlers model the planned assessment operations and RBAC matrix: they return
+2xx only after the production authZ middleware has passed, and 404 for cross-tenant
+resources (indistinguishable from nonexistence, RBAC B-2). This verifies the middleware
+primitives in isolation. It does not exercise the API server's registered assessment
+routes, which are not implemented yet.
 
 ### 4.3 Deterministic fixtures
 

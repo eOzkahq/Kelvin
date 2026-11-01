@@ -180,6 +180,7 @@ func newHandlerWithStore(store jobStoreIface) http.Handler {
 		BodyLimitBytes: 1 << 20,
 	}, zap.NewNop())
 	s.SetJobStore(store)
+	s.SetProtectedRouteMiddleware(func(next http.Handler) http.Handler { return next })
 	return s.Handler()
 }
 
@@ -193,6 +194,20 @@ func TestCancelAssessmentWithoutStoreReturns503(t *testing.T) {
 	}
 	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/problem+json") {
 		t.Fatalf("content-type = %q", ct)
+	}
+}
+
+func TestProtectedCancelRouteFailsClosedWithoutSecurityMiddleware(t *testing.T) {
+	store := &mockJobStore{}
+	s := New(config.Config{APIVersion: "1.0.0-alpha", BodyLimitBytes: 1 << 20}, zap.NewNop())
+	s.SetJobStore(store)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/assessments/"+uuid.NewString()+"/cancel", nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 when authentication is not configured", rec.Code)
+	}
+	if store.transitionID != "" {
+		t.Fatal("protected route reached job store without security middleware")
 	}
 }
 

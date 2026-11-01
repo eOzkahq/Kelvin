@@ -41,6 +41,10 @@ type DatabaseConfig struct {
 	SSLMode  string `mapstructure:"sslmode"`
 }
 
+type AuthConfig struct {
+	JWTSecret string `mapstructure:"jwt_secret"`
+}
+
 // RedisConfig holds typed Redis task broker parameters (ADR-0003).
 type RedisConfig struct {
 	Addr     string `mapstructure:"addr"`
@@ -86,6 +90,7 @@ type Config struct {
 	ShutdownTimeoutS int               `mapstructure:"shutdown_timeout_s"`
 	Development      bool              `mapstructure:"development"`
 	Database         DatabaseConfig    `mapstructure:"database"`
+	Auth             AuthConfig        `mapstructure:"auth"`
 	Redis            RedisConfig       `mapstructure:"redis"`
 	Storage          StorageConfig     `mapstructure:"storage"`
 	Idempotency      IdempotencyConfig `mapstructure:"idempotency"`
@@ -141,6 +146,7 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "database.user", "POSTGRES_USER")
 	bindEnvWithFallback(v, "database.password", "POSTGRES_PASSWORD")
 	bindEnvWithFallback(v, "database.database", "POSTGRES_DB")
+	bindEnvWithFallback(v, "auth.jwt_secret", "KELVIN_JWT_SECRET")
 
 	bindEnvWithFallback(v, "redis.addr", "KELVIN_REDIS_ADDR")
 	bindEnvWithFallback(v, "redis.password", "KELVIN_REDIS_PASSWORD")
@@ -186,6 +192,18 @@ func Load() (Config, error) {
 	} else if env == EnvStaging || env == EnvProduction {
 		return Config{}, errors.New("KELVIN_DATABASE_URL is required in staging and production environments")
 	}
+	redisAddr := v.GetString("redis.addr")
+	if (env == EnvStaging || env == EnvProduction) && redisAddr == "" {
+		return Config{}, errors.New("KELVIN_REDIS_ADDR is required in staging and production environments")
+	}
+	jwtSecret := v.GetString("auth.jwt_secret")
+	if env == EnvStaging || env == EnvProduction {
+		if len(jwtSecret) < 32 {
+			return Config{}, errors.New("KELVIN_JWT_SECRET of at least 32 bytes is required in staging and production")
+		}
+	} else if jwtSecret != "" && len(jwtSecret) < 32 {
+		return Config{}, errors.New("KELVIN_JWT_SECRET must be at least 32 bytes when set")
+	}
 
 	cfg := Config{
 		Env:              env,
@@ -204,8 +222,9 @@ func Load() (Config, error) {
 			Database: v.GetString("database.database"),
 			SSLMode:  "disable",
 		},
+		Auth: AuthConfig{JWTSecret: jwtSecret},
 		Redis: RedisConfig{
-			Addr:     v.GetString("redis.addr"),
+			Addr:     redisAddr,
 			Password: v.GetString("redis.password"),
 			DB:       v.GetInt("redis.db"),
 		},
