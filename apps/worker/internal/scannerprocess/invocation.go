@@ -4,10 +4,10 @@ package scannerprocess
 
 import (
 	"fmt"
-	"math"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
@@ -35,8 +35,8 @@ func Build(task adapters.Task) (sandbox.ProcessInvocation, error) {
 
 	switch task.Scanner {
 	case adapters.ScannerZAPBaseline:
-		minutes := int(math.Ceil(float64(config.MaxDurationSeconds) / 60.0))
-		zapOptions := fmt.Sprintf("-config spider.maxDepth=%d -config spider.maxChildren=%d -config spider.threadCount=%d", config.ZAP.MaxDepth, config.ZAP.MaxURLs, config.MaxConcurrency)
+		minutes := config.MaxDurationSeconds / 60
+		zapOptions := fmt.Sprintf("-config spider.maxDepth=%d -config spider.maxChildren=%d -config spider.threadCount=1 -config network.connection.timeoutInSecs=%d", config.ZAP.MaxDepth, config.ZAP.MaxChildren, config.RequestTimeoutSeconds)
 		return sandbox.ProcessInvocation{Executable: "/zap/zap-baseline.py", Args: []string{
 			"-t", target, "-m", strconv.Itoa(minutes), "-T", strconv.Itoa(minutes),
 			"-I", "-J", "/tmp/kelvin-zap-report.json", "-z", zapOptions,
@@ -51,6 +51,26 @@ func Build(task adapters.Task) (sandbox.ProcessInvocation, error) {
 	default:
 		return sandbox.ProcessInvocation{}, fmt.Errorf("scanner process: %q has no external executable allow-list", task.Scanner)
 	}
+}
+
+// EffectiveDeadline applies scanner-configured duration as an additional
+// ceiling. The caller still supplies the absolute job/profile deadline.
+func EffectiveDeadline(task adapters.Task) (time.Duration, error) {
+	if err := adapters.ValidateTask(task); err != nil {
+		return 0, err
+	}
+	config, err := scannerConfig(task)
+	if err != nil {
+		return 0, err
+	}
+	if err := config.Validate(); err != nil {
+		return 0, err
+	}
+	configured := time.Duration(config.MaxDurationSeconds) * time.Second
+	if task.HardDeadline < configured {
+		return task.HardDeadline, nil
+	}
+	return configured, nil
 }
 
 func scannerConfig(task adapters.Task) (adapters.ScannerConfigV1, error) {

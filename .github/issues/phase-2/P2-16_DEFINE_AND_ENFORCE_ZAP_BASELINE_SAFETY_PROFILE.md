@@ -48,11 +48,17 @@ Ensure that the ZAP integration uses an approved, predictable scanning configura
 
 ## ✅ Acceptance Criteria
 
-- [ ] A versioned ZAP Baseline profile exists.
-- [ ] The adapter cannot enable unrestricted active scanning.
+- [x] A versioned ZAP Baseline profile exists.
+- [x] The adapter cannot enable unrestricted active scanning.
 - [ ] Request and duration limits are enforced.
 - [ ] Scope restrictions apply to discovered URLs.
-- [ ] Safety behavior is tested and documented.
+- [x] Safety behavior is tested and documented.
+
+## Implementation Notes
+
+- The adapter enforces `kelvin.zap.baseline.v1`: spider depth at most 2, at most 10 children per spider node, one spider thread, and whole-minute duration settings up to 10 minutes. The worker deadline is reduced to the minimum of the job deadline and scanner duration.
+- The generated argv is fixed and omits `-j`, `-a`, custom rule/context files, hooks, auth, and active scanning options. ZAP's `-j` means “also use the modern spider”; it is not a passive-only switch. Baseline mode itself performs a bounded spider and passive checks.
+- ZAP networking is explicitly required to remain disabled until scope aware egress and strict pacing are implemented. This is the safe current behavior, but it means request pacing and scoped discovery are not yet operationally enforced for a live scan. See [ZAP Baseline Safety Profile](../../../docs/architecture/ZAP_BASELINE_INTEGRATION.md).
 
 ---
 
@@ -63,3 +69,6 @@ Ensure that the ZAP integration uses an approved, predictable scanning configura
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- Scanner Configuration: [`docs/architecture/SCANNER_CONFIGURATION.md`](../../../docs/architecture/SCANNER_CONFIGURATION.md)
+- Safe Process Invocation: [`docs/architecture/SCANNER_PROCESS_INVOCATION.md`](../../../docs/architecture/SCANNER_PROCESS_INVOCATION.md)
+- ZAP Baseline Safety Profile: [`docs/architecture/ZAP_BASELINE_INTEGRATION.md`](../../../docs/architecture/ZAP_BASELINE_INTEGRATION.md)

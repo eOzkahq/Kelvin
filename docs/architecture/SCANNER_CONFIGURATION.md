@@ -19,7 +19,7 @@ Configuration is split into two layers:
 
 `scanner-config.v1.json` is a versioned `oneOf` schema covering each MVP scanner. `DecodeScannerConfig` decodes into a typed Go configuration, applies documented defaults, rejects unknown fields, and validates scanner-specific bounds. `ValidateWithinProfile` requires scanner request rate, concurrency, and duration to fit under the product profile. Invocation construction records the configuration version and validated effective values.
 
-`PASSIVE` is Kelvin's check-policy category: it excludes intrusive or state-changing checks. It does not mean zero network traffic. ZAP Baseline crawls with ordinary requests, and Nuclei sends requests defined by the approved safe template set; both remain paced and bounded.
+`PASSIVE` is Kelvin's check-policy category: it excludes intrusive or state-changing checks. It does not mean zero network traffic. ZAP Baseline crawls with ordinary requests, and Nuclei sends requests defined by the approved safe template set. Nuclei's rate is scanner-enforced; the ZAP Baseline CLI has no documented strict request pacing option, so the ZAP container remains network-disabled until scoped pacing egress is available.
 
 Configuration is JSON at the worker boundary. A UI or API may accept YAML as an authoring format only if it converts to this JSON contract and applies the same strict validation before enqueue. Queue values remain untrusted until worker-side decoding succeeds.
 
@@ -30,7 +30,7 @@ Configuration is JSON at the worker boundary. A UI or API may accept YAML as an 
 | `execution_mode` | `PASSIVE` | `PASSIVE` only | `ACTIVE` is rejected for all shipped MVP scanners. |
 | `request_timeout_seconds` | 10 | 1–30 | Per-request timeout. |
 | `max_duration_seconds` | Scanner-specific | 1–3600 | Must be at least the request timeout and no greater than the active product profile deadline. |
-| `requests_per_second` | Scanner-specific | 1–5 | Scanner-local pacing cap; the worker applies the stricter effective profile limit across all engines. |
+| `requests_per_second` | Scanner-specific | 1–5 | Scanner-local pacing where supported. ZAP is fixed to 1 as its approved policy value, but networking is disabled until an egress gate can enforce that rate. |
 | `max_concurrency` | Scanner-specific | 1–2 | Scanner-local cap; cannot exceed profile or worker limits. |
 
 These defaults do not enlarge product profile budgets. If a profile is stricter, the stricter value wins or the configuration is rejected before execution.
@@ -42,7 +42,7 @@ These defaults do not enlarge product profile budgets. If a profile is stricter,
 | `http_preflight` | 10s request timeout, 30s max duration, 2 requests/s, concurrency 1 | No scanner-specific options. Uses bounded HTTP methods and revalidates every redirect. |
 | `tls_assessor` | 10s, 60s, 2 requests/s, concurrency 1 | No scanner-specific options. No exhaustive cipher brute force. |
 | `http_security_headers` | 10s, 60s, 2 requests/s, concurrency 1 | No scanner-specific options. Ordinary state-free requests only. |
-| `zap` | 10s, 600s, 1 request/s, concurrency 2 | `zap.max_urls` defaults to 100 (1–250); `zap.max_depth` defaults to 3 (1–5). Baseline mode only; no active scan, scripts, add-ons, authentication, or user flags. |
+| `zap` | 10s timeout, up to 600s, one worker | `zap.safety_profile` is fixed to `kelvin.zap.baseline.v1`; `zap.max_children` defaults to 10 per spider node (1–10) and `zap.max_depth` to 2 (1–2). Duration must be a whole minute in 60–600 seconds. Baseline mode only; no active scan, modern spider (`-j`), alpha rules, custom config, context, hooks, or user flags. Network remains disabled until scope aware pacing egress is available. |
 | `nuclei` | 10s, 300s, 2 requests/s, concurrency 2 | `nuclei.template_set_id` is fixed to `kelvin.safe.web.v1`; severity allow-list defaults to `info`, `low`, `medium`. No custom templates, workflow, path, remote download, or arbitrary template ID. |
 
 Built-in settings blocks are forbidden on external scanners and vice versa. JSON Schema and Go validation reject wrong scanner IDs, unknown fields, unsupported versions, cross-scanner settings, invalid ranges, duplicate severities, and values outside the approved template set.

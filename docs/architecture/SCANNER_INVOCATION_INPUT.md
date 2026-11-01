@@ -75,8 +75,12 @@ The input contains no free-form environment map or argument vector. Adapters con
       "request_timeout_seconds": 10,
       "max_duration_seconds": 600,
       "requests_per_second": 1,
-      "max_concurrency": 2,
-      "zap": { "max_urls": 100, "max_depth": 3 }
+      "max_concurrency": 1,
+      "zap": {
+        "safety_profile": "kelvin.zap.baseline.v1",
+        "max_children": 10,
+        "max_depth": 2
+      }
     }
   },
   "execution": {

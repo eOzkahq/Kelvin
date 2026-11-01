@@ -111,6 +111,9 @@ func (s Spec) Validate() error {
 	if s.CaptureZAPReport && scanner != "zap" {
 		errs = append(errs, "ZAP report capture is only available to the ZAP scanner")
 	}
+	if scanner == "zap" && !s.NetworkDisabled {
+		errs = append(errs, "ZAP network access must remain disabled until scoped egress enforcement is configured")
+	}
 	if s.CaptureZAPReport && !hasArgPair(s.Invocation.Args, "-J", "/tmp/kelvin-zap-report.json") {
 		errs = append(errs, "ZAP report capture requires the fixed report path")
 	}

@@ -51,15 +51,16 @@
         "schema_version": { "const": "1.0" }, "scanner_id": { "const": "zap" },
         "execution_mode": { "const": "PASSIVE", "default": "PASSIVE" },
         "request_timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 30, "default": 10 },
-        "max_duration_seconds": { "type": "integer", "minimum": 1, "maximum": 3600, "default": 600 },
-        "requests_per_second": { "type": "integer", "minimum": 1, "maximum": 5, "default": 1 },
-        "max_concurrency": { "type": "integer", "minimum": 1, "maximum": 2, "default": 2 },
+        "max_duration_seconds": { "type": "integer", "minimum": 60, "maximum": 600, "multipleOf": 60, "default": 600 },
+        "requests_per_second": { "const": 1, "default": 1 },
+        "max_concurrency": { "const": 1, "default": 1 },
         "zap": {
           "type": "object", "additionalProperties": false,
-          "default": { "max_urls": 100, "max_depth": 3 },
+          "default": { "safety_profile": "kelvin.zap.baseline.v1", "max_children": 10, "max_depth": 2 },
           "properties": {
-            "max_urls": { "type": "integer", "minimum": 1, "maximum": 250, "default": 100 },
-            "max_depth": { "type": "integer", "minimum": 1, "maximum": 5, "default": 3 }
+            "safety_profile": { "const": "kelvin.zap.baseline.v1", "default": "kelvin.zap.baseline.v1" },
+            "max_children": { "type": "integer", "minimum": 1, "maximum": 10, "default": 10 },
+            "max_depth": { "type": "integer", "minimum": 1, "maximum": 2, "default": 2 }
           }
         }
       }

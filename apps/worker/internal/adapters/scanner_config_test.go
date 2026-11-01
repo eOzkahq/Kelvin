@@ -32,7 +32,7 @@ func TestDecodeScannerConfigAppliesDefaultsAndRejectsUnsafeOptions(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ZAP == nil || cfg.ZAP.MaxURLs != 100 || cfg.ZAP.MaxDepth != 3 || cfg.RequestsPerSecond != 1 {
+	if cfg.ZAP == nil || cfg.ZAP.SafetyProfile != ZAPSafetyProfileVersion || cfg.ZAP.MaxChildren != 10 || cfg.ZAP.MaxDepth != 2 || cfg.RequestsPerSecond != 1 || cfg.MaxConcurrency != 1 {
 		t.Fatalf("expected documented ZAP defaults, got %+v", cfg)
 	}
 	cases := []struct {
@@ -44,6 +44,13 @@ func TestDecodeScannerConfigAppliesDefaultsAndRejectsUnsafeOptions(t *testing.T)
 		{"excessive request rate", `{"schema_version":"1.0","scanner_id":"zap","requests_per_second":6}`},
 		{"excessive duration", `{"schema_version":"1.0","scanner_id":"zap","max_duration_seconds":3601}`},
 		{"excessive crawl depth", `{"schema_version":"1.0","scanner_id":"zap","zap":{"max_depth":6}}`},
+		{"ZAP depth exceeds baseline profile", `{"schema_version":"1.0","scanner_id":"zap","zap":{"max_depth":3}}`},
+		{"ZAP child fanout exceeds baseline profile", `{"schema_version":"1.0","scanner_id":"zap","zap":{"max_children":11}}`},
+		{"ZAP duration is not bounded in whole minutes", `{"schema_version":"1.0","scanner_id":"zap","max_duration_seconds":90}`},
+		{"ZAP duration exceeds ten minutes", `{"schema_version":"1.0","scanner_id":"zap","max_duration_seconds":660}`},
+		{"ZAP concurrency exceeds passive profile", `{"schema_version":"1.0","scanner_id":"zap","max_concurrency":2}`},
+		{"ZAP rate exceeds passive profile", `{"schema_version":"1.0","scanner_id":"zap","requests_per_second":2}`},
+		{"wrong ZAP safety profile", `{"schema_version":"1.0","scanner_id":"zap","zap":{"safety_profile":"custom"}}`},
 		{"arbitrary template set", `{"schema_version":"1.0","scanner_id":"nuclei","nuclei":{"template_set_id":"/tmp/custom.yaml","severity_allowlist":["low"]}}`},
 		{"incomplete nuclei settings", `{"schema_version":"1.0","scanner_id":"nuclei","nuclei":{"template_set_id":"kelvin.safe.web.v1"}}`},
 		{"unsupported scanner", `{"schema_version":"1.0","scanner_id":"nmap"}`},
