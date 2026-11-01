@@ -58,6 +58,15 @@ var defaultRegistry = &Registry{
 	startTime:          time.Now().UTC(),
 }
 
+// NewRegistry creates an isolated worker metrics registry.
+func NewRegistry() *Registry {
+	return &Registry{
+		resourceViolations: map[ViolationType]uint64{},
+		terminations:       map[TerminationCause]uint64{},
+		startTime:          time.Now().UTC(),
+	}
+}
+
 // Default returns the process-wide worker metrics registry.
 func Default() *Registry {
 	return defaultRegistry

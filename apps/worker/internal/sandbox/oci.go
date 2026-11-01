@@ -117,10 +117,15 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	if spec.WorkspaceMount != "" {
 		args = append(args, "-v", spec.WorkspaceMount+":/workspace:rw")
 	}
+	mem := ""
 	if spec.Limits.MemoryLimit != "" {
-		args = append(args, "--memory="+spec.Limits.MemoryLimit)
+		mem = spec.Limits.MemoryLimit
 	} else if spec.MemoryLimit != "" {
-		args = append(args, "--memory="+spec.MemoryLimit)
+		mem = spec.MemoryLimit
+	}
+	if mem != "" {
+		args = append(args, "--memory="+mem)
+		args = append(args, "--memory-swap="+mem)
 	}
 	if spec.Limits.CPUQuota != "" {
 		args = append(args, "--cpus="+spec.Limits.CPUQuota)

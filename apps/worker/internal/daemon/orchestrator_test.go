@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
+	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/packages/common/scope"
@@ -385,5 +386,115 @@ func TestOrchestratorIntegratesEgressProxy(t *testing.T) {
 	}
 	if !strings.HasPrefix(executor.Last.EgressProxy, "http://127.0.0.1:") {
 		t.Errorf("expected localhost proxy URL, got %s", executor.Last.EgressProxy)
+	}
+}
+
+func TestOrchestratorEnforcesScannerResourceLimits(t *testing.T) {
+	registry := adapters.NewRegistry()
+	if err := registerStub(registry); err != nil { // Nuclei
+		t.Fatal(err)
+	}
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	executor := sandbox.NewFake().WithResult(sandbox.Result{
+		ExitCode: 0,
+		Findings: []byte(`{"findings":[]}`),
+		Duration: time.Millisecond * 10,
+	})
+
+	cfg := Config{
+		WorkerID: "test-worker",
+		Executor: executor,
+	}
+
+	orch := NewOrchestrator(registry, executor, nil, nil, nil, zap.NewNop())
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      adapters.ScannerNuclei,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileDeep,
+		HardDeadline: time.Minute,
+	}
+
+	_, err := orch.ExecuteScanner(context.Background(), zap.NewNop(), task, cfg)
+	if err != nil {
+		t.Fatalf("expected ExecuteScanner to succeed: %v", err)
+	}
+
+	// Verify Nuclei limits applied
+	if executor.Last.Limits.MemoryLimit != "1024m" {
+		t.Errorf("expected Nuclei memory limit 1024m, got %s", executor.Last.Limits.MemoryLimit)
+	}
+	if executor.Last.Limits.CPUQuota != "2.0" {
+		t.Errorf("expected Nuclei CPU quota 2.0, got %s", executor.Last.Limits.CPUQuota)
+	}
+	if executor.Last.Limits.MaxPIDs != 64 {
+		t.Errorf("expected Nuclei max PIDs 64, got %d", executor.Last.Limits.MaxPIDs)
+	}
+}
+
+func TestOrchestratorRecordsResourceExhaustionFailures(t *testing.T) {
+	registry := adapters.NewRegistry()
+	if err := registerStub(registry); err != nil { // Nuclei
+		t.Fatal(err)
+	}
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	metricsReg := metrics.NewRegistry()
+	executor := sandbox.NewFake()
+
+	cfg := Config{
+		WorkerID: "test-worker",
+		Executor: executor,
+		Metrics:  metricsReg,
+	}
+
+	orch := NewOrchestrator(registry, executor, nil, nil, metricsReg, zap.NewNop())
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      adapters.ScannerNuclei,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileDeep,
+		HardDeadline: time.Minute,
+	}
+
+	// 1. Simulate OOM exhaustion
+	executor.WithResult(sandbox.Result{
+		OOMKilled: true,
+		ExitCode:  137,
+		Duration:  time.Millisecond * 50,
+	})
+
+	_, _ = orch.ExecuteScanner(context.Background(), zap.NewNop(), task, cfg)
+	snap := metricsReg.Snapshot()
+	if snap.ResourceViolations[metrics.ViolationOOM] != 1 {
+		t.Errorf("expected 1 OOM resource violation, got %d", snap.ResourceViolations[metrics.ViolationOOM])
+	}
+	if snap.Terminations[metrics.CauseOOM] != 1 {
+		t.Errorf("expected 1 OOM termination, got %d", snap.Terminations[metrics.CauseOOM])
+	}
+
+	// 2. Simulate Deadline exhaustion
+	executor.WithResult(sandbox.Result{
+		DeadlineExceeded: true,
+		ExitCode:         124,
+		Duration:         time.Minute,
+	})
+
+	_, _ = orch.ExecuteScanner(context.Background(), zap.NewNop(), task, cfg)
+	snap = metricsReg.Snapshot()
+	if snap.ResourceViolations[metrics.ViolationDeadline] != 1 {
+		t.Errorf("expected 1 Deadline resource violation, got %d", snap.ResourceViolations[metrics.ViolationDeadline])
+	}
+	if snap.Terminations[metrics.CauseDeadline] != 1 {
+		t.Errorf("expected 1 Deadline termination, got %d", snap.Terminations[metrics.CauseDeadline])
 	}
 }

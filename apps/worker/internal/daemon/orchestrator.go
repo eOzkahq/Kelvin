@@ -8,6 +8,7 @@ import (
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/egress"
+	"github.com/kelvin/kelvin/apps/worker/internal/limits"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
@@ -168,7 +169,21 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 
 	spec := specFromTask(task, metadata.VersionPolicy.ImageReference, invocation, ws.RootDir)
 	spec.CaptureZAPReport = task.Scanner == adapters.ScannerZAPBaseline
-	spec.Limits = cfg.Limits
+
+	scannerLimits, err := limits.ForScanner(task.Scanner, cfg.Limits)
+	if err == nil {
+		spec.Limits = scannerLimits
+	} else if cfg.Limits != (limits.Limits{}) {
+		spec.Limits = cfg.Limits
+	} else {
+		spec.Limits = limits.DefaultLimits()
+	}
+	spec.MemoryLimit = spec.Limits.MemoryLimit
+	spec.CPUQuota = spec.Limits.CPUQuota
+	spec.PIDsLimit = spec.Limits.MaxPIDs
+	if spec.Limits.HardDeadline > 0 {
+		spec.Deadline = spec.Limits.HardDeadline
+	}
 
 	var egressProxy *egress.Proxy
 	if cfg.ScopePolicyProvider != nil {
@@ -195,6 +210,28 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 	}
 
 	result, execErr := cfg.Executor.Execute(execCtx, spec)
+	if result != nil && result.OOMKilled {
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncResourceViolation(metrics.ViolationOOM)
+			cfg.Metrics.IncTermination(metrics.CauseOOM)
+		}
+		o.logger.Error("scanner execution terminated due to out-of-memory (OOM)",
+			zap.String("job_id", task.JobID),
+			zap.String("scanner", task.Scanner),
+			zap.String("memory_limit", spec.Limits.MemoryLimit),
+		)
+	}
+	if result != nil && result.DeadlineExceeded {
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncResourceViolation(metrics.ViolationDeadline)
+			cfg.Metrics.IncTermination(metrics.CauseDeadline)
+		}
+		o.logger.Error("scanner execution exceeded hard execution deadline",
+			zap.String("job_id", task.JobID),
+			zap.String("scanner", task.Scanner),
+			zap.Duration("deadline", spec.Deadline),
+		)
+	}
 	if egressProxy != nil && egressProxy.ViolationsCount() > 0 {
 		o.logger.Warn("assessment execution recorded egress policy violations",
 			zap.String("job_id", task.JobID),
