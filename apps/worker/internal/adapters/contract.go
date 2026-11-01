@@ -38,6 +38,7 @@ type Capabilities struct {
 type ScannerAdapter interface {
 	Adapter
 	Version() string
+	VerifyRuntimeVersion(context.Context) (RuntimeVersionInfo, error)
 	Initialize(context.Context, *zap.Logger) error
 	ValidateConfig(json.RawMessage) error
 	Capabilities() Capabilities
@@ -72,6 +73,13 @@ func (a *ReferenceAdapter) Name() string { return a.AdapterName }
 
 // Version reports the adapter implementation version for registry metadata.
 func (a *ReferenceAdapter) Version() string { return "1.0.0" }
+
+func (a *ReferenceAdapter) VerifyRuntimeVersion(ctx context.Context) (RuntimeVersionInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return RuntimeVersionInfo{}, err
+	}
+	return RuntimeVersionInfo{ScannerVersion: a.Version(), AdapterVersion: a.Version()}, nil
+}
 
 func (a *ReferenceAdapter) Initialize(ctx context.Context, logger *zap.Logger) error {
 	if a == nil || a.AdapterName == "" || a.Run == nil {

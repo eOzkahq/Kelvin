@@ -48,11 +48,13 @@ Ensure KELVIN runs known, compatible scanner versions and can identify exactly w
 
 ## ✅ Acceptance Criteria
 
-- [ ] Every integrated scanner has an approved version policy.
-- [ ] Runtime version verification is implemented.
-- [ ] Version information is recorded per assessment.
-- [ ] Unsupported versions prevent execution or produce a clear blocked state.
-- [ ] Upgrade procedures are documented.
+- [x] Every registered scanner must supply an exact version policy; external scanner pins are enforced before readiness.
+- [x] Runtime version verification is implemented at startup and before dispatch.
+- [x] Version information can be stamped into each assessment output envelope.
+- [x] Unsupported versions prevent execution and mark the scanner unavailable.
+- [x] Upgrade procedures are documented.
+
+The policy and runtime checks are implemented. Concrete production pins for ZAP, Nuclei, and its catalog remain pending reviewed runtime artifacts from P2-08; external scanners cannot be enabled without those immutable pins.
 
 ---
 
@@ -63,3 +65,4 @@ Ensure KELVIN runs known, compatible scanner versions and can identify exactly w
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- Version Compatibility Policy: [`docs/architecture/SCANNER_VERSION_COMPATIBILITY.md`](../../../docs/architecture/SCANNER_VERSION_COMPATIBILITY.md)

@@ -43,8 +43,14 @@ func (r *recordingQueue) Fail(ctx context.Context, j queue.Job, _ string) error 
 
 type stubAdapter struct{ name string }
 
-func (s stubAdapter) Name() string                                  { return s.name }
-func (s stubAdapter) Version() string                               { return "1.0.0" }
+func (s stubAdapter) Name() string    { return s.name }
+func (s stubAdapter) Version() string { return "1.0.0" }
+func (s stubAdapter) VerifyRuntimeVersion(ctx context.Context) (adapters.RuntimeVersionInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return adapters.RuntimeVersionInfo{}, err
+	}
+	return adapters.RuntimeVersionInfo{ScannerVersion: s.Version(), AdapterVersion: s.Version()}, nil
+}
 func (s stubAdapter) Initialize(context.Context, *zap.Logger) error { return nil }
 func (s stubAdapter) ValidateConfig(json.RawMessage) error          { return nil }
 func (s stubAdapter) Capabilities() adapters.Capabilities {

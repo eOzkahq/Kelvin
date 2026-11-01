@@ -29,14 +29,18 @@ const (
 )
 
 type OutputMetadata struct {
-	AssessmentID   string    `json:"assessment_id"`
-	ScannerID      string    `json:"scanner_id"`
-	ScannerVersion string    `json:"scanner_version"`
-	AdapterVersion string    `json:"adapter_version"`
-	RunID          string    `json:"run_id"`
-	StartedAt      time.Time `json:"started_at"`
-	CompletedAt    time.Time `json:"completed_at"`
-	CorrelationID  string    `json:"correlation_id,omitempty"`
+	AssessmentID           string    `json:"assessment_id"`
+	ScannerID              string    `json:"scanner_id"`
+	ScannerVersion         string    `json:"scanner_version"`
+	AdapterVersion         string    `json:"adapter_version"`
+	ImageReference         string    `json:"image_reference,omitempty"`
+	ImageDigest            string    `json:"image_digest,omitempty"`
+	TemplateCatalogVersion string    `json:"template_catalog_version,omitempty"`
+	TemplateCatalogDigest  string    `json:"template_catalog_digest,omitempty"`
+	RunID                  string    `json:"run_id"`
+	StartedAt              time.Time `json:"started_at"`
+	CompletedAt            time.Time `json:"completed_at"`
+	CorrelationID          string    `json:"correlation_id,omitempty"`
 }
 
 type RawArtifactReferences struct {
