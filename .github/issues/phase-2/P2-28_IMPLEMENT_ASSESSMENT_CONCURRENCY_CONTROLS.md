@@ -48,17 +48,18 @@ Prevent uncontrolled simultaneous scanner execution from exhausting platform res
 
 ## ✅ Acceptance Criteria
 
-- [ ] Global and per-tenant concurrency limits are enforced.
-- [ ] Scanner-specific caps are respected.
-- [ ] Capacity is released after success, failure, timeout, or worker recovery.
-- [ ] Concurrent execution tests pass.
-- [ ] Queue saturation is observable.
+- [x] Global and per-tenant concurrency limits are enforced.
+- [x] Scanner-specific caps are respected.
+- [x] Capacity is released after success, failure, timeout, or worker recovery.
+- [x] Concurrent execution tests pass.
+- [x] Queue saturation is observable.
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- Assessment Concurrency Controls: [docs/architecture/ASSESSMENT_CONCURRENCY_CONTROLS.md](../../../docs/architecture/ASSESSMENT_CONCURRENCY_CONTROLS.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
