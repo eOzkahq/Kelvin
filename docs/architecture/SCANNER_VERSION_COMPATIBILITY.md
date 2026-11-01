@@ -4,7 +4,7 @@
 
 Registry entries carry an exact scanner version and an adapter semantic version (`MAJOR.MINOR.PATCH`). Ranges and mutable tags such as `latest` are not accepted. An external scanner must also provide an immutable OCI image reference ending in its declared `sha256` digest. Nuclei requires the curated catalog ID `kelvin.safe.web.v1` and its SHA-256 digest. Runtime identity is reported by the adapter and compared field-for-field with registry policy.
 
-The repository currently has no production scanner image manifests or certified upstream release pins. Therefore this policy is implemented, but external scanners remain unavailable until P2-08 supplies reviewed image digests and catalog artifacts. No upstream scanner release is implicitly approved by this document.
+The repository contains reproducible image build definitions, but no production scanner image manifests or certified upstream release pins. External scanners remain unavailable until a reviewed P2-08 build and promotion supplies immutable image digests and catalog artifacts. No upstream scanner release is implicitly approved by this document. See `SCANNER_RUNTIME_IMAGES.md`.
 
 ## Verification and assessment records
 

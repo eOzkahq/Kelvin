@@ -13,6 +13,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scanner-image-contract:
+    name: Scanner image build contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scanner image definitions
+        run: |
+          bash -n scripts/scanners/build-images.sh
+          python -m json.tool deploy/scanners/images.lock.json > /dev/null
+          grep -q 'USER 10001:10001' deploy/scanners/zap/Dockerfile
+          grep -q 'USER 10001:10001' deploy/scanners/nuclei/Dockerfile
+
   api-contract:
     name: API contract (OpenAPI lint)
     runs-on: ubuntu-latest

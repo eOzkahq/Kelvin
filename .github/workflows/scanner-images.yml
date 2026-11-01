@@ -1,0 +1,85 @@
+name: Scanner runtime images
+
+on:
+  workflow_dispatch:
+    inputs:
+      zap_base_image:
+        description: Official ghcr.io/zaproxy/zaproxy:stable reference pinned with @sha256
+        required: true
+        type: string
+      zap_version:
+        description: Exact ZAP version reported by the pinned base image
+        required: true
+        type: string
+      nuclei_source_image:
+        description: Official projectdiscovery/nuclei reference pinned with @sha256
+        required: true
+        type: string
+      nuclei_version:
+        description: Exact Nuclei version reported by the pinned source image
+        required: true
+        type: string
+      distroless_base_image:
+        description: gcr.io/distroless/static-debian12:nonroot reference pinned with @sha256
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-scan:
+    name: Build and verify pinned scanner runtimes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and verify scanner images
+        env:
+          ZAP_BASE_IMAGE: ${{ inputs.zap_base_image }}
+          ZAP_VERSION: ${{ inputs.zap_version }}
+          NUCLEI_SOURCE_IMAGE: ${{ inputs.nuclei_source_image }}
+          NUCLEI_VERSION: ${{ inputs.nuclei_version }}
+          DISTROLESS_BASE_IMAGE: ${{ inputs.distroless_base_image }}
+          OUT_DIR: artifacts/scanner-images
+        run: bash scripts/scanners/build-images.sh
+      - name: Scan ZAP image and write SBOM
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: image
+          image-ref: kelvin/scanner-zap:${{ inputs.zap_version }}
+          format: cyclonedx
+          output: artifacts/scanner-images/zap.cdx.json
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - name: Scan Nuclei image and write SBOM
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: image
+          image-ref: kelvin/scanner-nuclei:${{ inputs.nuclei_version }}
+          format: cyclonedx
+          output: artifacts/scanner-images/nuclei.cdx.json
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - name: Record image IDs and workflow inputs
+        shell: bash
+        env:
+          ZAP_VERSION: ${{ inputs.zap_version }}
+          NUCLEI_VERSION: ${{ inputs.nuclei_version }}
+          ZAP_BASE_IMAGE: ${{ inputs.zap_base_image }}
+          NUCLEI_SOURCE_IMAGE: ${{ inputs.nuclei_source_image }}
+          DISTROLESS_BASE_IMAGE: ${{ inputs.distroless_base_image }}
+        run: |
+          docker image inspect "kelvin/scanner-zap:$ZAP_VERSION" "kelvin/scanner-nuclei:$NUCLEI_VERSION" \
+            --format '{{.RepoTags}} {{.Id}} {{.Config.User}} {{json .Config.Labels}}' > artifacts/scanner-images/image-inspect.txt
+          printf 'ZAP_BASE_IMAGE=%s\nZAP_VERSION=%s\nNUCLEI_SOURCE_IMAGE=%s\nNUCLEI_VERSION=%s\nDISTROLESS_BASE_IMAGE=%s\n' \
+            "$ZAP_BASE_IMAGE" "$ZAP_VERSION" "$NUCLEI_SOURCE_IMAGE" "$NUCLEI_VERSION" "$DISTROLESS_BASE_IMAGE" \
+            > artifacts/scanner-images/build-inputs.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scanner-runtime-image-evidence
+          path: artifacts/scanner-images/
+          if-no-files-found: error
+          retention-days: 90

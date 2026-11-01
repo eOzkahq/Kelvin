@@ -206,12 +206,9 @@ func taskFromJob(job queue.Job) (adapters.Task, error) {
 }
 
 func specFromTask(task adapters.Task, imageReference string) sandbox.Spec {
-	if imageReference == "" {
-		imageReference = "kelvin/scanner-" + task.Scanner + ":local"
-	}
 	return sandbox.Spec{
 		Image: imageReference, Command: []string{"/kelvin/bin/" + task.Scanner + "-adapter"},
-		Args: []string{"-target", task.Target, "-profile", task.ProfileID}, User: "scanner",
+		Args: []string{"-target", task.Target, "-profile", task.ProfileID}, User: "10001:10001",
 		Env: []string{"KELVIN_JOB_ID=" + task.JobID, "KELVIN_TENANT_ID=" + task.TenantID}, WorkingDir: "/home/scanner",
 		MemoryLimit: "512m", CPUQuota: "2", PIDsLimit: 64, ReadOnlyRootfs: true,
 		NetworkDisabled: true,

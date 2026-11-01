@@ -49,11 +49,13 @@ Create reproducible scanner runtime environments that can be deployed consistent
 
 ## ✅ Acceptance Criteria
 
-- [ ] Each external scanner has a reproducible runtime image.
-- [ ] Image versions and digests are traceable.
-- [ ] Images follow the Phase 1 worker security architecture.
-- [ ] CI verifies image builds.
-- [ ] Image update and rollback procedures are documented.
+- [x] Reproducible ZAP and Nuclei runtime image definitions are present; production images remain unavailable until reviewed pins are supplied.
+- [x] The manual CI build records scanner versions, immutable input references, and output image digests as build evidence.
+- [x] Runtime images run as UID/GID 10001; builds verify read-only execution with bounded temporary storage.
+- [x] CI builds, verifies reported versions, scans images, and generates SBOMs.
+- [x] Image update and rollback procedures are documented.
+
+The workflow builds but does not publish or sign images. Promotion, signing, catalog assembly, and population of release digests in `images.lock.json` are required before external scanners can be enabled.
 
 ---
 
@@ -64,3 +66,4 @@ Create reproducible scanner runtime environments that can be deployed consistent
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- Scanner Runtime Images: [`docs/architecture/SCANNER_RUNTIME_IMAGES.md`](../../../docs/architecture/SCANNER_RUNTIME_IMAGES.md)
