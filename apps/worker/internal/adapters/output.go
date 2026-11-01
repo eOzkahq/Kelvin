@@ -3,6 +3,7 @@ package adapters
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -14,6 +15,8 @@ import (
 )
 
 const OutputEnvelopeVersion = "1.0"
+
+var ErrMalformedOutput = errors.New("adapters: malformed scanner output")
 
 var artifactReferencePattern = regexp.MustCompile(`^artifact://[0-9a-fA-F-]{36}(/[A-Za-z0-9._-]+)?$`)
 
@@ -223,17 +226,17 @@ func DecodeOutputEnvelope(raw []byte) (ScannerOutputEnvelope, error) {
 	decoder.DisallowUnknownFields()
 	var envelope ScannerOutputEnvelope
 	if err := decoder.Decode(&envelope); err != nil {
-		return ScannerOutputEnvelope{}, fmt.Errorf("adapters: decode output envelope: %w", err)
+		return ScannerOutputEnvelope{}, fmt.Errorf("%w: decode output envelope: %v", ErrMalformedOutput, err)
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		if err == nil {
-			return ScannerOutputEnvelope{}, fmt.Errorf("adapters: output envelope contains trailing JSON")
+			return ScannerOutputEnvelope{}, fmt.Errorf("%w: output envelope contains trailing JSON", ErrMalformedOutput)
 		}
-		return ScannerOutputEnvelope{}, fmt.Errorf("adapters: invalid trailing output envelope data: %w", err)
+		return ScannerOutputEnvelope{}, fmt.Errorf("%w: invalid trailing output envelope data: %v", ErrMalformedOutput, err)
 	}
 	if err := envelope.Validate(); err != nil {
-		return ScannerOutputEnvelope{}, err
+		return ScannerOutputEnvelope{}, fmt.Errorf("%w: %v", ErrMalformedOutput, err)
 	}
 	return envelope, nil
 }

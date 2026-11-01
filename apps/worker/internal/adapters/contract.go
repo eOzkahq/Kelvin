@@ -192,7 +192,9 @@ func (a *ReferenceAdapter) Result() (Result, error) {
 	}
 	result := a.result
 	result.Findings = cloneRawMessages(result.Findings)
-	result.Diagnostics = append([]ExecutionDiagnostic(nil), result.Diagnostics...)
+	diagnostics := make([]ExecutionDiagnostic, len(result.Diagnostics))
+	copy(diagnostics, result.Diagnostics)
+	result.Diagnostics = diagnostics
 	if result.ExitCode != nil {
 		code := *result.ExitCode
 		result.ExitCode = &code
