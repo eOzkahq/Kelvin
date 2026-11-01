@@ -17,11 +17,12 @@ import (
 )
 
 type recordingQueue struct {
-	inner     *queue.MemoryQueue
-	mu        sync.Mutex
-	failed    []queue.Job
-	completed []queue.Job
-	event     chan struct{}
+	inner         *queue.MemoryQueue
+	mu            sync.Mutex
+	failed        []queue.Job
+	failedReasons []string
+	completed     []queue.Job
+	event         chan struct{}
 }
 
 func newRecordingQueue() *recordingQueue {
@@ -35,12 +36,13 @@ func (r *recordingQueue) Complete(ctx context.Context, j queue.Job) error {
 	r.event <- struct{}{}
 	return r.inner.Complete(ctx, j)
 }
-func (r *recordingQueue) Fail(ctx context.Context, j queue.Job, _ string) error {
+func (r *recordingQueue) Fail(ctx context.Context, j queue.Job, reason string) error {
 	r.mu.Lock()
 	r.failed = append(r.failed, j)
+	r.failedReasons = append(r.failedReasons, reason)
 	r.mu.Unlock()
 	r.event <- struct{}{}
-	return r.inner.Fail(ctx, j, "failed")
+	return r.inner.Fail(ctx, j, reason)
 }
 
 type stubAdapter struct{ name string }

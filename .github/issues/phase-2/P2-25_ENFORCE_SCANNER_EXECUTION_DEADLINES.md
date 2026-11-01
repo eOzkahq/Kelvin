@@ -47,17 +47,18 @@ Ensure each scanner execution is bounded by an explicit deadline.
 
 ## ✅ Acceptance Criteria
 
-- [ ] Every scanner execution has an effective deadline.
-- [ ] Scanner deadlines respect assessment-level limits.
-- [ ] Expired executions are stopped.
-- [ ] Timeout states are recorded consistently.
-- [ ] Tests cover scanner and overall assessment timeouts.
+- [x] Every scanner execution has an effective deadline.
+- [x] Scanner deadlines respect assessment-level limits.
+- [x] Expired executions are stopped.
+- [x] Timeout states are recorded consistently.
+- [x] Tests cover scanner and overall assessment timeouts.
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- Scanner Execution Deadlines: [`docs/architecture/SCANNER_EXECUTION_DEADLINES.md`](../../../docs/architecture/SCANNER_EXECUTION_DEADLINES.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)

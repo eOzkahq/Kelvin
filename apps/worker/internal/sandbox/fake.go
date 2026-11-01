@@ -25,6 +25,8 @@ type FakeExecutor struct {
 	Findings []byte
 	// Duration simulates execution time.
 	Duration time.Duration
+	// Delay causes Execute to pause for this duration, allowing context timeouts to fire.
+	Delay time.Duration
 	// Err is returned when Mode is "error".
 	Err error
 
@@ -72,6 +74,25 @@ func (f *FakeExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) 
 		return &Result{DeadlineExceeded: true, ExitCode: -1}, ErrDeadlineExceeded
 	}
 	f.Last = spec
+
+	if f.Delay > 0 {
+		select {
+		case <-time.After(f.Delay):
+		case <-ctx.Done():
+			cancelled := errors.Is(ctx.Err(), context.Canceled)
+			result := &Result{
+				Duration:         f.Duration,
+				DeadlineExceeded: !cancelled,
+				Cancelled:        cancelled,
+				ExitCode:         -1,
+			}
+			cause := ErrDeadlineExceeded
+			if cancelled {
+				cause = ErrCancelled
+			}
+			return result, &ExitError{Spec: spec, Result: result, Err: cause}
+		}
+	}
 
 	result := &Result{Duration: f.Duration, Stdout: f.Stdout, Stderr: f.Stderr, Findings: f.Findings}
 

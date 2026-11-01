@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/netip"
 	"strings"
 	"testing"
@@ -227,7 +228,7 @@ func TestOrchestratorExecutesAssessmentPipeline(t *testing.T) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if len(q.completed) != 1 || len(q.failed) != 0 {
-		t.Fatalf("expected assessment pipeline job to complete, got completed=%d failed=%d", len(q.completed), len(q.failed))
+		t.Fatalf("expected assessment pipeline job to complete, got completed=%d failed=%d (reasons: %v)", len(q.completed), len(q.failed), q.failedReasons)
 	}
 }
 
@@ -496,5 +497,214 @@ func TestOrchestratorRecordsResourceExhaustionFailures(t *testing.T) {
 	}
 	if snap.Terminations[metrics.CauseDeadline] != 1 {
 		t.Errorf("expected 1 Deadline termination, got %d", snap.Terminations[metrics.CauseDeadline])
+	}
+}
+
+type mockNetTimeoutError struct{}
+
+func (m mockNetTimeoutError) Error() string   { return "i/o timeout" }
+func (m mockNetTimeoutError) Timeout() bool   { return true }
+func (m mockNetTimeoutError) Temporary() bool { return true }
+
+func TestDistinguishExecutionTimeoutFromConnectionTimeout(t *testing.T) {
+	// 1. Execution timeout via ErrDeadlineExceeded
+	if got := ClassifyTimeout(sandbox.ErrDeadlineExceeded, nil); got != TimeoutExecution {
+		t.Errorf("ClassifyTimeout(ErrDeadlineExceeded) = %v, want %v", got, TimeoutExecution)
+	}
+
+	// 2. Execution timeout via result.DeadlineExceeded
+	res := &sandbox.Result{DeadlineExceeded: true, ExitCode: -1}
+	if got := ClassifyTimeout(nil, res); got != TimeoutExecution {
+		t.Errorf("ClassifyTimeout(res.DeadlineExceeded) = %v, want %v", got, TimeoutExecution)
+	}
+
+	// 3. Execution timeout via context.DeadlineExceeded
+	if got := ClassifyTimeout(context.DeadlineExceeded, nil); got != TimeoutExecution {
+		t.Errorf("ClassifyTimeout(context.DeadlineExceeded) = %v, want %v", got, TimeoutExecution)
+	}
+
+	// 4. Connection timeout via net.Error
+	netTimeout := mockNetTimeoutError{}
+	if got := ClassifyTimeout(netTimeout, nil); got != TimeoutConnection {
+		t.Errorf("ClassifyTimeout(netTimeout) = %v, want %v", got, TimeoutConnection)
+	}
+
+	// 5. Connection timeout via network dial error message
+	dialErr := fmt.Errorf("dial tcp 93.184.216.34:443: connect: connection refused")
+	if got := ClassifyTimeout(dialErr, nil); got != TimeoutConnection {
+		t.Errorf("ClassifyTimeout(dialErr) = %v, want %v", got, TimeoutConnection)
+	}
+
+	// 6. Generic non-timeout error
+	genErr := fmt.Errorf("unexpected EOF")
+	if got := ClassifyTimeout(genErr, nil); got != TimeoutNone {
+		t.Errorf("ClassifyTimeout(genErr) = %v, want %v", got, TimeoutNone)
+	}
+}
+
+func TestExecuteScannerGeneratesStatusTimedOutEnvelope(t *testing.T) {
+	registry := adapters.NewRegistry()
+	if err := registerStub(registry); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+	metricsReg := metrics.NewRegistry()
+	executor := sandbox.NewFake().WithResult(sandbox.Result{
+		DeadlineExceeded: true,
+		ExitCode:         124,
+		Duration:         2 * time.Second,
+	})
+
+	cfg := Config{
+		WorkerID: "test-worker",
+		Executor: executor,
+		Metrics:  metricsReg,
+	}
+
+	orch := NewOrchestrator(registry, executor, nil, nil, metricsReg, zap.NewNop())
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      adapters.ScannerNuclei,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileDeep,
+		HardDeadline: 2 * time.Second,
+	}
+
+	res, err := orch.ExecuteScanner(context.Background(), zap.NewNop(), task, cfg)
+	if err == nil {
+		t.Fatal("expected error on scanner deadline timeout")
+	}
+	if res == nil || !res.DeadlineExceeded {
+		t.Fatalf("expected res.DeadlineExceeded = true, got %+v (err=%v)", res, err)
+	}
+	if len(res.OutputEnvelope) == 0 {
+		t.Fatal("expected non-empty OutputEnvelope for timed out scanner")
+	}
+
+	env, err := adapters.DecodeOutputEnvelope(res.OutputEnvelope)
+	if err != nil {
+		t.Fatalf("failed to decode output envelope: %v", err)
+	}
+	if env.Status != adapters.StatusTimedOut {
+		t.Errorf("env.Status = %q, want %q", env.Status, adapters.StatusTimedOut)
+	}
+	if env.ExitCode == nil || *env.ExitCode != -1 {
+		t.Errorf("env.ExitCode = %v, want -1", env.ExitCode)
+	}
+	hasDeadlineDiag := false
+	for _, diag := range env.Diagnostics {
+		if diag.Code == "DEADLINE_EXCEEDED" && diag.Level == "error" {
+			hasDeadlineDiag = true
+			break
+		}
+	}
+	if !hasDeadlineDiag {
+		t.Errorf("missing DEADLINE_EXCEEDED diagnostic: %+v", env.Diagnostics)
+	}
+}
+
+func TestExecutePipelineAbortsWhenAssessmentDeadlineExceeded(t *testing.T) {
+	registry := adapters.NewRegistry()
+	if err := registerInProcess(registry, adapters.ScannerHTTPPreflight); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerInProcess(registry, adapters.ScannerTLSAssessor); err != nil {
+		t.Fatal(err)
+	}
+
+	metricsReg := metrics.NewRegistry()
+	fakeExec := sandbox.NewFake()
+	cfg := Config{
+		WorkerID: "test-worker",
+		Executor: fakeExec,
+		Metrics:  metricsReg,
+	}
+
+	orch := NewOrchestrator(registry, fakeExec, nil, nil, metricsReg, zap.NewNop())
+
+	// Set task hard deadline to 1 nanosecond (already expired before pipeline runs)
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      JobTypeAssessment,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileStandard,
+		HardDeadline: time.Nanosecond,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	defer cancel()
+	time.Sleep(2 * time.Millisecond) // ensure context expires
+
+	res, err := orch.ExecutePipeline(ctx, zap.NewNop(), task, cfg)
+	if err == nil {
+		t.Fatal("expected execution error when assessment deadline is expired")
+	}
+	if res == nil || !res.DeadlineExceeded {
+		t.Fatalf("expected res.DeadlineExceeded=true, got %+v", res)
+	}
+
+	snap := metricsReg.Snapshot()
+	if snap.ResourceViolations[metrics.ViolationDeadline] == 0 {
+		t.Errorf("expected ViolationDeadline metric incremented, got %d", snap.ResourceViolations[metrics.ViolationDeadline])
+	}
+
+	env, err := adapters.DecodeOutputEnvelope(res.OutputEnvelope)
+	if err != nil {
+		t.Fatalf("failed to decode pipeline output envelope: %v", err)
+	}
+	if env.Status != adapters.StatusTimedOut {
+		t.Errorf("env.Status = %q, want %q", env.Status, adapters.StatusTimedOut)
+	}
+}
+
+func TestScannerDeadlineRespectsAssessmentRemainingTime(t *testing.T) {
+	registry := adapters.NewRegistry()
+	if err := registerStub(registry); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	fakeExec := sandbox.NewFake()
+	cfg := Config{
+		WorkerID: "test-worker",
+		Executor: fakeExec,
+	}
+
+	orch := NewOrchestrator(registry, fakeExec, nil, nil, nil, zap.NewNop())
+
+	// Scanner default deadline for Nuclei is 10 minutes (600s).
+	// Assessment remaining deadline is 5 seconds.
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      adapters.ScannerNuclei,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileDeep,
+		HardDeadline: 5 * time.Second,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	res, err := orch.ExecuteScanner(ctx, zap.NewNop(), task, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res == nil {
+		t.Fatal("expected non-nil result")
+	}
+
+	// Verify the spec deadline received by executor did not exceed 5 seconds
+	if fakeExec.Last.Deadline > 5*time.Second {
+		t.Errorf("expected spec.Deadline <= 5s, got %v", fakeExec.Last.Deadline)
 	}
 }

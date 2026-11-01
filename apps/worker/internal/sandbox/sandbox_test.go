@@ -367,3 +367,26 @@ func TestEgressProxySpecValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestFakeExecutorSimulatesDeadlineTimeout(t *testing.T) {
+	spec := validSpec()
+	fake := NewFake()
+	fake.Delay = 50 * time.Millisecond
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	res, err := fake.Execute(ctx, spec)
+	if err == nil {
+		t.Fatal("expected execution error on context timeout")
+	}
+	if !errors.Is(err, ErrDeadlineExceeded) {
+		t.Fatalf("expected ErrDeadlineExceeded, got %v", err)
+	}
+	if res == nil || !res.DeadlineExceeded {
+		t.Fatalf("expected DeadlineExceeded=true, got %+v", res)
+	}
+	if res.ExitCode != -1 {
+		t.Fatalf("expected exit code -1, got %d", res.ExitCode)
+	}
+}
