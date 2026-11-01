@@ -1,7 +1,6 @@
 package adapters
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kelvin/kelvin/apps/worker/internal/parserguard"
 )
 
 const maxNucleiReportBytes = 4 << 20
@@ -19,37 +19,57 @@ const maxNucleiFindings = 10000
 
 var nucleiURLQuery = regexp.MustCompile(`(?i)(https?://[^?\s<>]+)\?[^\s<>]+`)
 
+// stringOrSlice handles fields that can be either a string or a slice of strings.
+type stringOrSlice []string
+
+func (s *stringOrSlice) UnmarshalJSON(data []byte) error {
+	var single string
+	if err := json.Unmarshal(data, &single); err == nil {
+		if single != "" {
+			*s = []string{single}
+		}
+		return nil
+	}
+	var multi []string
+	if err := json.Unmarshal(data, &multi); err == nil {
+		*s = multi
+		return nil
+	}
+	return nil
+}
+
 type nucleiJSONLEntry struct {
-	TemplateID string `json:"template-id"`
-	Info       struct {
-		Name           string   `json:"name"`
-		Author         any      `json:"author"`
-		Tags           []string `json:"tags"`
-		Description    string   `json:"description"`
-		Reference      any      `json:"reference"`
-		Severity       string   `json:"severity"`
+	TemplateID  string `json:"template-id"`
+	TemplateURL string `json:"template-url,omitempty"`
+	Info        struct {
+		Name           string        `json:"name"`
+		Author         any           `json:"author,omitempty"`
+		Tags           stringOrSlice `json:"tags,omitempty"`
+		Description    string        `json:"description,omitempty"`
+		Reference      any           `json:"reference,omitempty"`
+		Severity       string        `json:"severity"`
 		Classification struct {
-			CVSSScore float64  `json:"cvss-score"`
-			CVEID     []string `json:"cve-id"`
-			CWEID     []string `json:"cwe-id"`
-		} `json:"classification"`
+			CVSSScore float64       `json:"cvss-score,omitempty"`
+			CVEID     stringOrSlice `json:"cve-id,omitempty"`
+			CWEID     stringOrSlice `json:"cwe-id,omitempty"`
+		} `json:"classification,omitempty"`
 	} `json:"info"`
-	Type             string   `json:"type"`
-	Host             string   `json:"host"`
-	MatchedAt        string   `json:"matched-at"`
-	ExtractedResults []string `json:"extracted-results"`
-	Request          string   `json:"request"`
-	Response         string   `json:"response"`
-	IP               string   `json:"ip"`
-	Timestamp        string   `json:"timestamp"`
-	CurlCommand      string   `json:"curl-command"`
-	MatcherName      string   `json:"matcher-name"`
+	Type             string        `json:"type,omitempty"`
+	Host             string        `json:"host,omitempty"`
+	MatchedAt        string        `json:"matched-at,omitempty"`
+	ExtractedResults stringOrSlice `json:"extracted-results,omitempty"`
+	Request          string        `json:"request,omitempty"`
+	Response         string        `json:"response,omitempty"`
+	IP               string        `json:"ip,omitempty"`
+	Timestamp        string        `json:"timestamp,omitempty"`
+	CurlCommand      string        `json:"curl-command,omitempty"`
+	MatcherName      string        `json:"matcher-name,omitempty"`
 }
 
 // NormalizeNucleiReport converts bounded Nuclei JSONL output into
 // Kelvin's output envelope. Target identity comes from the validated task,
 // never from scanner-controlled report fields. Raw request/response and URLs
-// are sanitized and strictly bound.
+// are sanitized, scope-checked, and strictly bound.
 func NormalizeNucleiReport(task Task, raw []byte, scannerVersion, templateCatalogVersion, templateCatalogDigest string, started, completed time.Time) (Result, error) {
 	if err := ValidateTask(task); err != nil {
 		return Result{}, err
@@ -62,6 +82,12 @@ func NormalizeNucleiReport(task Task, raw []byte, scannerVersion, templateCatalo
 	}
 	if len(raw) > maxNucleiReportBytes {
 		return Result{}, fmt.Errorf("adapters: Nuclei report exceeds %d bytes", maxNucleiReportBytes)
+	}
+
+	if len(raw) > 0 {
+		if err := parserguard.ValidatePayload(raw); err != nil {
+			return Result{}, fmt.Errorf("%w: invalid Nuclei payload: %v", ErrMalformedOutput, err)
+		}
 	}
 
 	target, err := url.Parse(task.Target)
@@ -77,43 +103,62 @@ func NormalizeNucleiReport(task Task, raw []byte, scannerVersion, templateCatalo
 	}
 
 	findings := make([]json.RawMessage, 0)
-	scanner := bufio.NewScanner(bytes.NewReader(raw))
-	// Buffer can handle reasonably large lines up to 1MB per finding
-	buf := make([]byte, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
-
+	diagnostics := make([]ExecutionDiagnostic, 0)
 	lineNum := 0
-	for scanner.Scan() {
-		line := bytes.TrimSpace(scanner.Bytes())
-		if len(line) == 0 {
-			continue
+
+	err = parserguard.ScanBoundedLines(bytes.NewReader(raw), parserguard.MaxLineBytes, func(line []byte) error {
+		trimmed := bytes.TrimSpace(line)
+		if len(trimmed) == 0 {
+			return nil
 		}
 		lineNum++
 		if len(findings) >= maxNucleiFindings {
-			return Result{}, fmt.Errorf("%w: Nuclei finding count exceeds limit", ErrMalformedOutput)
+			return fmt.Errorf("%w: Nuclei finding count exceeds limit", ErrMalformedOutput)
+		}
+
+		if err := parserguard.CheckJSONNestingDepth(trimmed, parserguard.MaxNestingDepth); err != nil {
+			return fmt.Errorf("%w: line %d nesting depth exceeded: %v", ErrMalformedOutput, lineNum, err)
 		}
 
 		var entry nucleiJSONLEntry
-		dec := json.NewDecoder(bytes.NewReader(line))
+		dec := json.NewDecoder(bytes.NewReader(trimmed))
 		if err := dec.Decode(&entry); err != nil {
-			return Result{}, fmt.Errorf("%w: line %d is not valid JSON: %v", ErrMalformedOutput, lineNum, err)
+			return fmt.Errorf("%w: line %d is not valid JSON: %v", ErrMalformedOutput, lineNum, err)
+		}
+
+		if isProhibitedOrOutOfScope(entry.MatchedAt, target.Hostname()) {
+			diagnostics = append(diagnostics, ExecutionDiagnostic{
+				Level:   "warning",
+				Code:    "NUCLEI_OUT_OF_SCOPE_TARGET",
+				Message: fmt.Sprintf("Line %d reported target %s outside authorized asset %s", lineNum, entry.MatchedAt, target.Hostname()),
+			})
 		}
 
 		finding, include, err := nucleiEntryFinding(entry, target.Hostname(), scannerVersion, started)
 		if err != nil {
-			return Result{}, fmt.Errorf("%w: invalid Nuclei record on line %d: %v", ErrMalformedOutput, lineNum, err)
+			return fmt.Errorf("%w: invalid Nuclei record on line %d: %v", ErrMalformedOutput, lineNum, err)
 		}
 		if include {
 			findings = append(findings, finding)
 		}
-	}
+		return nil
+	})
 
-	if err := scanner.Err(); err != nil {
-		return Result{}, fmt.Errorf("%w: error reading Nuclei output: %v", ErrMalformedOutput, err)
+	if err != nil {
+		return Result{}, err
 	}
 
 	catVerJSON, _ := json.Marshal(templateCatalogVersion)
 	catDigestJSON, _ := json.Marshal(templateCatalogDigest)
+
+	status := StatusCompleted
+	for _, d := range diagnostics {
+		if d.Level == "warning" {
+			status = StatusCompletedWithWarnings
+			break
+		}
+	}
+
 	result := Result{
 		SchemaVersion: OutputEnvelopeVersion,
 		Metadata: OutputMetadata{
@@ -128,13 +173,17 @@ func NormalizeNucleiReport(task Task, raw []byte, scannerVersion, templateCatalo
 			CompletedAt:            completed,
 			CorrelationID:          task.CorrelationID,
 		},
-		Status:          StatusCompleted,
+		Status:          status,
 		ExitCode:        intPointer(0),
 		DurationMS:      completed.Sub(started).Milliseconds(),
 		Findings:        findings,
-		Diagnostics:     []ExecutionDiagnostic{},
+		Diagnostics:     diagnostics,
 		RawArtifacts:    RawArtifactReferences{},
-		ScannerMetadata: map[string]json.RawMessage{"nuclei.template_catalog_version": catVerJSON, "nuclei.template_catalog_digest": catDigestJSON},
+		ScannerMetadata: map[string]json.RawMessage{
+			"nuclei.template_catalog_version": catVerJSON,
+			"nuclei.template_catalog_digest":  catDigestJSON,
+			"nuclei.parser_version":           json.RawMessage(`"1.0.0"`),
+		},
 	}
 	if err := result.Validate(); err != nil {
 		return Result{}, fmt.Errorf("%w: normalized Nuclei output is invalid: %v", ErrMalformedOutput, err)
@@ -210,14 +259,52 @@ func nucleiEntryFinding(entry nucleiJSONLEntry, asset, scannerVersion string, di
 		}
 	}
 
-	metadata := map[string]any{}
+	metadata := map[string]any{
+		"nuclei.parser_version": "1.0.0",
+	}
 	if templateID != "" {
 		metadata["nuclei.template_id"] = templateID
 	}
 	if entry.MatcherName != "" {
 		metadata["nuclei.matcher_name"] = nucleiPlainText(entry.MatcherName, 128)
 	}
+	if entry.Type != "" {
+		metadata["nuclei.type"] = nucleiPlainText(entry.Type, 64)
+	}
+	if len(entry.ExtractedResults) > 0 {
+		cleanResults := make([]string, 0, len(entry.ExtractedResults))
+		for _, r := range entry.ExtractedResults {
+			clean := nucleiPlainText(r, 256)
+			if clean != "" {
+				cleanResults = append(cleanResults, clean)
+			}
+		}
+		if len(cleanResults) > 0 {
+			metadata["nuclei.extracted_results"] = cleanResults
+		}
+	}
 	metadata["kelvin.severity_native"] = strings.ToLower(strings.TrimSpace(entry.Info.Severity))
+
+	evidenceList := []map[string]any{
+		{
+			"type":             "LOG",
+			"content_type":     "text/plain",
+			"content_redacted": nucleiPlainText(title, 2048),
+			"size_bytes":       len(title),
+			"redacted_fields":  []string{"request_headers", "response_body", "matched_at_url"},
+		},
+	}
+
+	if entry.CurlCommand != "" {
+		sanitizedCurl := nucleiPlainText(entry.CurlCommand, 2048)
+		evidenceList = append(evidenceList, map[string]any{
+			"type":             "LOG",
+			"content_type":     "text/plain",
+			"content_redacted": sanitizedCurl,
+			"size_bytes":       len(sanitizedCurl),
+			"redacted_fields":  []string{"curl_command_args"},
+		})
+	}
 
 	finding := map[string]any{
 		"schema_version": "1.0",
@@ -228,17 +315,13 @@ func nucleiEntryFinding(entry nucleiJSONLEntry, asset, scannerVersion string, di
 		"vulnerability":  vulnerability,
 		"description":    nucleiPlainText(entry.Info.Description, 8192),
 		"remediation":    map[string]any{"summary": "Review the identified template match and remediate according to vendor guidelines."},
-		"evidence": []map[string]any{
-			{
-				"type":             "LOG",
-				"content_type":     "text/plain",
-				"content_redacted": nucleiPlainText(title, 2048),
-				"size_bytes":       len(title),
-				"redacted_fields":  []string{"request_headers", "response_body", "matched_at_url"},
-			},
+		"evidence":       evidenceList,
+		"scanner": map[string]string{
+			"name":            ScannerNuclei,
+			"adapter_version": "1.0.0",
+			"engine_version":  scannerVersion,
 		},
-		"scanner":      map[string]string{"name": ScannerNuclei, "adapter_version": "1.0.0", "engine_version": scannerVersion},
-		"scanner_meta": metadata,
+		"scanner_meta":  metadata,
 		"discovered_at": discovered.UTC().Format(time.RFC3339Nano),
 	}
 
@@ -247,6 +330,25 @@ func nucleiEntryFinding(entry nucleiJSONLEntry, asset, scannerVersion string, di
 		return nil, false, err
 	}
 	return encoded, true, nil
+}
+
+func isProhibitedOrOutOfScope(matchedAt, approvedHostname string) bool {
+	if matchedAt == "" {
+		return false
+	}
+	u, err := url.Parse(matchedAt)
+	if err != nil || u.Hostname() == "" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "169.254.169.254" || host == "metadata.google.internal" || host == "127.0.0.1" || host == "localhost" {
+		return true
+	}
+	approved := strings.ToLower(approvedHostname)
+	if host != approved && !strings.HasSuffix(host, "."+approved) {
+		return true
+	}
+	return false
 }
 
 func nucleiPlainText(raw string, limit int) string {
