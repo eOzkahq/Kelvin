@@ -83,17 +83,18 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [ ] An approved scanner selection matrix exists.
-- [ ] Each selected scanner has a documented purpose and capability boundary.
-- [ ] Licensing and distribution considerations are documented.
-- [ ] Default MVP scanning behavior is explicitly defined as non-intrusive and bounded.
-- [ ] Deferred integrations are documented separately.
+- [x] An approved scanner selection matrix exists.
+- [x] Each selected scanner has a documented purpose and capability boundary.
+- [x] Licensing and distribution considerations are documented.
+- [x] Default MVP scanning behavior is explicitly defined as non-intrusive and bounded.
+- [x] Deferred integrations are documented separately.
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- MVP Scanner Selection Matrix: [`docs/architecture/MVP_SCANNER_SELECTION.md`](../../../docs/architecture/MVP_SCANNER_SELECTION.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
