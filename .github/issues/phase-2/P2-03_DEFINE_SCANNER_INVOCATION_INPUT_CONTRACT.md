@@ -46,17 +46,19 @@ Define exactly what information a scanner receives when KELVIN requests an asses
 
 ## ✅ Acceptance Criteria
 
-- [ ] A versioned execution input contract exists.
-- [ ] Required and optional fields are documented.
-- [ ] Invalid or incomplete inputs are rejected.
-- [ ] Inputs cannot override Phase 1 authorization or scope restrictions.
-- [ ] Contract tests cover valid and invalid payloads.
+- [x] A versioned execution input contract exists.
+- [x] Required and optional fields are documented.
+- [x] Invalid or incomplete inputs are rejected.
+- [x] Inputs cannot override Phase 1 authorization or scope restrictions.
+- [x] Contract tests cover valid and invalid payloads.
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- Scanner Invocation Input Contract: [`docs/architecture/SCANNER_INVOCATION_INPUT.md`](../../../docs/architecture/SCANNER_INVOCATION_INPUT.md)
+- Machine-readable schema: [`packages/schemas/scanner-invocation.v1.json`](../../../packages/schemas/scanner-invocation.v1.json)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
