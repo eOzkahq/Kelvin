@@ -1,0 +1,14 @@
+services:
+  postgres:
+    build:
+      context: ./deploy/postgres
+      dockerfile: Dockerfile.pgbackrest
+    command: ["postgres", "-c", "wal_level=replica", "-c", "archive_mode=on", "-c", "archive_timeout=300s", "-c", "archive_command=pgbackrest --stanza=kelvin archive-push %p"]
+    environment:
+      PGBACKREST_REPO1_CIPHER_PASS: ${PGBACKREST_REPO1_CIPHER_PASS:?Set a strong unique backup encryption passphrase}
+    volumes:
+      - ./deploy/postgres/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+      - pgbackrest_repo:/var/lib/pgbackrest
+volumes:
+  pgbackrest_repo:
+    name: kelvin_pgbackrest_repo
