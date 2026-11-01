@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -49,12 +50,24 @@ func (s stubAdapter) VerifyRuntimeVersion(ctx context.Context) (adapters.Runtime
 	if err := ctx.Err(); err != nil {
 		return adapters.RuntimeVersionInfo{}, err
 	}
-	return adapters.RuntimeVersionInfo{ScannerVersion: s.Version(), AdapterVersion: s.Version()}, nil
+	digest := "sha256:" + strings.Repeat("a", 64)
+	return adapters.RuntimeVersionInfo{ScannerVersion: s.Version(), AdapterVersion: s.Version(), ImageReference: "test/scanner@" + digest, ImageDigest: digest}, nil
 }
 func (s stubAdapter) Initialize(context.Context, *zap.Logger) error { return nil }
 func (s stubAdapter) ValidateConfig(json.RawMessage) error          { return nil }
 func (s stubAdapter) Capabilities() adapters.Capabilities {
-	return adapters.Capabilities{SupportedTargetTypes: []string{"url"}, CheckCategories: []string{"passive"}}
+	return adapters.Capabilities{SupportedTargetTypes: []string{"url"}, CheckCategories: []string{"passive"}, RequiresSandbox: true}
+}
+
+func registerStub(registry *adapters.Registry) error {
+	adapter := stubAdapter{name: "stub"}
+	caps := adapter.Capabilities()
+	digest := "sha256:" + strings.Repeat("a", 64)
+	return registry.RegisterAdapter(adapters.Metadata{
+		ID: "stub", DisplayName: "Stub", Version: "1.0.0",
+		SupportedTargets: []string{"url"}, Capabilities: caps, ConfigVersion: adapters.ScannerConfigVersion,
+		VersionPolicy: adapters.VersionPolicy{ScannerVersion: "1.0.0", ImageReference: "test/scanner@" + digest, ImageDigest: digest},
+	}, func() adapters.ScannerAdapter { return adapter })
 }
 func (s stubAdapter) Execute(context.Context, adapters.Task) (adapters.Result, error) {
 	return adapters.Result{}, nil
@@ -86,7 +99,7 @@ func waitEvent(t *testing.T, q *recordingQueue) {
 
 func TestRunProcessesRegisteredJob(t *testing.T) {
 	q, registry := newRecordingQueue(), adapters.NewRegistry()
-	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
+	if err := registerStub(registry); err != nil {
 		t.Fatal(err)
 	}
 	executor := sandbox.NewFake().WithResult(sandbox.Result{ExitCode: 0, Findings: schemas.MustRead("fixtures/positive/nmap.tls-cbc.json"), Duration: time.Second})
@@ -122,7 +135,7 @@ func TestRunRejectsUnknownAdapter(t *testing.T) {
 
 func TestRunRejectsInvalidTenant(t *testing.T) {
 	q, registry := newRecordingQueue(), adapters.NewRegistry()
-	if err := registry.Register(stubAdapter{name: "stub"}); err != nil {
+	if err := registerStub(registry); err != nil {
 		t.Fatal(err)
 	}
 	cancel, done := runWorker(t, q, registry, sandbox.NewFake())

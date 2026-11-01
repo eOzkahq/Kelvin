@@ -54,7 +54,7 @@ Ensure KELVIN runs known, compatible scanner versions and can identify exactly w
 - [x] Unsupported versions prevent execution and mark the scanner unavailable.
 - [x] Upgrade procedures are documented.
 
-The policy and runtime checks are implemented. Concrete production pins for ZAP, Nuclei, and its catalog remain pending reviewed runtime artifacts from P2-08; external scanners cannot be enabled without those immutable pins.
+The policy and runtime checks are implemented. P2-08 now provides reproducible image build definitions; promoted image pins and the reviewed Nuclei catalog digest are still pending, so external scanners cannot be enabled without those immutable artifacts.
 
 ---
 

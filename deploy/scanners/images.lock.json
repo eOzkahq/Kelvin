@@ -1,0 +1,25 @@
+{
+  "schema_version": "1",
+  "status": "not-released",
+  "images": {
+    "zap": {
+      "upstream": "ghcr.io/zaproxy/zaproxy:stable",
+      "upstream_digest": null,
+      "version": null,
+      "kelvin_image": null,
+      "kelvin_digest": null
+    },
+    "nuclei": {
+      "upstream": "projectdiscovery/nuclei",
+      "upstream_digest": null,
+      "version": null,
+      "distroless_base": null,
+      "distroless_digest": null,
+      "kelvin_image": null,
+      "kelvin_digest": null,
+      "template_catalog_id": "kelvin.safe.web.v1",
+      "template_catalog_digest": null
+    }
+  },
+  "release_note": "Populate only from a reviewed build workflow run. No scanner image or template catalog is certified by this manifest."
+}
