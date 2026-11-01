@@ -33,6 +33,101 @@ func TestNormalizeZAPReportCreatesCanonicalEnvelopeWithoutTrustingInstanceURLs(t
 	}
 }
 
+func TestNormalizeZAPReportTaxonomyAndNumericConfidence(t *testing.T) {
+	task := Task{
+		JobID:        "11111111-1111-1111-1111-111111111111",
+		AssessmentID: "22222222-2222-2222-2222-222222222222",
+		TenantID:     "33333333-3333-3333-3333-333333333333",
+		Scanner:      ScannerZAPBaseline,
+		Target:       "https://approved.example",
+		ProfileID:    "kelvin.profile.standard.v1",
+		HardDeadline: time.Minute,
+	}
+
+	report := []byte(`{
+		"@version": "2.16.1",
+		"site": [{
+			"alerts": [
+				{
+					"pluginid": "40012",
+					"alert": "Cross Site Scripting (Reflected)",
+					"riskcode": "3",
+					"confidence": "3",
+					"desc": "Cross site scripting vulnerability detected",
+					"solution": "Sanitize and encode all user supplied input",
+					"cweid": "79",
+					"wascid": "8",
+					"sourceid": "1",
+					"count": "2"
+				},
+				{
+					"pluginid": "10038",
+					"alert": "Content Security Policy (CSP) Header Not Set",
+					"riskcode": "1",
+					"confidence": "2",
+					"desc": "Content Security Policy (CSP) is an added layer of security",
+					"solution": "Ensure CSP is properly configured",
+					"cweid": "16",
+					"wascid": "15"
+				}
+			]
+		}]
+	}`)
+
+	now := time.Date(2026, 11, 1, 1, 0, 0, 0, time.UTC)
+	result, err := NormalizeZAPReport(task, report, "2.16.1", now, now.Add(2*time.Second))
+	if err != nil {
+		t.Fatalf("NormalizeZAPReport failed: %v", err)
+	}
+
+	if len(result.Findings) != 2 {
+		t.Fatalf("expected 2 findings, got %d", len(result.Findings))
+	}
+
+	var finding1 map[string]any
+	if err := json.Unmarshal(result.Findings[0], &finding1); err != nil {
+		t.Fatalf("failed to unmarshal finding 1: %v", err)
+	}
+
+	if finding1["severity"] != "HIGH" {
+		t.Errorf("expected severity HIGH, got %v", finding1["severity"])
+	}
+	if finding1["confidence"] != 0.9 {
+		t.Errorf("expected confidence 0.9 for numeric confidence '3', got %v", finding1["confidence"])
+	}
+
+	vuln1, ok := finding1["vulnerability"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected vulnerability map in finding 1")
+	}
+	if vuln1["cwe_id"] != "CWE-79" {
+		t.Errorf("expected CWE-79, got %v", vuln1["cwe_id"])
+	}
+	if vuln1["wasc_id"] != "WASC-8" {
+		t.Errorf("expected WASC-8, got %v", vuln1["wasc_id"])
+	}
+
+	meta1, ok := finding1["scanner_meta"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected scanner_meta map in finding 1")
+	}
+	if meta1["zap.plugin_id"] != "40012" {
+		t.Errorf("expected zap.plugin_id 40012, got %v", meta1["zap.plugin_id"])
+	}
+	if meta1["zap.source_id"] != "1" {
+		t.Errorf("expected zap.source_id 1, got %v", meta1["zap.source_id"])
+	}
+	if meta1["zap.alert_count"] != "2" {
+		t.Errorf("expected zap.alert_count 2, got %v", meta1["zap.alert_count"])
+	}
+
+	for i, f := range result.Findings {
+		if err := ValidateFindings(f); err != nil {
+			t.Errorf("finding %d failed validation: %v", i, err)
+		}
+	}
+}
+
 func TestNormalizeZAPReportRejectsMalformedAndUnboundedReports(t *testing.T) {
 	task := Task{JobID: "11111111-1111-1111-1111-111111111111", AssessmentID: "22222222-2222-2222-2222-222222222222", TenantID: "33333333-3333-3333-3333-333333333333", Scanner: ScannerZAPBaseline, Target: "https://approved.example", ProfileID: "standard", HardDeadline: time.Minute}
 	for _, raw := range [][]byte{[]byte(`{`), []byte(`{"site":[]} {}`), make([]byte, maxZAPReportBytes+1)} {
