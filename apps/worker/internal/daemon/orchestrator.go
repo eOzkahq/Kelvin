@@ -13,13 +13,16 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/classification"
 	"github.com/kelvin/kelvin/apps/worker/internal/egress"
 	"github.com/kelvin/kelvin/apps/worker/internal/limits"
+	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/pacing"
 	"github.com/kelvin/kelvin/apps/worker/internal/progress"
+	"github.com/kelvin/kelvin/apps/worker/internal/provenance"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/retry"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/apps/worker/internal/scannerprocess"
+	"github.com/kelvin/kelvin/apps/worker/internal/scopevalidator"
 	"github.com/kelvin/kelvin/apps/worker/internal/workspace"
 	"go.uber.org/zap"
 )
@@ -45,6 +48,7 @@ type AssessmentPipelineReport struct {
 	PhaseResults       []PhaseResult                    `json:"phase_results"`
 	TotalFindings      int                              `json:"total_findings"`
 	DegradationWarning string                           `json:"degradation_warning,omitempty"`
+	ManifestDigest     string                           `json:"manifest_digest,omitempty"`
 	Envelopes          []adapters.ScannerOutputEnvelope `json:"envelopes"`
 }
 
@@ -186,6 +190,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		pub = cfg.ProgressPublisher
 	}
 	tracker := progress.NewTracker(task.AssessmentID, task.JobID, task.TenantID, task.Scanner, pub, jobLog)
+	provCollector := provenance.NewCollector(task.TenantID, task.AssessmentID, task.JobID, task.Scanner, task.CorrelationID, 0, jobLog)
 	_ = tracker.TransitionTo(ctx, progress.StagePreflight, "running scope checks and pre-execution verification")
 
 	if errors.Is(ctx.Err(), context.Canceled) {
@@ -295,6 +300,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 			_ = tracker.ReportProgress(execCtxWithReporter, progress.NewIndeterminateProgress(fmt.Sprintf("executing scanner %q", task.Scanner)))
 		}
 
+		provCollector.RecordStart([]string{task.Scanner}, nil)
 		res, err := adapter.Execute(execCtxWithReporter, task)
 		isCancelled := errors.Is(ctx.Err(), context.Canceled) ||
 			errors.Is(execCtx.Err(), context.Canceled) ||
@@ -485,6 +491,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		_ = tracker.ReportProgress(execCtxWithReporter, progress.NewIndeterminateProgress(fmt.Sprintf("executing scanner %q", task.Scanner)))
 	}
 
+	provCollector.RecordStart(spec.Invocation.Args, spec.Env)
 	result, execErr := cfg.Executor.Execute(execCtxWithReporter, spec)
 	if result != nil && result.OOMKilled {
 		if cfg.Metrics != nil {
@@ -567,6 +574,14 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 			zap.Int("violations_count", egressProxy.ViolationsCount()),
 		)
 	}
+
+	exitCode := 0
+	duration := time.Duration(0)
+	if result != nil {
+		exitCode = result.ExitCode
+		duration = result.Duration
+	}
+	provCollector.RecordCompletion(exitCode, duration, 0, 0, 0)
 
 	if execErr != nil || (result != nil && result.ExitCode != 0) {
 		egressBlocked := egressProxy != nil && egressProxy.ViolationsCount() > 0
@@ -892,12 +907,57 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 	assessmentCtx, cancelAssessment := context.WithTimeout(ctx, assessmentDeadline)
 	defer cancelAssessment()
 
+	manifestBuilder := manifest.NewBuilder(task.TenantID, task.AssessmentID, task.JobID, task.Target, task.ProfileID)
+	manifestBuilder.SetStartedAt(started)
+	manifestBuilder.SetResourceLimits(manifest.ResourceLimits{
+		HardDeadlineSeconds: int64(assessmentDeadline.Seconds()),
+	})
+	for _, phase := range profile.DefaultScannerOrder {
+		for _, scID := range phase.Scanners {
+			scVer := "1.0.0"
+			adVer := "1.0.0"
+			imgDigest := ""
+			rulesetCat := ""
+			rulesetDig := ""
+			if meta, ok := o.registry.Metadata(scID); ok {
+				if meta.VersionPolicy.ScannerVersion != "" {
+					scVer = meta.VersionPolicy.ScannerVersion
+				}
+				imgDigest = meta.VersionPolicy.ImageDigest
+				rulesetCat = meta.VersionPolicy.TemplateCatalogVersion
+				rulesetDig = meta.VersionPolicy.TemplateCatalogDigest
+			}
+			if a, ok := o.registry.Lookup(scID); ok {
+				adVer = a.Version()
+				if scVer == "" {
+					scVer = a.Version()
+				}
+			}
+			manifestBuilder.AddScanner(manifest.ScannerComponent{
+				ScannerID:      scID,
+				ScannerVersion: scVer,
+				AdapterVersion: adVer,
+				ImageDigest:    imgDigest,
+				RulesetCatalog: rulesetCat,
+				RulesetDigest:  rulesetDig,
+			})
+		}
+	}
+	if execManifest, mErr := manifestBuilder.Build(); mErr == nil {
+		report.ManifestDigest = execManifest.Digest
+		jobLog.Info("recorded immutable assessment execution manifest",
+			zap.String("manifest_digest", execManifest.Digest),
+			zap.Int("scanners_count", len(execManifest.Scanners)),
+		)
+	}
+
 	assessmentTimedOut := false
 	assessmentCancelled := false
 	prevPhaseSucceeded := true
 	var scannersFailed []string
 	var scannersSkipped []string
 	allFindings := []json.RawMessage{}
+	var scopeViolations []scopevalidator.ScopeViolation
 
 	totalPhases := int64(len(profile.DefaultScannerOrder))
 	for _, phase := range profile.DefaultScannerOrder {
@@ -1041,6 +1101,13 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			if len(subResult.OutputEnvelope) > 0 {
 				env, err := adapters.DecodeOutputEnvelope(subResult.OutputEnvelope)
 				if err == nil {
+					if scopeVal, vErr := scopevalidator.NewFromTarget(task.Target, jobLog); vErr == nil {
+						accepted, violations, _ := scopeVal.FilterFindings(assessmentCtx, env.Findings)
+						env.Findings = accepted
+						if len(violations) > 0 {
+							scopeViolations = append(scopeViolations, violations...)
+						}
+					}
 					report.Envelopes = append(report.Envelopes, env)
 					report.TotalFindings += len(env.Findings)
 					allFindings = append(allFindings, env.Findings...)
@@ -1148,6 +1215,10 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 				}
 			}
 		}
+	}
+
+	if len(scopeViolations) > 0 {
+		diagnostics = append(diagnostics, scopevalidator.ToDiagnostics(scopeViolations)...)
 	}
 
 	report.OverallStatus = status
