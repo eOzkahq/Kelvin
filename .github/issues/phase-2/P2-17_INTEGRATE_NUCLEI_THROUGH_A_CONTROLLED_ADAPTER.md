@@ -49,11 +49,19 @@ Integrate Nuclei as an additional scanner while preventing arbitrary or unsafe t
 
 ## ✅ Acceptance Criteria
 
-- [ ] Nuclei executes through the KELVIN worker architecture.
-- [ ] Only approved templates can be selected.
-- [ ] Scanner metadata is captured.
-- [ ] Output follows the common envelope.
-- [ ] Cancellation, timeouts, and malformed output are tested.
+- [x] Nuclei executes through the KELVIN worker architecture.
+- [x] Only approved templates can be selected.
+- [x] Scanner metadata is captured.
+- [x] Output follows the common envelope.
+- [x] Cancellation, timeouts, and malformed output are tested.
+
+## Implementation Notes
+
+- Added `NucleiAdapter` implementing the `ScannerAdapter` contract in [`apps/worker/internal/adapters/nuclei_adapter.go`](../../../apps/worker/internal/adapters/nuclei_adapter.go).
+- Config validation enforces approved template catalog `kelvin.safe.web.v1`, allowlisted severity levels, request rate, and concurrency ceilings.
+- Output normalization converts Nuclei JSONL streams to Kelvin's Canonical Finding Schema (`finding.v1.json`) and common scanner output envelope while validating targets against assessment task scope and redacting raw exchange data.
+- Built-in tests verify offline execution, malformed record handling, size limits, and runtime version verification.
+- Documented controlled adapter architecture in [`docs/architecture/NUCLEI_ADAPTER_INTEGRATION.md`](../../../docs/architecture/NUCLEI_ADAPTER_INTEGRATION.md).
 
 ---
 
@@ -64,3 +72,4 @@ Integrate Nuclei as an additional scanner while preventing arbitrary or unsafe t
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- Nuclei Adapter Integration: [`docs/architecture/NUCLEI_ADAPTER_INTEGRATION.md`](../../../docs/architecture/NUCLEI_ADAPTER_INTEGRATION.md)
