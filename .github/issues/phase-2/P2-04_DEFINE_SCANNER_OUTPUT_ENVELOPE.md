@@ -71,11 +71,11 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [ ] A documented, versioned output contract exists.
-- [ ] All adapters use the common envelope.
-- [ ] Failure and partial-result states are unambiguous.
-- [ ] Raw scanner output cannot be mistaken for normalized findings.
-- [ ] Contract tests validate serialization and deserialization.
+- [x] A documented, versioned output contract exists.
+- [x] All adapters use the common envelope.
+- [x] Failure and partial-result states are unambiguous.
+- [x] Raw scanner output cannot be mistaken for normalized findings.
+- [x] Contract tests validate serialization and deserialization.
 
 ---
 
@@ -85,4 +85,6 @@ flowchart TD
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
+- Scanner Output Envelope: [`docs/architecture/SCANNER_OUTPUT_ENVELOPE.md`](../../../docs/architecture/SCANNER_OUTPUT_ENVELOPE.md)
+- Machine-readable schema: [`packages/schemas/scanner-output.v1.json`](../../../packages/schemas/scanner-output.v1.json)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)

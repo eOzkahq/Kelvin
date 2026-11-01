@@ -19,7 +19,7 @@ func validContractTask() Task {
 }
 
 func TestReferenceAdapterLifecycle(t *testing.T) {
-	want := Result{ExitCode: 0, Findings: []byte(`{"sample":true}`)}
+	want := validOutputEnvelope()
 	a := &ReferenceAdapter{AdapterName: "reference", Caps: Capabilities{CheckCategories: []string{"passive"}}, Run: func(context.Context, Task) (Result, error) { return want, nil }}
 	if _, err := a.Result(); !errors.Is(err, ErrNoResult) {
 		t.Fatalf("Result before Execute error = %v, want ErrNoResult", err)
@@ -45,19 +45,19 @@ func TestReferenceAdapterLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ExitCode != 0 {
+	if got.Status != StatusCompleted {
 		t.Fatalf("Execute result = %+v", got)
 	}
 	stored, err := a.Result()
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored.Findings[0] = 'x'
+	stored.Findings[0][0] = 'x'
 	storedAgain, err := a.Result()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(storedAgain.Findings) != string(want.Findings) {
+	if string(storedAgain.Findings[0]) != string(want.Findings[0]) {
 		t.Fatalf("Result returned aliased findings: %q", storedAgain.Findings)
 	}
 	if err := a.Health(context.Background()); err != nil {
