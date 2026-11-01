@@ -24,30 +24,6 @@ Ensure cancelling an assessment terminates the associated scanner process and it
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-sequenceDiagram
-    participant User as User / API Client
-    participant ControlPlane as API Control Plane
-    participant Redis as Redis Pub/Sub
-    participant Worker as Assessment Worker
-    participant OCI as Container Engine
-
-    User->>ControlPlane: POST /assessments/{id}/cancel
-    ControlPlane->>Redis: Publish Cancel Event (run_id)
-    Redis->>Worker: Deliver Cancellation Signal
-    Worker->>Worker: Cancel Go Context
-    Worker->>OCI: Stop Container (docker stop -t 5 / SIGKILL process group)
-    OCI-->>Worker: Container Terminated
-    Worker->>Worker: Execute Workspace Cleanup
-    Worker->>ControlPlane: Mark Assessment CANCELLED
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Connect existing Phase 1 cancellation semantics to scanner execution.

@@ -24,30 +24,6 @@ Convert structured Nuclei output into KELVIN's internal scanner result represent
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    JSONL["Nuclei JSONL Output File"] --> LineReader["Line-by-Line Streaming Parser"]
-    LineReader --> NucleiEvent["Parse Individual Nuclei Result Event"]
-
-    subgraph NucleiFields ["Nuclei Result Mapping"]
-        N1["template-id / info.name -> title"]
-        N2["info.severity -> unified severity"]
-        N3["matched-at / host -> target URI"]
-        N4["curl-command / extracted-results -> evidence"]
-        N5["info.classification (cve, cwe) -> taxonomy"]
-    end
-
-    NucleiEvent --> NucleiFields
-    NucleiFields --> Normalizer["Map to Kelvin Canonical Finding"]
-    Normalizer --> Dedup["Generate Finding Fingerprint"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Support the approved structured output format.

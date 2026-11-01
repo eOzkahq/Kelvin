@@ -24,26 +24,6 @@ Ensure each scanner execution is bounded by an explicit deadline.
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-stateDiagram-v2
-    [*] --> Scheduled: Scan Context Created
-    Scheduled --> Running: Timer Starts (timeout_seconds)
-    Running --> Success: Execution Completed Before Deadline
-    Running --> SIGTERM_Sent: Deadline Exceeded (Timer Fires)
-    SIGTERM_Sent --> GracePeriod: Wait Grace Period (10s)
-    GracePeriod --> Success: Clean Exit After SIGTERM
-    GracePeriod --> SIGKILL_Sent: Process Unresponsive
-    SIGKILL_Sent --> Terminated: Force Kill Container
-    Terminated --> [*]: Record Status TIMED_OUT
-    Success --> [*]: Record Status COMPLETED
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Define scanner-level and assessment-level execution deadlines.

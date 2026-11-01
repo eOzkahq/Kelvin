@@ -24,23 +24,6 @@ Verify that KELVIN can execute a complete, authorized, bounded assessment throug
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    A["Job Enqueued (Redis)"] --> B["Worker Preflight & Scope Enforcement"]
-    B --> C["Isolated OCI Sandbox Execution\n(Preflight, TLS, ZAP Baseline, Nuclei)"]
-    C --> D["Bounded Output Capture & Staging"]
-    D --> E["Hardened Output Parsers\n(ZAP, Nuclei, Built-ins)"]
-    E --> F["Canonical Normalization & Fingerprinting\n(finding.v1.json)"]
-    F --> G["Execution Manifest & PostgreSQL Persistence"]
-    G --> H["Phase 2 Acceptance Gate\n(End-to-End Test Suite Passed)"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - End-to-End Workflow: Submit assessment with valid Phase 1 profile -> Validate target & scope -> Queue and dispatch via worker -> Execute selected scanner adapters -> Capture progress & diagnostics -> Collect raw output -> Parse and validate scanner results -> Normalize into canonical finding schema -> Persist/hand off accepted results through Phase 1 persistence boundaries.
