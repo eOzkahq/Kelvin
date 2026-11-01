@@ -48,11 +48,25 @@ Connect Phase 1's scan profile model to the actual scanner integrations delivere
 
 ## ✅ Acceptance Criteria
 
-- [ ] Approved profiles can be selected for assessments.
-- [ ] Each profile maps to supported scanner capabilities.
-- [ ] Invalid or unsupported combinations are rejected.
-- [ ] Profile versions are traceable.
-- [ ] Profile execution is covered by tests.
+- [x] Approved profiles can be selected for assessments.
+- [x] Each profile maps to supported scanner capabilities.
+- [x] Invalid or unsupported combinations are rejected.
+- [x] Profile versions are traceable.
+- [x] Profile execution is covered by tests.
+
+---
+
+## 📦 Implementation Details
+
+- **Profile Registry (`apps/worker/internal/adapters/profiles.go`)**:
+  - Implemented `AssessmentProfile`, `ScannerPhase`, and resource ceilings (`ProfileBudget`).
+  - Defined the 3 approved MVP profiles: `kelvin.profile.passive.v1`, `kelvin.profile.standard.v1`, and `kelvin.profile.deep.v1`.
+  - Mapped supported scanner capabilities (`http_preflight`, `tls_assessor`, `http_security_headers`, `zap`, `nuclei`) and phased execution dependencies.
+  - Implemented `GetAssessmentProfile`, `ValidateProfileSelection`, and `ListAssessmentProfiles` with default-deny validation.
+- **Unit Test Coverage (`apps/worker/internal/adapters/profiles_test.go`)**:
+  - Validates profile attributes, budgets, scanner whitelisting, invalid scanner rejection, and dependency phase ordering.
+- **Architecture Documentation**:
+  - [`docs/architecture/MVP_ASSESSMENT_PROFILES.md`](../../../docs/architecture/MVP_ASSESSMENT_PROFILES.md)
 
 ---
 
@@ -63,3 +77,4 @@ Connect Phase 1's scan profile model to the actual scanner integrations delivere
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- MVP Assessment Profiles: [`docs/architecture/MVP_ASSESSMENT_PROFILES.md`](../../../docs/architecture/MVP_ASSESSMENT_PROFILES.md)
