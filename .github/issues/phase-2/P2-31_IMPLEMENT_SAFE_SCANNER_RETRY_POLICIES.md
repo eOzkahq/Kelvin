@@ -24,30 +24,6 @@ Define when scanner execution may be retried without creating uncontrolled repea
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-stateDiagram-v2
-    [*] --> FailureOccurred: Scanner Exits With Error
-    FailureOccurred --> ClassifyError: Evaluate Failure Type
-    ClassifyError --> Transient: Transient (Network Glitch / 503 / Reset)
-    ClassifyError --> NonRetryable: Fatal (Scope Violation / OOM / Config Error)
-    
-    Transient --> CheckAttemptCount: Check Current Retries
-    CheckAttemptCount --> RetryBackoff: Attempts < Max (2)
-    CheckAttemptCount --> NonRetryable: Attempts >= Max
-    
-    RetryBackoff --> Reinvoking: Exponential Backoff Delay
-    Reinvoking --> [*]: Schedule Retry
-    
-    NonRetryable --> AbortAssessment: Mark Job Failed
-    AbortAssessment --> [*]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Define retry policies per scanner and failure category.

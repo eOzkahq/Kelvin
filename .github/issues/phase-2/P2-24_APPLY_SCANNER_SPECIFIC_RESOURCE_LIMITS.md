@@ -24,28 +24,6 @@ Configure and enforce resource constraints for the different scanner runtimes.
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    Config["Scanner Resource Limits Config"] --> Runtime["OCI Cgroups v2 Controller"]
-
-    subgraph Limits ["Applied Resource Limits"]
-        L1["CPU Quota: Max 2.0 Cores (cpu.max)"]
-        L2["Memory Limit: Max 2GB + Swap Disabled (memory.max)"]
-        L3["Max Process Limit: 256 PIDs (pids.max)"]
-        L4["I/O Bandwidth Throttling: Max 50MB/s (io.max)"]
-    end
-
-    Runtime --> Limits
-    Limits --> Sandbox["Sandboxed Scanner Process"]
-    Sandbox --> Mon["Resource Monitoring Watchdog"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Define CPU, memory, process, and temporary-storage limits for each scanner.

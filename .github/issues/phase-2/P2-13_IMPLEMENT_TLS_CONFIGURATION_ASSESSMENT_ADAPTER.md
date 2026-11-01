@@ -24,29 +24,6 @@ Provide a built-in or controlled-tool adapter for evaluating the TLS configurati
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    Init["Initialize TLS Adapter"] --> Connect["Establish TLS Handshake"]
-
-    subgraph Audits ["Cryptographic & Certificate Audits"]
-        A1["Protocol Version: Disallow TLS 1.0 & 1.1"]
-        A2["Cipher Suites: Flag Insecure / CBC / RC4 Ciphers"]
-        A3["Certificate Validity: Expiration & NotBefore Dates"]
-        A4["SAN & Hostname Match Verification"]
-        A5["Issuer Trust & Certificate Authority Chain"]
-    end
-
-    Connect --> Audits
-    Audits --> Normalizer["Aggregate TLS Findings"]
-    Normalizer --> Output["Return Canonical TLS Finding Envelope"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Define the TLS assessment implementation and its dependency strategy.

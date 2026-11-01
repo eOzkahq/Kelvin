@@ -24,31 +24,6 @@ Represent assessments where some scanner integrations succeed while others fail 
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    Assess["Assessment with Multiple Scanners (Preflight, ZAP, Nuclei)"] --> Exec["Execute Scanners"]
-
-    subgraph Results ["Scanner Statuses"]
-        S1["Preflight: SUCCESS (Findings Found)"]
-        S2["ZAP Baseline: SUCCESS (Findings Found)"]
-        S3["Nuclei: FAILED (Timeout / Crash)"]
-    end
-
-    Exec --> Results
-    Results --> Evaluator["Assessment State Evaluator"]
-    Evaluator --> Decision{"All Succeeded?"}
-    Decision -- No --> CheckEssential{"Did Essential Baseline Succeed?"}
-    CheckEssential -- Yes --> MarkPartial["Mark Assessment: PARTIALLY_COMPLETED"]
-    CheckEssential -- No --> MarkFailed["Mark Assessment: FAILED"]
-    MarkPartial --> SaveFindings["Persist Partial Findings with Degradation Warning"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Define how the system handles a profile containing multiple scanners.

@@ -24,31 +24,6 @@ Integrate Nuclei as an additional scanner while preventing arbitrary or unsafe t
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    Worker["Assessment Worker"] --> NucleiAdapter["Nuclei Adapter"]
-    NucleiAdapter --> Guard["Enforce Strict Execution Flags"]
-
-    subgraph Flags ["Sanitized Flags"]
-        F1["-no-interactsh (Disable Out-of-Band Calls)"]
-        F2["-rl (Rate Limit: Max 15 req/sec)"]
-        F3["-c (Max Concurrency: 5)"]
-        F4["-t (Curated Template Directory Only)"]
-        F5["-jsonl (Stream Output to Local File)"]
-    end
-
-    Guard --> Flags
-    Flags --> OCI["Launch Nuclei in Rootless Container"]
-    OCI --> Stream["Capture JSONL Stream"]
-    Stream --> Parser["Nuclei Result Parser"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Implement a Go adapter for the approved Nuclei runtime.

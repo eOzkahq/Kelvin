@@ -188,4 +188,8 @@ func cloneRawMessages(values []json.RawMessage) []json.RawMessage {
 	return cloned
 }
 
+	result.Findings = append([]byte(nil), result.Findings...)
+	return result, nil
+}
+
 var _ ScannerAdapter = (*ReferenceAdapter)(nil)

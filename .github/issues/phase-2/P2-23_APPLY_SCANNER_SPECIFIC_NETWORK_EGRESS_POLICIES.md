@@ -24,29 +24,6 @@ Apply the Phase 1 network isolation architecture to each scanner runtime.
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    Traffic["Scanner Outbound Packet"] --> NetFilter["Kernel Egress Gate (iptables / eBPF / nftables)"]
-
-    subgraph Rules ["Egress Evaluation Rules"]
-        R1["Allow: DNS to Verified Resolver Only"]
-        R2["Deny: RFC 1918 Private Ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)"]
-        R3["Deny: Cloud Metadata Endpoints (169.254.169.254)"]
-        R4["Allow: Explicit Validated In-Scope Target IP:Port"]
-    end
-
-    NetFilter --> Rules
-    Rules --> Decision{"Egress Compliant?"}
-    Decision -- Yes --> Route["Forward to Destination"]
-    Decision -- No --> Drop["DROP Packet & Trigger Security Alarm"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Define network egress requirements for each scanner.

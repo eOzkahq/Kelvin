@@ -24,23 +24,6 @@ Implement a built-in adapter that verifies whether an approved web target is rea
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    Start["Preflight Invocation"] --> Resolve["DNS Resolution with Anti-SSRF"]
-    Resolve --> PinIP{"IP in Valid Public Scope?"}
-    PinIP -- No --> Deny["Abort: Target Resolves to Private/Disallowed IP"]
-    PinIP -- Yes --> TCP["TCP Handshake (Port 80 / 443)"]
-    TCP --> Probe["HTTP HEAD/GET Probe with Bound Timeout"]
-    Probe --> Extract["Record: Status Code, Response Latency, Redirect Flag"]
-    Extract --> Output["Emit Preflight Findings & Host Availability Envelope"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Support approved HTTP and HTTPS targets.

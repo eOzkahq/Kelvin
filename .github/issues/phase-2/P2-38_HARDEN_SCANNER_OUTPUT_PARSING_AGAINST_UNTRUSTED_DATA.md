@@ -24,28 +24,6 @@ Treat scanner output as untrusted input and prevent malformed or malicious outpu
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    RawFile["Untrusted Raw Output (JSON / XML / Text)"] --> Guard["Hardened Parser Ingestion"]
-
-    subgraph HardeningLayers ["Defensive Parsing Layers"]
-        L1["Enforce File Size Limit (Max 50MB)"]
-        L2["Disable XML External Entities (XXE Protection)"]
-        L3["Enforce JSON Recursive Nesting Depth Limit (< 32)"]
-        L4["Strict UTF-8 Validation & Control Char Sanitization"]
-    end
-
-    Guard --> HardeningLayers
-    HardeningLayers --> SafeAST["Parse into Strongly-Typed Go Structs"]
-    SafeAST --> Normalize["Proceed to Canonical Normalization"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Validate input formats before parsing.

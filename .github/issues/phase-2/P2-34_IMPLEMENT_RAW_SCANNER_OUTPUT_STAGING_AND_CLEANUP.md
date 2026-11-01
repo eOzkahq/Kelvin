@@ -24,23 +24,6 @@ Manage raw scanner output before it is validated and normalized.
 
 ---
 
----
-
-## 📐 Architecture & Workflow Diagram
-
-```mermaid
-flowchart TD
-    Scan["Scanner Execution"] --> Stage["Stage Raw Files in Ephemeral Workspace"]
-    Stage --> Parse["Parsers Extract Structured Findings"]
-    Parse --> Upload{"Retain Raw Evidence?"}
-    Upload -- Yes --> Archive["Compress & Upload Raw Artifacts to S3/Blob"]
-    Upload -- No --> Wipe["Wipe Local Staging"]
-    Archive --> Wipe
-    Wipe --> Complete["Assessment Finalized"]
-```
-
----
-
 ## 📋 Detailed Requirements
 
 - Define where raw output is temporarily stored.
