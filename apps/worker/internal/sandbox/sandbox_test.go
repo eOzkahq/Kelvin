@@ -40,6 +40,27 @@ func TestValidateSpecAcceptsHardenedSpec(t *testing.T) {
 	}
 }
 
+func TestZAPReportCaptureIsBoundToFixedZAPReportPath(t *testing.T) {
+	spec := validSpec()
+	spec.Image = "registry.example/zap@sha256:" + strings.Repeat("a", 64)
+	spec.Invocation = ProcessInvocation{Executable: "/zap/zap-baseline.py", Args: []string{"-t", "https://example.com", "-J", "/tmp/kelvin-zap-report.json"}}
+	spec.Labels["scanner"] = "zap"
+	spec.CaptureZAPReport = true
+	if err := spec.Validate(); err != nil {
+		t.Fatalf("fixed ZAP report capture should validate: %v", err)
+	}
+	args := (&OCIExecutor{}).buildArgs(spec)
+	for _, arg := range args {
+		if arg == "--rm" {
+			t.Fatal("container must remain available until report copy completes")
+		}
+	}
+	spec.Invocation.Args[3] = "/tmp/untrusted.json"
+	if err := spec.Validate(); err == nil {
+		t.Fatal("custom ZAP report path should be rejected")
+	}
+}
+
 func TestValidateSpecRejectsRootUser(t *testing.T) {
 	for _, user := range []string{"root", "0", ""} {
 		spec := validSpec()

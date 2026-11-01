@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -59,6 +60,13 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 	select {
 	case err := <-done:
 		result := &Result{Duration: time.Since(start), Stdout: stdout.String(), Stderr: stderr.String()}
+		if spec.CaptureZAPReport {
+			if copyErr := e.captureZAPReport(containerName, result); copyErr != nil {
+				e.removeContainer(containerName)
+				return result, fmt.Errorf("sandbox: capture ZAP report: %w", copyErr)
+			}
+		}
+		e.removeContainer(containerName)
 		if err == nil {
 			return result, nil
 		}
@@ -76,6 +84,7 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 		stop.Env = runtimeEnvironment()
 		_ = stop.Run()
 		cancel()
+		e.removeContainer(containerName)
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
@@ -91,7 +100,11 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 }
 
 func (e *OCIExecutor) buildArgs(spec Spec) []string {
-	args := []string{"run", "--rm", "--user", spec.User, "--cap-drop=ALL", "--entrypoint", spec.Invocation.Executable}
+	args := []string{"run"}
+	if !spec.CaptureZAPReport {
+		args = append(args, "--rm")
+	}
+	args = append(args, "--user", spec.User, "--cap-drop=ALL", "--entrypoint", spec.Invocation.Executable)
 	for _, cap := range spec.CapAdd {
 		args = append(args, "--cap-add="+cap)
 	}
@@ -136,6 +149,48 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	args = append(args, spec.Image)
 	args = append(args, spec.Invocation.Args...)
 	return args
+}
+
+func (e *OCIExecutor) captureZAPReport(containerName string, result *Result) error {
+	dir, err := os.MkdirTemp("", "kelvin-zap-report-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	destination := filepath.Join(dir, "report.json")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	args := []string{"cp", containerName + ":/tmp/kelvin-zap-report.json", destination}
+	cmd := exec.CommandContext(ctx, e.runtime, args...)
+	cmd.Env = runtimeEnvironment()
+	var stdout, stderr boundedBuffer
+	stdout.maxBytes, stderr.maxBytes = 16<<10, 16<<10
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("OCI runtime report copy failed: %w", err)
+	}
+	file, err := os.Open(destination)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	content, err := io.ReadAll(io.LimitReader(file, maxCaptureBytes+1))
+	if err != nil {
+		return err
+	}
+	if len(content) == 0 || len(content) > maxCaptureBytes {
+		return fmt.Errorf("report is empty or exceeds %d bytes", maxCaptureBytes)
+	}
+	result.Findings = content
+	return nil
+}
+
+func (e *OCIExecutor) removeContainer(name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, e.runtime, "rm", "--force", name)
+	cmd.Env = runtimeEnvironment()
+	_ = cmd.Run()
 }
 
 type boundedBuffer struct {

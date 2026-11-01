@@ -90,6 +90,9 @@ type Spec struct {
 	Limits          limits.Limits
 	Deadline        time.Duration
 	Labels          map[string]string
+	// CaptureZAPReport asks the executor to copy the fixed baseline JSON report
+	// out of the still-running container before cleanup.
+	CaptureZAPReport bool
 }
 
 func (s Spec) Validate() error {
@@ -104,6 +107,12 @@ func (s Spec) Validate() error {
 	allowedExecutables := map[string]string{"zap": "/zap/zap-baseline.py", "nuclei": "/nuclei"}
 	if expected, ok := allowedExecutables[scanner]; !ok || s.Invocation.Executable != expected {
 		errs = append(errs, "scanner executable is not in the worker allow-list")
+	}
+	if s.CaptureZAPReport && scanner != "zap" {
+		errs = append(errs, "ZAP report capture is only available to the ZAP scanner")
+	}
+	if s.CaptureZAPReport && !hasArgPair(s.Invocation.Args, "-J", "/tmp/kelvin-zap-report.json") {
+		errs = append(errs, "ZAP report capture requires the fixed report path")
 	}
 	if s.User == "" || s.User == "root" || s.User == "0" {
 		errs = append(errs, "container must run as a non-root user")
@@ -158,12 +167,22 @@ func contains(values []string, target string) bool {
 	return false
 }
 
+func hasArgPair(args []string, flag, value string) bool {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == flag && args[i+1] == value {
+			return true
+		}
+	}
+	return false
+}
+
 type Result struct {
 	ExitCode         int
 	Duration         time.Duration
 	Stdout           string
 	Stderr           string
 	Findings         []byte
+	OutputEnvelope   []byte
 	OOMKilled        bool
 	DeadlineExceeded bool
 	Cancelled        bool

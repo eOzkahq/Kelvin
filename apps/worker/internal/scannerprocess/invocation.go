@@ -39,7 +39,7 @@ func Build(task adapters.Task) (sandbox.ProcessInvocation, error) {
 		zapOptions := fmt.Sprintf("-config spider.maxDepth=%d -config spider.maxChildren=%d -config spider.threadCount=%d", config.ZAP.MaxDepth, config.ZAP.MaxURLs, config.MaxConcurrency)
 		return sandbox.ProcessInvocation{Executable: "/zap/zap-baseline.py", Args: []string{
 			"-t", target, "-m", strconv.Itoa(minutes), "-T", strconv.Itoa(minutes),
-			"-I", "-z", zapOptions,
+			"-I", "-J", "/tmp/kelvin-zap-report.json", "-z", zapOptions,
 		}}, nil
 	case adapters.ScannerNuclei:
 		return sandbox.ProcessInvocation{Executable: "/nuclei", Args: []string{

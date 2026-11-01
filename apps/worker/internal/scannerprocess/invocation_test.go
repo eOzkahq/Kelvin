@@ -57,7 +57,7 @@ func TestBuildZAPMapsOnlyBoundedValidatedConfiguration(t *testing.T) {
 	if invocation.Executable != "/zap/zap-baseline.py" {
 		t.Fatalf("executable = %q", invocation.Executable)
 	}
-	want := []string{"-t", "https://example.com", "-m", "3", "-T", "3", "-I", "-z", "-config spider.maxDepth=4 -config spider.maxChildren=80 -config spider.threadCount=2"}
+	want := []string{"-t", "https://example.com", "-m", "3", "-T", "3", "-I", "-J", "/tmp/kelvin-zap-report.json", "-z", "-config spider.maxDepth=4 -config spider.maxChildren=80 -config spider.threadCount=2"}
 	if len(invocation.Args) != len(want) {
 		t.Fatalf("argv = %#v", invocation.Args)
 	}

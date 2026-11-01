@@ -128,6 +128,7 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 	execCtx, cancel := context.WithTimeout(ctx, task.HardDeadline)
 	defer cancel()
 	spec := specFromTask(task, metadata.VersionPolicy.ImageReference, invocation)
+	spec.CaptureZAPReport = task.Scanner == adapters.ScannerZAPBaseline
 	spec.Limits = cfg.Limits
 	if err := spec.Validate(); err != nil {
 		fail(jobLog, q, ctx, job, "sandbox spec violates isolation profile: "+err.Error())
@@ -137,6 +138,20 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		return
 	}
 	result, execErr := cfg.Executor.Execute(execCtx, spec)
+	if task.Scanner == adapters.ScannerZAPBaseline && result != nil && execErr == nil && result.ExitCode == 0 {
+		completed := time.Now().UTC()
+		started := completed.Add(-result.Duration)
+		envelope, normalizeErr := adapters.NormalizeZAPReport(task, result.Findings, metadata.VersionPolicy.ScannerVersion, started, completed)
+		if normalizeErr == nil {
+			normalizeErr = registry.StampOutput(job.Type, &envelope)
+		}
+		if normalizeErr == nil {
+			result.OutputEnvelope, normalizeErr = adapters.EncodeOutputEnvelope(envelope)
+		}
+		if normalizeErr != nil {
+			execErr = fmt.Errorf("invalid ZAP report: %w", normalizeErr)
+		}
+	}
 	processResult(jobLog, q, job, task, result, execErr, ctx, cfg.Metrics)
 }
 
@@ -183,7 +198,13 @@ func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.
 		fail(log, q, ctx, job, fmt.Sprintf("scanner exited with code %d", result.ExitCode))
 		return
 	}
-	if len(result.Findings) > 0 {
+	if len(result.OutputEnvelope) > 0 {
+		if _, err := adapters.DecodeOutputEnvelope(result.OutputEnvelope); err != nil {
+			mark(metrics.CauseValidation)
+			fail(log, q, ctx, job, "scanner output envelope failed validation: "+err.Error())
+			return
+		}
+	} else if len(result.Findings) > 0 {
 		if err := adapters.ValidateFindings(result.Findings); err != nil {
 			mark(metrics.CauseValidation)
 			fail(log, q, ctx, job, "findings failed schema validation: "+err.Error())

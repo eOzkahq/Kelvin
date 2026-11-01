@@ -52,7 +52,14 @@ Integrate OWASP ZAP Baseline as the first external web application security scan
 - [ ] Results are captured and returned through the common output envelope.
 - [ ] Execution limits and cancellation work.
 - [ ] Scanner version is recorded.
-- [ ] Automated adapter tests pass.
+- [x] Automated adapter tests pass.
+
+## Implementation Notes
+
+- The worker now builds a fixed `zap-baseline.py` argv, requests the JSON report at a fixed tmpfs path, and copies that bounded report before container cleanup.
+- The report normalizer validates the reported scanner version and produces Kelvin findings plus a versioned output envelope. Scanner-reported instance URLs and raw report evidence are excluded from findings.
+- The reviewed image lock is still `not-released`; no approved ZAP version or image digest is available. The current worker also lacks Phase 1 scope-context loading and scoped egress, and the queue has no output-envelope storage contract. Live execution and result delivery remain gated on those integrations.
+- See [ZAP Baseline Integration](../../../docs/architecture/ZAP_BASELINE_INTEGRATION.md) for the fixed invocation, report handling, and release gates.
 
 ---
 
