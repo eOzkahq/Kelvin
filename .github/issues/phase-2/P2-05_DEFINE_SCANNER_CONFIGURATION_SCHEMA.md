@@ -47,11 +47,11 @@ Establish a validated configuration model for controlling scanner behavior witho
 
 ## ✅ Acceptance Criteria
 
-- [ ] Every selected scanner has a documented configuration schema.
-- [ ] Invalid values are rejected before execution.
-- [ ] Unsafe settings cannot be enabled through ordinary user input.
-- [ ] Defaults are documented and tested.
-- [ ] Configuration versions can be identified in assessment metadata.
+- [x] Every selected scanner has a documented configuration schema.
+- [x] Invalid values are rejected before execution.
+- [x] Unsafe settings cannot be enabled through ordinary user input.
+- [x] Defaults are documented and tested.
+- [x] Configuration versions can be identified in invocation/assessment metadata.
 
 ---
 
@@ -62,3 +62,5 @@ Establish a validated configuration model for controlling scanner behavior witho
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- Scanner Configuration Contract: [`docs/architecture/SCANNER_CONFIGURATION.md`](../../../docs/architecture/SCANNER_CONFIGURATION.md)
+- Machine-readable schema: [`packages/schemas/scanner-config.v1.json`](../../../packages/schemas/scanner-config.v1.json)

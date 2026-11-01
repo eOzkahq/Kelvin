@@ -27,8 +27,8 @@ The payload contains identifiers and execution policy, not secrets. `authorizati
 | `target.pinned_ips` | Yes | Non-empty, validated DNS/IP results used by the egress layer to prevent rebinding. Prohibited addresses are rejected. |
 | `scope.id`, `scope.target` | Yes | Approved scope reference and exact target authorized for this job. `scope.target` must exactly equal `target.canonical`. The broader project allow-list is not disclosed. |
 | `profile.id` | Yes | Selected, server-approved scan profile reference. It is not an override channel. |
-| `scanner.name` | Yes | Registered adapter name. |
-| `scanner.config` | No | Adapter-specific JSON object validated by that adapter. Target, URL, command/argv, environment, template path, and similar execution overrides are prohibited. |
+| `scanner.name`, `scanner.config_version` | Yes | Registered adapter name and scanner configuration contract version. |
+| `scanner.config` | Yes for MVP adapters | Typed configuration object for that adapter, validated against `scanner-config.v1.json`. Target, URL, command/argv, environment, template path, and similar execution overrides are prohibited. |
 | `execution.resource_policy_id` | Yes | Reference to the approved worker resource policy. |
 | `execution.deadline`, `timeout_seconds` | Yes | Absolute UTC deadline and bounded duration. The task timeout may not exceed the resource policy ceiling. |
 | `execution.requests_per_second`, `max_requests_per_target`, `max_concurrent_connections` | Yes | Request pacing and target traffic/concurrency budgets. Enforced by worker/egress controls; scanner flags are not authoritative. |
@@ -65,7 +65,20 @@ The input contains no free-form environment map or argument vector. Adapters con
     "target": "https://example.com/"
   },
   "profile": { "id": "kelvin.profile.standard.v1" },
-  "scanner": { "name": "zap", "config": { "mode": "baseline" } },
+  "scanner": {
+    "name": "zap",
+    "config_version": "1.0",
+    "config": {
+      "schema_version": "1.0",
+      "scanner_id": "zap",
+      "execution_mode": "PASSIVE",
+      "request_timeout_seconds": 10,
+      "max_duration_seconds": 600,
+      "requests_per_second": 1,
+      "max_concurrency": 2,
+      "zap": { "max_urls": 100, "max_depth": 3 }
+    }
+  },
   "execution": {
     "resource_policy_id": "kelvin.resource.standard.v1",
     "deadline": "2026-11-01T00:10:00Z",

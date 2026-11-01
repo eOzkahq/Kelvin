@@ -39,13 +39,11 @@
     },
     "scanner": {
       "type": "object", "additionalProperties": false,
-      "required": ["name"],
+      "required": ["name", "config_version"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "config": {
-          "type": "object",
-          "description": "Adapter-specific, schema-validated data only; never CLI arguments, target overrides, environment variables, or secret values. Credentials, if introduced, are references resolved outside the scanner payload."
-        }
+        "config_version": { "const": "1.0" },
+        "config": { "$ref": "https://kelvin.security/schema/scanner-config/v1" }
       }
     },
     "execution": {

@@ -57,8 +57,9 @@ type ProfileContext struct {
 }
 
 type ScannerContext struct {
-	Name   string          `json:"name"`
-	Config json.RawMessage `json:"config,omitempty"`
+	Name          string          `json:"name"`
+	ConfigVersion string          `json:"config_version"`
+	Config        json.RawMessage `json:"config,omitempty"`
 }
 
 type ExecutionPolicy struct {
@@ -112,7 +113,7 @@ type InvocationAuthorization struct {
 // BuildExecutionInput resolves and validates the task target against the
 // approved policy, captures the checked addresses, and copies only bounded
 // invocation data. Scanner config is data, never CLI syntax or environment.
-func BuildExecutionInput(ctx context.Context, task Task, auth InvocationAuthorization, policy scope.Policy, resourcePolicyID string, resource limits.Limits, requestsPerSecond int, now time.Time) (ExecutionInput, error) {
+func BuildExecutionInput(ctx context.Context, task Task, auth InvocationAuthorization, policy scope.Policy, resourcePolicyID string, resource limits.Limits, profile ProfileBudget, now time.Time) (ExecutionInput, error) {
 	if err := ValidateTask(task); err != nil {
 		return ExecutionInput{}, err
 	}
@@ -130,11 +131,11 @@ func BuildExecutionInput(ctx context.Context, task Task, auth InvocationAuthoriz
 	if err := resource.Validate(); err != nil {
 		return ExecutionInput{}, fmt.Errorf("adapters: invalid resource policy: %w", err)
 	}
-	if requestsPerSecond <= 0 || requestsPerSecond > 1000 {
-		return ExecutionInput{}, fmt.Errorf("adapters: requests_per_second must be in 1..1000")
-	}
 	if task.HardDeadline > resource.HardDeadline {
 		return ExecutionInput{}, fmt.Errorf("adapters: task deadline exceeds resource policy")
+	}
+	if err := validateProfileBudget(profile); err != nil {
+		return ExecutionInput{}, err
 	}
 	if now.IsZero() {
 		return ExecutionInput{}, fmt.Errorf("adapters: invocation time is required")
@@ -155,22 +156,76 @@ func BuildExecutionInput(ctx context.Context, task Task, auth InvocationAuthoriz
 		ips = append(ips, ip.String())
 	}
 	sort.Strings(ips)
-	config := append(json.RawMessage(nil), task.Payload...)
-	if err := validateScannerConfig(config); err != nil {
+	configInput := append(json.RawMessage(nil), task.Payload...)
+	if len(configInput) == 0 {
+		defaults, err := DefaultScannerConfig(task.Scanner)
+		if err != nil {
+			return ExecutionInput{}, err
+		}
+		configInput, err = json.Marshal(defaults)
+		if err != nil {
+			return ExecutionInput{}, fmt.Errorf("adapters: encode default scanner config: %w", err)
+		}
+	}
+	config, err := DecodeScannerConfig(configInput)
+	if err != nil {
 		return ExecutionInput{}, err
 	}
-	deadline := now.Add(task.HardDeadline).UTC()
+	if config.ScannerID != task.Scanner {
+		return ExecutionInput{}, fmt.Errorf("adapters: scanner config id does not match task scanner")
+	}
+	if task.HardDeadline < profile.MaxDuration {
+		profile.MaxDuration = task.HardDeadline
+	}
+	if err := config.ValidateWithinProfile(profile); err != nil {
+		return ExecutionInput{}, err
+	}
+	if profile.MaxRequestsPerTarget > resource.MaxRequestsPerTarget {
+		return ExecutionInput{}, fmt.Errorf("adapters: product request budget exceeds worker resource limit")
+	}
+	effectiveTimeout := time.Duration(config.MaxDurationSeconds) * time.Second
+	if task.HardDeadline < effectiveTimeout {
+		effectiveTimeout = task.HardDeadline
+	}
+	if resource.HardDeadline < effectiveTimeout {
+		effectiveTimeout = resource.HardDeadline
+	}
+	effectiveConcurrency := config.MaxConcurrency
+	if profile.MaxConcurrency < effectiveConcurrency {
+		effectiveConcurrency = profile.MaxConcurrency
+	}
+	if resource.MaxConcurrentConns < effectiveConcurrency {
+		effectiveConcurrency = resource.MaxConcurrentConns
+	}
+	effectiveRate := config.RequestsPerSecond
+	if profile.RequestsPerSecond < effectiveRate {
+		effectiveRate = profile.RequestsPerSecond
+	}
+	config.MaxDurationSeconds = int(effectiveTimeout / time.Second)
+	config.MaxConcurrency = effectiveConcurrency
+	config.RequestsPerSecond = effectiveRate
+	if err := config.Validate(); err != nil {
+		return ExecutionInput{}, err
+	}
+	configBytes, err := json.Marshal(config)
+	if err != nil {
+		return ExecutionInput{}, fmt.Errorf("adapters: encode scanner config: %w", err)
+	}
+	if err := validateScannerConfig(configBytes); err != nil {
+		return ExecutionInput{}, err
+	}
+	deadline := now.Add(effectiveTimeout).UTC()
 	input := ExecutionInput{
 		SchemaVersion: ExecutionInputVersion,
 		Assessment:    AssessmentContext{ID: task.AssessmentID, TenantID: task.TenantID, AuthorizationID: auth.AuthorizationID},
 		Target:        TargetContext{Canonical: canonical.Canonical, PinnedIPs: ips},
 		Scope:         ScopeContext{ID: auth.ScopeID, Target: canonical.Canonical},
 		Profile:       ProfileContext{ID: task.ProfileID},
-		Scanner:       ScannerContext{Name: task.Scanner, Config: config},
+		Scanner:       ScannerContext{Name: task.Scanner, ConfigVersion: config.SchemaVersion, Config: configBytes},
 		Execution: ExecutionPolicy{
-			ResourcePolicyID: resourcePolicyID, Deadline: deadline, TimeoutSeconds: int64(task.HardDeadline.Seconds()),
-			RequestsPerSecond: requestsPerSecond, MaxRequestsPerTarget: resource.MaxRequestsPerTarget,
-			MaxConcurrentConns: resource.MaxConcurrentConns, CPUQuota: resource.CPUQuota,
+			ResourcePolicyID: resourcePolicyID, Deadline: deadline, TimeoutSeconds: int64(effectiveTimeout.Seconds()),
+			RequestsPerSecond: effectiveRate, MaxRequestsPerTarget: profile.MaxRequestsPerTarget,
+			MaxConcurrentConns: effectiveConcurrency, CPUQuota: resource.CPUQuota,
 			MemoryLimit: resource.MemoryLimit, DiskLimit: resource.DiskLimit, MaxPIDs: resource.MaxPIDs,
 		},
 		Trace: TraceContext{JobID: task.JobID, CorrelationID: task.CorrelationID},
@@ -224,8 +279,18 @@ func (in ExecutionInput) Validate() error {
 	if in.Profile.ID == "" || in.Scanner.Name == "" || in.Execution.ResourcePolicyID == "" {
 		return fmt.Errorf("adapters: profile, scanner, and resource policy are required")
 	}
-	if err := validateScannerConfig(in.Scanner.Config); err != nil {
+	if in.Scanner.ConfigVersion != ScannerConfigVersion {
+		return fmt.Errorf("adapters: unsupported scanner config version %q", in.Scanner.ConfigVersion)
+	}
+	config, err := DecodeScannerConfig(in.Scanner.Config)
+	if err != nil {
 		return err
+	}
+	if config.ScannerID != in.Scanner.Name {
+		return fmt.Errorf("adapters: scanner config id does not match invocation scanner")
+	}
+	if int64(config.MaxDurationSeconds) != in.Execution.TimeoutSeconds || config.RequestsPerSecond != in.Execution.RequestsPerSecond || config.MaxConcurrency != in.Execution.MaxConcurrentConns {
+		return fmt.Errorf("adapters: effective scanner settings must match enforced invocation budgets")
 	}
 	if in.Execution.Deadline.IsZero() || in.Execution.TimeoutSeconds <= 0 || in.Execution.RequestsPerSecond <= 0 || in.Execution.RequestsPerSecond > 1000 || in.Execution.MaxRequestsPerTarget <= 0 || in.Execution.MaxConcurrentConns <= 0 || in.Execution.CPUQuota == "" || in.Execution.MemoryLimit == "" || in.Execution.DiskLimit == "" || in.Execution.MaxPIDs <= 0 {
 		return fmt.Errorf("adapters: incomplete execution resource policy")
@@ -235,10 +300,19 @@ func (in ExecutionInput) Validate() error {
 		DiskLimit: in.Execution.DiskLimit, MaxPIDs: in.Execution.MaxPIDs,
 		MaxConcurrentConns:   in.Execution.MaxConcurrentConns,
 		MaxRequestsPerTarget: in.Execution.MaxRequestsPerTarget,
-		HardDeadline:         time.Duration(in.Execution.TimeoutSeconds) * time.Second,
+		// Scanner-local timeouts may be shorter than the minimum worker job
+		// deadline accepted by limits.Validate; the profile check below binds it.
+		HardDeadline: limits.MinHardDeadline,
 	}
 	if err := resource.Validate(); err != nil {
 		return fmt.Errorf("adapters: invalid execution resource policy: %w", err)
+	}
+	if err := config.ValidateWithinProfile(ProfileBudget{
+		RequestsPerSecond: in.Execution.RequestsPerSecond, MaxConcurrency: in.Execution.MaxConcurrentConns,
+		MaxRequestsPerTarget: in.Execution.MaxRequestsPerTarget,
+		MaxDuration:          time.Duration(in.Execution.TimeoutSeconds) * time.Second,
+	}); err != nil {
+		return err
 	}
 	return nil
 }
