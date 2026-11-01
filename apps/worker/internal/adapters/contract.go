@@ -80,6 +80,20 @@ func (a *ReferenceAdapter) Initialize(ctx context.Context, logger *zap.Logger) e
 
 func (a *ReferenceAdapter) ValidateConfig(raw json.RawMessage) error {
 	if len(raw) == 0 || string(raw) == "null" {
+		_, err := DefaultScannerConfig(a.AdapterName)
+		if err == nil {
+			return nil
+		}
+		return nil // non-MVP reference adapters may define their own config contract
+	}
+	if _, err := DefaultScannerConfig(a.AdapterName); err == nil {
+		config, err := DecodeScannerConfig(raw)
+		if err != nil {
+			return err
+		}
+		if config.ScannerID != a.AdapterName {
+			return fmt.Errorf("adapters: scanner config id does not match adapter name")
+		}
 		return nil
 	}
 	var cfg map[string]json.RawMessage
@@ -117,6 +131,9 @@ func (a *ReferenceAdapter) Execute(ctx context.Context, task Task) (Result, erro
 
 	result, err := a.Run(execCtx, task)
 	cancel()
+	if err == nil {
+		err = result.Validate()
+	}
 	a.mu.Lock()
 	a.cancel = nil
 	if err == nil {
@@ -159,6 +176,34 @@ func (a *ReferenceAdapter) Result() (Result, error) {
 	result := a.result
 	result.Findings = append([]byte(nil), result.Findings...)
 	return result, nil
+}
+
+	result.Findings = cloneRawMessages(result.Findings)
+	result.Diagnostics = append([]ExecutionDiagnostic(nil), result.Diagnostics...)
+	if result.ExitCode != nil {
+		code := *result.ExitCode
+		result.ExitCode = &code
+	}
+	if result.RawPayload != nil {
+		payload := *result.RawPayload
+		result.RawPayload = &payload
+	}
+	if result.ScannerMetadata != nil {
+		metadata := make(map[string]json.RawMessage, len(result.ScannerMetadata))
+		for key, value := range result.ScannerMetadata {
+			metadata[key] = append(json.RawMessage(nil), value...)
+		}
+		result.ScannerMetadata = metadata
+	}
+	return result, nil
+}
+
+func cloneRawMessages(values []json.RawMessage) []json.RawMessage {
+	cloned := make([]json.RawMessage, len(values))
+	for i, value := range values {
+		cloned[i] = append(json.RawMessage(nil), value...)
+	}
+	return cloned
 }
 
 var _ ScannerAdapter = (*ReferenceAdapter)(nil)

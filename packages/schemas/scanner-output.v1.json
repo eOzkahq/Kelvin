@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kelvin.security/schema/scanner-output/v1",
+  "title": "Kelvin Scanner Output Envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "metadata", "status", "duration_ms", "findings", "diagnostics", "partial", "raw_artifacts"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "metadata": {
+      "type": "object", "additionalProperties": false,
+      "required": ["assessment_id", "scanner_id", "scanner_version", "adapter_version", "run_id", "started_at", "completed_at"],
+      "properties": {
+        "assessment_id": { "type": "string", "format": "uuid" },
+        "scanner_id": { "type": "string", "minLength": 1 },
+        "scanner_version": { "type": "string", "minLength": 1 },
+        "adapter_version": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "format": "uuid" },
+        "started_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": "string", "format": "date-time" },
+        "correlation_id": { "type": "string" }
+      }
+    },
+    "status": { "enum": ["COMPLETED", "COMPLETED_WITH_WARNINGS", "PARTIAL", "FAILED", "TIMED_OUT", "CANCELLED"] },
+    "exit_code": { "type": "integer" },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "urn:kelvin:schemas:finding.v1.json" },
+      "description": "Normalized Kelvin finding.v1 records only. Raw scanner bytes must not be placed here."
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["level", "code", "message"],
+        "properties": {
+          "level": { "enum": ["info", "warning", "error"] },
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string", "minLength": 1, "maxLength": 4096 }
+        }
+      }
+    },
+    "scanner_metadata": { "type": "object", "description": "Untrusted, namespaced scanner-specific JSON metadata." },
+    "partial": { "type": "boolean" },
+    "raw_artifacts": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "stdout_ref": { "$ref": "#/$defs/artifact_ref" },
+        "stderr_ref": { "$ref": "#/$defs/artifact_ref" }
+      }
+    },
+    "raw_payload": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "content"],
+      "properties": {
+        "format": { "enum": ["json", "text"] },
+        "content": { "type": "string", "maxLength": 1048576 }
+      }
+    }
+  },
+  "$defs": {
+    "artifact_ref": {
+      "type": "string",
+      "pattern": "^artifact://[0-9a-fA-F-]{36}(/[A-Za-z0-9._-]+)?$",
+      "description": "Opaque artifact store reference; never a URL to an external host."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "COMPLETED" } }, "required": ["status"] },
+      "then": { "properties": { "exit_code": { "const": 0 }, "partial": { "const": false }, "diagnostics": { "not": { "contains": { "properties": { "level": { "enum": ["warning", "error"] } }, "required": ["level"] } } } }, "required": ["exit_code"] }
+    },
+    {
+      "if": { "properties": { "status": { "const": "COMPLETED_WITH_WARNINGS" } }, "required": ["status"] },
+      "then": { "properties": { "exit_code": { "const": 0 }, "partial": { "const": false }, "diagnostics": { "allOf": [ { "contains": { "properties": { "level": { "const": "warning" } }, "required": ["level"] } }, { "not": { "contains": { "properties": { "level": { "const": "error" } }, "required": ["level"] } } } ] } }, "required": ["exit_code"] }
+    },
+    {
+      "if": { "properties": { "status": { "const": "PARTIAL" } }, "required": ["status"] },
+      "then": { "properties": { "partial": { "const": true }, "findings": { "minItems": 1 }, "diagnostics": { "contains": { "properties": { "level": { "const": "warning" } }, "required": ["level"] } } } }
+    },
+    {
+      "if": { "properties": { "status": { "const": "FAILED" } }, "required": ["status"] },
+      "then": { "properties": { "partial": { "const": false }, "diagnostics": { "contains": { "properties": { "level": { "const": "error" } }, "required": ["level"] } } } }
+    },
+    {
+      "if": { "properties": { "status": { "const": "TIMED_OUT" } }, "required": ["status"] },
+      "then": { "properties": { "diagnostics": { "contains": { "properties": { "code": { "const": "DEADLINE_EXCEEDED" } }, "required": ["code"] } } } }
+    },
+    {
+      "if": { "properties": { "status": { "const": "CANCELLED" } }, "required": ["status"] },
+      "then": { "properties": { "diagnostics": { "contains": { "properties": { "code": { "const": "CANCELLED" } }, "required": ["code"] } } } }
+    }
+  ]
+}

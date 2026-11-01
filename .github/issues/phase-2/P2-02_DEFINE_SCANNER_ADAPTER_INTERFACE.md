@@ -24,6 +24,40 @@ Establish a consistent Go interface through which KELVIN can integrate built-in 
 
 ---
 
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart LR
+    subgraph WorkerCore ["Assessment Worker Core"]
+        Engine["Worker Execution Loop"]
+    end
+
+    subgraph AdapterInterface ["ScannerAdapter Go Contract"]
+        Init["Initialize(ctx, logger)"]
+        Val["ValidateConfig(cfg)"]
+        Cap["Capabilities()"]
+        Exec["Execute(ctx, input)"]
+        Health["Health(ctx)"]
+        Cancel["Cancel()"]
+        Res["Result()"]
+    end
+
+    subgraph Implementations ["Concrete Implementations"]
+        P1["Built-in Preflight Adapter"]
+        P2["Built-in TLS Adapter"]
+        P3["OWASP ZAP Adapter"]
+        P4["Nuclei Adapter"]
+    end
+
+    Engine --> Init --> Val --> Cap --> Exec
+    Engine -.-> Health
+    Engine -.-> Cancel
+    Exec --> Res
+    AdapterInterface --> Implementations
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Define a common scanner adapter interface (`ScannerAdapter`).
@@ -47,6 +81,7 @@ Establish a consistent Go interface through which KELVIN can integrate built-in 
 
 ## ✅ Acceptance Criteria
 
+- [x] A documented Go adapter interface exists in `apps/worker/internal/adapter/`.
 - [x] A documented Go adapter interface exists in `apps/worker/internal/adapters/`.
 - [x] Adapter implementations follow the same lifecycle contract.
 - [x] Scanner-specific code does not leak into unrelated application modules.
@@ -58,6 +93,8 @@ Establish a consistent Go interface through which KELVIN can integrate built-in 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- Scanner Adapter Interface Specification: [`docs/architecture/SCANNER_ADAPTER_INTERFACE.md`](../../../docs/architecture/SCANNER_ADAPTER_INTERFACE.md)
+- MVP Scanner Selection Matrix: [`docs/architecture/MVP_SCANNER_SELECTION.md`](../../../docs/architecture/MVP_SCANNER_SELECTION.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Scanner Adapter Contract: [`docs/architecture/SCANNER_ADAPTER_CONTRACT.md`](../../../docs/architecture/SCANNER_ADAPTER_CONTRACT.md)

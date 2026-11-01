@@ -26,6 +26,28 @@ func TestEnvelopeAndProblemSchemasEmbedded(t *testing.T) {
 	}
 }
 
+func TestScannerOutputSchemaEmbedded(t *testing.T) {
+	raw := MustRead("scanner-output.v1.json")
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("scanner-output.v1.json is not valid JSON: %v", err)
+	}
+	if id, _ := schema["$id"].(string); id != "https://kelvin.security/schema/scanner-output/v1" {
+		t.Fatalf("unexpected scanner output schema id: %q", id)
+	}
+}
+
+func TestScannerConfigSchemaEmbedded(t *testing.T) {
+	raw := MustRead("scanner-config.v1.json")
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("scanner-config.v1.json is not valid JSON: %v", err)
+	}
+	if id, _ := schema["$id"].(string); id != "https://kelvin.security/schema/scanner-config/v1" {
+		t.Fatalf("unexpected scanner config schema id: %q", id)
+	}
+}
+
 func TestFixturesEmbedded(t *testing.T) {
 	count := 0
 	err := fs.WalkDir(FS(), "fixtures", func(path string, d fs.DirEntry, err error) error {

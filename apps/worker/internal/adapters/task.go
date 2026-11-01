@@ -79,26 +79,6 @@ func ValidateTask(t Task) error {
 	return nil
 }
 
-// Result is the structured output of one adapter execution. Stdout/Stderr and
-// Findings are untrusted: size-capped and schema-validated before ingestion.
-type Result struct {
-	// ExitCode is the container exit code (negative if killed by signal).
-	ExitCode int
-	// Duration is the wall-clock execution time.
-	Duration time.Duration
-	// Stdout/Stderr are size-capped captured streams (untrusted).
-	Stdout string
-	Stderr string
-	// Findings is the raw scanner output payload (untrusted). Must be validated
-	// against finding.v1.json before ingestion.
-	Findings []byte
-	// OOMKilled is true if the container was terminated by the OOM killer.
-	OOMKilled bool
-	// DeadlineExceeded is true if the supervisor terminated the container at
-	// the hard execution deadline.
-	DeadlineExceeded bool
-}
-
 // ValidateFindings performs structural validation of raw scanner findings
 // against the canonical finding.v1.json schema. It is dependency-free and
 // fails closed: unknown root fields, missing required fields, or out-of-range

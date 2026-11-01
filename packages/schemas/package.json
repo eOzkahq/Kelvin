@@ -7,6 +7,8 @@
   "type": "module",
   "exports": {
     "./finding.v1.json": "./finding.v1.json",
+    "./scanner-output.v1.json": "./scanner-output.v1.json",
+    "./scanner-config.v1.json": "./scanner-config.v1.json",
     "./api-envelope.schema.json": "./api-envelope.schema.json",
     "./api-error.schema.json": "./api-error.schema.json",
     "./fixtures/*": "./fixtures/*"
