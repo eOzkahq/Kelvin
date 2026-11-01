@@ -24,6 +24,22 @@ Provide isolated temporary storage for scanner configuration, intermediate data,
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    Job["Start Assessment Job"] --> Create["Create Isolated Dir: /tmp/kelvin/runs/{run_id}"]
+    Create --> Perms["Chown UID 10001:10001 & Chmod 0700"]
+    Perms --> Mount["Mount as /workspace into Container Sandbox"]
+    Mount --> Exec["Scanner Execution Writes Raw Output"]
+    Exec --> Harvest["Ingest Artifacts into Assessment Pipeline"]
+    Harvest --> Cleanup["Secure Shred & Directory Removal (defer/cleanup)"]
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Create a dedicated workspace for each assessment execution.
@@ -48,11 +64,29 @@ Provide isolated temporary storage for scanner configuration, intermediate data,
 
 ## ✅ Acceptance Criteria
 
-- [ ] Each execution receives an isolated workspace.
-- [ ] Cross-assessment access is prevented.
-- [ ] Temporary files use controlled paths and permissions.
-- [ ] Workspaces are cleaned up according to policy.
-- [ ] Cleanup behavior is tested under success, failure, and cancellation.
+- [x] Each execution receives an isolated workspace.
+- [x] Cross-assessment access is prevented.
+- [x] Temporary files use controlled paths and permissions.
+- [x] Workspaces are cleaned up according to policy.
+- [x] Cleanup behavior is tested under success, failure, and cancellation.
+
+---
+
+## 📦 Implementation Details
+
+- **Workspace Management Package (`apps/worker/internal/workspace`)**:
+  - Implemented `Manager` and `Workspace` providing partitioned layouts: `{base_dir}/tenants/{tenant_id}/runs/{run_id}/{config,tmp,output}`.
+  - Implemented fail-closed path traversal validation in `ResolveSafePath`, rejecting control characters, null bytes, absolute paths, and parent directory escapes.
+  - Enforced strict permissions: `0700` (`rwx------`) on directories and `0600` (`rw-------`) on files, compatible with non-root `UID 10001` (ADR-0005).
+  - Implemented automated and idempotent `Cleanup` for stack unwinding, plus `ReapStale` for sweeping orphaned run directories from interrupted executions.
+- **Sandbox & Daemon Integration**:
+  - Extended `sandbox.Spec` and `OCIExecutor` to support `WorkspaceMount` bind-mounted to `/workspace:rw` with `--workdir /workspace`.
+  - Added `KELVIN_WORKSPACE=/workspace` to container execution environment.
+  - Wired workspace creation and deferred cleanup into `Orchestrator.ExecuteScanner`.
+- **Unit & Integration Test Coverage (`apps/worker/internal/workspace/workspace_test.go`)**:
+  - Covered workspace creation, directory layout, cross-tenant isolation, path traversal rejection, safe file I/O, cleanup idempotence, and stale directory reaping.
+- **Architecture Documentation**:
+  - [`docs/architecture/PER_ASSESSMENT_WORKSPACE_MANAGEMENT.md`](../../../docs/architecture/PER_ASSESSMENT_WORKSPACE_MANAGEMENT.md)
 
 ---
 
@@ -63,3 +97,4 @@ Provide isolated temporary storage for scanner configuration, intermediate data,
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- Workspace Management: [`docs/architecture/PER_ASSESSMENT_WORKSPACE_MANAGEMENT.md`](../../../docs/architecture/PER_ASSESSMENT_WORKSPACE_MANAGEMENT.md)

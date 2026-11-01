@@ -11,6 +11,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/apps/worker/internal/scannerprocess"
+	"github.com/kelvin/kelvin/apps/worker/internal/workspace"
 	"go.uber.org/zap"
 )
 
@@ -49,10 +50,11 @@ type Orchestrator struct {
 	limits    any
 	metrics   *metrics.Registry
 	readiness *readiness.Checker
+	wsManager *workspace.Manager
 	logger    *zap.Logger
 }
 
-func NewOrchestrator(registry *adapters.Registry, executor sandbox.Executor, checker *readiness.Checker, reg *metrics.Registry, logger *zap.Logger) *Orchestrator {
+func NewOrchestrator(registry *adapters.Registry, executor sandbox.Executor, checker *readiness.Checker, wsMgr *workspace.Manager, reg *metrics.Registry, logger *zap.Logger) *Orchestrator {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -60,9 +62,23 @@ func NewOrchestrator(registry *adapters.Registry, executor sandbox.Executor, che
 		registry:  registry,
 		executor:  executor,
 		readiness: checker,
+		wsManager: wsMgr,
 		metrics:   reg,
 		logger:    logger,
 	}
+}
+
+func (o *Orchestrator) ensureWorkspaceManager(cfg Config) *workspace.Manager {
+	if o.wsManager != nil {
+		return o.wsManager
+	}
+	if cfg.WorkspaceManager != nil {
+		o.wsManager = cfg.WorkspaceManager
+		return o.wsManager
+	}
+	mgr, _ := workspace.NewManager("", o.logger)
+	o.wsManager = mgr
+	return o.wsManager
 }
 
 // ExecuteScanner executes an individual resolved scanner adapter, choosing in-process
@@ -98,6 +114,18 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 
 	execCtx, cancel := context.WithTimeout(ctx, task.HardDeadline)
 	defer cancel()
+
+	// Provision isolated per-execution workspace
+	wsMgr := o.ensureWorkspaceManager(cfg)
+	ws, err := wsMgr.Create(ctx, task.TenantID, task.AssessmentID, task.JobID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create execution workspace: %w", err)
+	}
+	defer func() {
+		if err := ws.Cleanup(); err != nil {
+			jobLog.Warn("failed to cleanup workspace", zap.Error(err), zap.String("workspace", ws.RootDir))
+		}
+	}()
 
 	// 1. In-process execution (requires no external sandbox/container)
 	if !metadata.Capabilities.RequiresSandbox {
@@ -137,7 +165,7 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 		return nil, fmt.Errorf("scanner invocation rejected: %w", err)
 	}
 
-	spec := specFromTask(task, metadata.VersionPolicy.ImageReference, invocation)
+	spec := specFromTask(task, metadata.VersionPolicy.ImageReference, invocation, ws.RootDir)
 	spec.CaptureZAPReport = task.Scanner == adapters.ScannerZAPBaseline
 	spec.Limits = cfg.Limits
 	if err := spec.Validate(); err != nil {

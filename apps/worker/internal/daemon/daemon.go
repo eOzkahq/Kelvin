@@ -14,6 +14,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
+	"github.com/kelvin/kelvin/apps/worker/internal/workspace"
 	"github.com/kelvin/kelvin/packages/common/tenant"
 	"go.uber.org/zap"
 )
@@ -26,6 +27,7 @@ type Config struct {
 	Limits           limits.Limits
 	Metrics          *metrics.Registry
 	ReadinessChecker *readiness.Checker
+	WorkspaceManager *workspace.Manager
 }
 
 func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, registry *adapters.Registry) error {
@@ -132,7 +134,7 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		_ = hb.Heartbeat(ctx, job.ID, cfg.WorkerID, cfg.HeartbeatEvery*3)
 	}
 
-	orchestrator := NewOrchestrator(registry, cfg.Executor, cfg.ReadinessChecker, cfg.Metrics, jobLog)
+	orchestrator := NewOrchestrator(registry, cfg.Executor, cfg.ReadinessChecker, cfg.WorkspaceManager, cfg.Metrics, jobLog)
 
 	var result *sandbox.Result
 	var execErr error
@@ -228,14 +230,39 @@ func taskFromJob(job queue.Job) (adapters.Task, error) {
 	return adapters.Task{JobID: job.ID, AssessmentID: job.AssessmentID, TenantID: job.TenantID, CorrelationID: job.CorrelationID, Scanner: job.Type, Target: payload.Target, ProfileID: payload.ProfileID, HardDeadline: deadline, Payload: payload.Params}, nil
 }
 
-func specFromTask(task adapters.Task, imageReference string, invocation sandbox.ProcessInvocation) sandbox.Spec {
+func specFromTask(task adapters.Task, imageReference string, invocation sandbox.ProcessInvocation, workspaceDir string) sandbox.Spec {
+	workingDir := "/tmp"
+	env := []string{
+		"KELVIN_JOB_ID=" + task.JobID,
+		"KELVIN_TENANT_ID=" + task.TenantID,
+		"KELVIN_ASSESSMENT_ID=" + task.AssessmentID,
+	}
+	if workspaceDir != "" {
+		workingDir = "/workspace"
+		env = append(env, "KELVIN_WORKSPACE=/workspace")
+	}
 	return sandbox.Spec{
-		Image: imageReference, Invocation: invocation, User: "10001:10001",
-		Env: []string{"KELVIN_JOB_ID=" + task.JobID, "KELVIN_TENANT_ID=" + task.TenantID, "KELVIN_ASSESSMENT_ID=" + task.AssessmentID}, WorkingDir: "/tmp",
-		MemoryLimit: "512m", CPUQuota: "2", PIDsLimit: 64, ReadOnlyRootfs: true,
+		Image:           imageReference,
+		Invocation:      invocation,
+		User:            "10001:10001",
+		Env:             env,
+		WorkingDir:      workingDir,
+		WorkspaceMount:  workspaceDir,
+		MemoryLimit:     "512m",
+		CPUQuota:        "2",
+		PIDsLimit:       64,
+		ReadOnlyRootfs:  true,
 		NetworkDisabled: true,
-		TmpfsMounts:     []string{"/tmp:noexec,size=64m", "/run:noexec,size=16m"}, CapDrop: []string{"ALL"},
-		SecurityOpt: []string{"no-new-privileges", "seccomp=scan.json", "apparmor=kelvin-scan"}, Deadline: task.HardDeadline,
-		Labels: map[string]string{"job_id": task.JobID, "assessment": task.AssessmentID, "tenant_id": task.TenantID, "scanner": task.Scanner, "profile_id": task.ProfileID},
+		TmpfsMounts:     []string{"/tmp:noexec,size=64m", "/run:noexec,size=16m"},
+		CapDrop:         []string{"ALL"},
+		SecurityOpt:     []string{"no-new-privileges", "seccomp=scan.json", "apparmor=kelvin-scan"},
+		Deadline:        task.HardDeadline,
+		Labels: map[string]string{
+			"job_id":     task.JobID,
+			"assessment": task.AssessmentID,
+			"tenant_id":  task.TenantID,
+			"scanner":    task.Scanner,
+			"profile_id": task.ProfileID,
+		},
 	}
 }
