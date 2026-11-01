@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
+	"github.com/kelvin/kelvin/apps/worker/internal/pacing"
 	"github.com/kelvin/kelvin/packages/common/scope"
 	"go.uber.org/zap"
 )
@@ -357,4 +358,95 @@ func TestEgressProxy_ObservabilityAndEventBroadcasting(t *testing.T) {
 	if receivedEvents[1].RequestedDestination != "169.254.169.254" {
 		t.Errorf("expected requested destination 169.254.169.254, got %s", receivedEvents[1].RequestedDestination)
 	}
+}
+
+func TestProxyEnforcesPerTargetPacing(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer ts.Close()
+
+	targetURL, _ := url.Parse(ts.URL)
+	targetHost := targetURL.Hostname()
+	targetPort, _ := strconv.Atoi(targetURL.Port())
+
+	resolver := &mockResolver{
+		mapping: map[string][]netip.Addr{
+			"pacing.test": {netip.MustParseAddr("127.0.0.1")},
+		},
+	}
+	scopePol, err := scope.NewPolicy([]string{"pacing.test"}, []string{"127.0.0.0/8"}, resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scopePol = scopePol.WithLabMode(true)
+
+	policy, err := PolicyForScanner(ScannerNuclei, fmt.Sprintf("http://pacing.test:%d", targetPort), scopePol)
+	if err != nil {
+		t.Fatalf("failed to build policy: %v", err)
+	}
+
+	proxy, err := NewProxy(policy, zap.NewNop(), &mockMetricsRecorder{})
+	if err != nil {
+		t.Fatalf("failed to start proxy: %v", err)
+	}
+	defer proxy.Close()
+
+	// Configure pacer with 5 req/s and 1 burst token
+	pacerCfg := pacing.Config{
+		Target:            "pacing.test",
+		Scanner:           ScannerNuclei,
+		RequestsPerSecond: 5,
+		BurstLimit:        1,
+	}
+	pacer := pacing.NewTokenBucketPacer(pacerCfg)
+	defer pacer.Close()
+
+	var throttledEvents []pacing.PacingEvent
+	var mu sync.Mutex
+	pacer.AddListener(func(ev pacing.PacingEvent) {
+		mu.Lock()
+		throttledEvents = append(throttledEvents, ev)
+		mu.Unlock()
+	})
+
+	proxy.SetPacer(pacer)
+
+	proxyURL, _ := url.Parse(proxy.Endpoint())
+	client := &http.Client{
+		Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)},
+		Timeout:   3 * time.Second,
+	}
+
+	reqURL := fmt.Sprintf("http://pacing.test:%d/test", targetPort)
+
+	// 1st request: uses the burst token
+	resp1, err := client.Get(reqURL)
+	if err != nil || resp1.StatusCode != http.StatusOK {
+		t.Fatalf("first request failed: resp=%v err=%v", resp1, err)
+	}
+	_ = resp1.Body.Close()
+
+	// 2nd request: must be throttled
+	start := time.Now()
+	resp2, err := client.Get(reqURL)
+	elapsed := time.Since(start)
+	if err != nil || resp2.StatusCode != http.StatusOK {
+		t.Fatalf("second request failed: resp=%v err=%v", resp2, err)
+	}
+	_ = resp2.Body.Close()
+
+	if elapsed < 100*time.Millisecond {
+		t.Fatalf("expected second request through proxy to be throttled, elapsed: %v", elapsed)
+	}
+
+	mu.Lock()
+	throttledCount := len(throttledEvents)
+	mu.Unlock()
+
+	if throttledCount < 1 {
+		t.Fatalf("expected at least 1 throttling event recorded, got %d", throttledCount)
+	}
+	_ = targetHost
 }
