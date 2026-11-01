@@ -47,7 +47,7 @@ The worker constructs `Task` from a queue job only after tenant and scope contex
 
 ## Worker and sandbox relationship
 
-The registry accepts only `ScannerAdapter` implementations. The daemon validates task data and dispatches the registered adapter name to the configured sandbox executor. External scanner processes run in the controlled OCI image; adapter code must not spawn an unsandboxed scanner process. `Execute` receives the same deadline-bearing context used by the worker. Worker-level limits and egress remain authoritative even when scanner flags expose similar controls.
+The registry accepts only `ScannerAdapter` implementations. External scanner processes run in the controlled OCI image; adapter code must not spawn an unsandboxed scanner process. Built-in checks may make bounded network requests directly through the shared scope-aware HTTP transport and do not launch a scanner binary. `Execute` receives the worker's deadline-bearing context. Worker-level limits and egress remain authoritative even when scanner flags expose similar controls.
 
 `ReferenceAdapter` in `internal/adapters/contract.go` demonstrates serialized execution, initialization/readiness, cancellation, defensive result access, and narrow runner injection. Its runner is the seam where a production adapter delegates to the worker's sandbox execution. It does not provide direct network or persistence access.
 

@@ -48,11 +48,11 @@ Implement a built-in adapter that verifies whether an approved web target is rea
 
 ## ✅ Acceptance Criteria
 
-- [ ] The adapter supports approved HTTP/HTTPS targets.
-- [ ] Reachability and failure states are represented consistently.
-- [ ] Redirects are subject to scope validation.
-- [ ] Requests have bounded timeouts.
-- [ ] Unit and integration tests cover common network conditions.
+- [x] The adapter supports approved HTTP/HTTPS targets through the Phase 1 scope policy provider.
+- [x] Reachability, TLS/connection failure, timeout, and cancellation states use the common output envelope.
+- [x] Redirects are revalidated by the scope-aware HTTP client before follow-up requests.
+- [x] Requests and total execution are bounded by scanner config and the task deadline.
+- [x] Local HTTP/TLS tests cover response capture, out-of-scope redirect, TLS failure, timeout, and invalid input.
 
 ---
 
@@ -63,3 +63,4 @@ Implement a built-in adapter that verifies whether an approved web target is rea
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- HTTP/HTTPS Preflight Adapter: [`docs/architecture/HTTP_PREFLIGHT_ADAPTER.md`](../../../docs/architecture/HTTP_PREFLIGHT_ADAPTER.md)
