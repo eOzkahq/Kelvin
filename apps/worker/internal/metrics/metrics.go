@@ -18,6 +18,7 @@ type TerminationCause string
 const (
 	CauseCompleted   TerminationCause = "completed"
 	CauseDeadline    TerminationCause = "deadline_exceeded"
+	CauseCancelled   TerminationCause = "cancelled"
 	CauseOOM         TerminationCause = "oom_killed"
 	CauseCrash       TerminationCause = "scanner_crash"
 	CauseValidation  TerminationCause = "findings_validation_failed"

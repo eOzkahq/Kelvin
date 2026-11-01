@@ -13,6 +13,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
+	"github.com/kelvin/kelvin/apps/worker/internal/scannerprocess"
 	"github.com/kelvin/kelvin/packages/common/tenant"
 	"go.uber.org/zap"
 )
@@ -112,6 +113,11 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		fail(jobLog, q, ctx, job, "no sandbox executor configured")
 		return
 	}
+	invocation, err := scannerprocess.Build(task)
+	if err != nil {
+		fail(jobLog, q, ctx, job, "scanner invocation rejected: "+err.Error())
+		return
+	}
 
 	if hb, ok := q.(interface {
 		Heartbeat(context.Context, string, string, time.Duration) error
@@ -121,7 +127,7 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 
 	execCtx, cancel := context.WithTimeout(ctx, task.HardDeadline)
 	defer cancel()
-	spec := specFromTask(task, metadata.VersionPolicy.ImageReference)
+	spec := specFromTask(task, metadata.VersionPolicy.ImageReference, invocation)
 	spec.Limits = cfg.Limits
 	if err := spec.Validate(); err != nil {
 		fail(jobLog, q, ctx, job, "sandbox spec violates isolation profile: "+err.Error())
@@ -147,7 +153,12 @@ func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.
 		}
 		log.Info("job terminated", zap.String("cause", string(c)))
 	}
-	if result != nil && (result.DeadlineExceeded || result.ExitCode < 0) {
+	if result != nil && result.Cancelled {
+		mark(metrics.CauseCancelled)
+		fail(log, q, ctx, job, "execution cancelled")
+		return
+	}
+	if result != nil && result.DeadlineExceeded {
 		mark(metrics.CauseDeadline)
 		fail(log, q, ctx, job, "execution deadline exceeded")
 		return
@@ -205,15 +216,14 @@ func taskFromJob(job queue.Job) (adapters.Task, error) {
 	return adapters.Task{JobID: job.ID, AssessmentID: job.AssessmentID, TenantID: job.TenantID, CorrelationID: job.CorrelationID, Scanner: job.Type, Target: payload.Target, ProfileID: payload.ProfileID, HardDeadline: deadline, Payload: payload.Params}, nil
 }
 
-func specFromTask(task adapters.Task, imageReference string) sandbox.Spec {
+func specFromTask(task adapters.Task, imageReference string, invocation sandbox.ProcessInvocation) sandbox.Spec {
 	return sandbox.Spec{
-		Image: imageReference, Command: []string{"/kelvin/bin/" + task.Scanner + "-adapter"},
-		Args: []string{"-target", task.Target, "-profile", task.ProfileID}, User: "10001:10001",
-		Env: []string{"KELVIN_JOB_ID=" + task.JobID, "KELVIN_TENANT_ID=" + task.TenantID}, WorkingDir: "/home/scanner",
+		Image: imageReference, Invocation: invocation, User: "10001:10001",
+		Env: []string{"KELVIN_JOB_ID=" + task.JobID, "KELVIN_TENANT_ID=" + task.TenantID, "KELVIN_ASSESSMENT_ID=" + task.AssessmentID}, WorkingDir: "/tmp",
 		MemoryLimit: "512m", CPUQuota: "2", PIDsLimit: 64, ReadOnlyRootfs: true,
 		NetworkDisabled: true,
 		TmpfsMounts:     []string{"/tmp:noexec,size=64m", "/run:noexec,size=16m"}, CapDrop: []string{"ALL"},
-		SecurityOpt: []string{"seccomp=scan.json", "apparmor=kelvin-scan"}, Deadline: task.HardDeadline,
+		SecurityOpt: []string{"no-new-privileges", "seccomp=scan.json", "apparmor=kelvin-scan"}, Deadline: task.HardDeadline,
 		Labels: map[string]string{"job_id": task.JobID, "assessment": task.AssessmentID, "tenant_id": task.TenantID, "scanner": task.Scanner, "profile_id": task.ProfileID},
 	}
 }

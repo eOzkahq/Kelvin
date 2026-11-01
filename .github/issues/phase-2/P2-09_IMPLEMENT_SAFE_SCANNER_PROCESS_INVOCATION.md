@@ -50,12 +50,14 @@ Provide one controlled mechanism for invoking external scanner processes without
 
 ## ✅ Acceptance Criteria
 
-- [ ] External scanners are invoked through the shared abstraction.
-- [ ] Shell-based command construction is not used.
-- [ ] Argument validation is enforced.
-- [ ] Timeouts and cancellation are supported.
-- [ ] Output capture is bounded.
-- [ ] Tests cover malicious input, invalid arguments, and process failures.
+- [x] External scanners are invoked through a shared structured process abstraction.
+- [x] Shell-based command construction is not used; executable paths are allow-listed.
+- [x] Argument validation is enforced from typed scanner configuration.
+- [x] Deadlines and cancellation are supported and reported distinctly.
+- [x] Stdout and stderr capture are bounded while writing.
+- [x] Tests cover malicious input, invalid arguments, output limits, cancellation, and process failures.
+
+See [`docs/architecture/SCANNER_PROCESS_INVOCATION.md`](../../../docs/architecture/SCANNER_PROCESS_INVOCATION.md) for the invocation and environment contract.
 
 ---
 
