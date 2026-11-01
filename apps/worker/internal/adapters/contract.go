@@ -23,6 +23,7 @@ type Capabilities struct {
 	RequiresNetwork      bool
 	SupportsCancel       bool
 	RequiresSandbox      bool
+	SupportsProgress     bool
 	MaxConcurrency       int
 	MaxRequestRate       int
 	MaxRequests          int

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
+	"github.com/kelvin/kelvin/apps/worker/internal/progress"
 )
 
 // Job is one unit of scanner work dispatched by the control plane
@@ -51,11 +52,12 @@ func (NopQueue) Fail(context.Context, Job, string) error { return nil }
 // MemoryQueue is an in-process queue used by daemon unit tests and local
 // wiring experiments; it is not a durable broker.
 type MemoryQueue struct {
-	mu        sync.Mutex
-	jobs      []Job
-	status    map[string]commonqueue.Status
-	cancelled map[string]bool
-	ch        chan struct{}
+	mu             sync.Mutex
+	jobs           []Job
+	status         map[string]commonqueue.Status
+	cancelled      map[string]bool
+	progressEvents map[string][]progress.ProgressEvent
+	ch             chan struct{}
 }
 
 // RedisQueue adapts the shared backend-neutral queue to the worker daemon API.
@@ -133,10 +135,29 @@ func (r *RedisQueue) Heartbeat(ctx context.Context, id, worker string, ttl time.
 // NewMemoryQueue builds an empty in-process queue.
 func NewMemoryQueue() *MemoryQueue {
 	return &MemoryQueue{
-		ch:        make(chan struct{}, 64),
-		status:    make(map[string]commonqueue.Status),
-		cancelled: make(map[string]bool),
+		ch:             make(chan struct{}, 64),
+		status:         make(map[string]commonqueue.Status),
+		cancelled:      make(map[string]bool),
+		progressEvents: make(map[string][]progress.ProgressEvent),
 	}
+}
+
+// PublishProgress records a progress event in memory.
+func (m *MemoryQueue) PublishProgress(_ context.Context, ev progress.ProgressEvent) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.progressEvents[ev.JobID] = append(m.progressEvents[ev.JobID], ev)
+	return nil
+}
+
+// GetProgressEvents returns all progress events recorded for a job.
+func (m *MemoryQueue) GetProgressEvents(jobID string) []progress.ProgressEvent {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	evs := m.progressEvents[jobID]
+	copied := make([]progress.ProgressEvent, len(evs))
+	copy(copied, evs)
+	return copied
 }
 
 // Push enqueues a job and wakes one waiter.

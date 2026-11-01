@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
+	"github.com/kelvin/kelvin/apps/worker/internal/progress"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/packages/common/scope"
@@ -20,8 +21,11 @@ import (
 )
 
 type inProcessMockAdapter struct {
-	name    string
-	version string
+	name             string
+	version          string
+	supportsProgress bool
+	supportsCancel   bool
+	run              func(ctx context.Context, task adapters.Task) (adapters.Result, error)
 }
 
 func (m inProcessMockAdapter) Name() string    { return m.name }
@@ -39,9 +43,14 @@ func (m inProcessMockAdapter) Capabilities() adapters.Capabilities {
 		SupportedTargetTypes: []string{"url"},
 		CheckCategories:      []string{"discovery"},
 		RequiresSandbox:      false,
+		SupportsProgress:     m.supportsProgress,
+		SupportsCancel:       m.supportsCancel,
 	}
 }
 func (m inProcessMockAdapter) Execute(ctx context.Context, task adapters.Task) (adapters.Result, error) {
+	if m.run != nil {
+		return m.run(ctx, task)
+	}
 	now := time.Now().UTC()
 	code := 0
 	return adapters.Result{
@@ -71,10 +80,14 @@ func (m inProcessMockAdapter) Result() (adapters.Result, error) {
 
 func registerInProcess(registry *adapters.Registry, name string) error {
 	adapter := inProcessMockAdapter{name: name, version: "1.0.0"}
+	return registerMock(registry, adapter)
+}
+
+func registerMock(registry *adapters.Registry, adapter inProcessMockAdapter) error {
 	caps := adapter.Capabilities()
 	return registry.RegisterAdapter(adapters.Metadata{
-		ID:               name,
-		DisplayName:      name,
+		ID:               adapter.name,
+		DisplayName:      adapter.name,
 		Version:          "1.0.0",
 		SupportedTargets: []string{"url"},
 		Capabilities:     caps,
@@ -854,3 +867,322 @@ func TestRepeatedCancellationIsIdempotent(t *testing.T) {
 		}
 	}
 }
+
+func TestExecuteScannerProgressStageTransitions(t *testing.T) {
+	registry := adapters.NewRegistry()
+	if err := registerInProcess(registry, adapters.ScannerHTTPHeaders); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	memPub := progress.NewMemoryPublisher()
+	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
+	orch.SetProgressPublisher(memPub)
+
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      adapters.ScannerHTTPHeaders,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileStandard,
+		HardDeadline: 10 * time.Second,
+	}
+
+	res, err := orch.ExecuteScanner(context.Background(), zap.NewNop(), task, Config{})
+	if err != nil {
+		t.Fatalf("ExecuteScanner failed: %v", err)
+	}
+	if res.ExitCode != 0 {
+		t.Fatalf("res.ExitCode = %d, want 0", res.ExitCode)
+	}
+
+	events := memPub.EventsForJob(task.JobID)
+	if len(events) == 0 {
+		t.Fatal("expected published progress events, got 0")
+	}
+
+	// Verify sequential stage transitions
+	var observedStages []progress.Stage
+	for _, ev := range events {
+		if len(observedStages) == 0 || observedStages[len(observedStages)-1] != ev.Stage {
+			observedStages = append(observedStages, ev.Stage)
+		}
+	}
+
+	expectedOrder := []progress.Stage{
+		progress.StagePreflight,
+		progress.StageScannerInitialization,
+		progress.StageScannerExecution,
+		progress.StageOutputCollection,
+		progress.StageResultNormalization,
+		progress.StageCompletion,
+	}
+
+	if len(observedStages) != len(expectedOrder) {
+		t.Fatalf("observed %d stages (%v), want %d (%v)", len(observedStages), observedStages, len(expectedOrder), expectedOrder)
+	}
+	for i, exp := range expectedOrder {
+		if observedStages[i] != exp {
+			t.Errorf("stage %d: got %s, want %s", i, observedStages[i], exp)
+		}
+	}
+}
+
+func TestExecuteScannerHonestIndeterminateProgress(t *testing.T) {
+	registry := adapters.NewRegistry()
+	if err := registerInProcess(registry, adapters.ScannerHTTPPreflight); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	memPub := progress.NewMemoryPublisher()
+	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
+
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      adapters.ScannerHTTPPreflight,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileStandard,
+		HardDeadline: 10 * time.Second,
+	}
+
+	cfg := Config{ProgressPublisher: memPub}
+	_, err := orch.ExecuteScanner(context.Background(), zap.NewNop(), task, cfg)
+	if err != nil {
+		t.Fatalf("ExecuteScanner failed: %v", err)
+	}
+
+	events := memPub.EventsForJob(task.JobID)
+	foundExecutionProgress := false
+	for _, ev := range events {
+		if ev.Stage == progress.StageScannerExecution && ev.Progress != nil {
+			foundExecutionProgress = true
+			if ev.Progress.HasPercentage() {
+				t.Fatalf("expected HasPercentage() = false for scanner without progress support, got %v%%", *ev.Progress.Percentage)
+			}
+			if ev.Progress.Percentage != nil {
+				t.Fatalf("expected nil percentage for honest indeterminate progress, got %v", *ev.Progress.Percentage)
+			}
+		}
+	}
+	if !foundExecutionProgress {
+		t.Fatal("expected scanner execution progress report")
+	}
+}
+
+func TestExecuteScannerDeterminateProgressFromAdapter(t *testing.T) {
+	registry := adapters.NewRegistry()
+	mock := inProcessMockAdapter{
+		name:             adapters.ScannerTLSAssessor,
+		version:          "1.0.0",
+		supportsProgress: true,
+		run: func(ctx context.Context, task adapters.Task) (adapters.Result, error) {
+			if rep, ok := progress.ReporterFromContext(ctx); ok {
+				_ = rep.ReportProgress(ctx, progress.NewDeterminateProgress(75, 100, "templates", "testing TLS cipher suites"))
+			}
+			exitZero := 0
+			now := time.Now().UTC()
+			return adapters.Result{
+				SchemaVersion: "1.0",
+				Metadata: adapters.OutputMetadata{
+					AssessmentID:   task.AssessmentID,
+					ScannerID:      task.Scanner,
+					ScannerVersion: "1.0.0",
+					AdapterVersion: "1.0.0",
+					RunID:          task.JobID,
+					StartedAt:      now.Add(-time.Millisecond * 50),
+					CompletedAt:    now,
+					CorrelationID:  task.CorrelationID,
+				},
+				Status:      adapters.StatusCompleted,
+				ExitCode:    &exitZero,
+				DurationMS:  50,
+				Findings:    []json.RawMessage{},
+				Diagnostics: []adapters.ExecutionDiagnostic{},
+			}, nil
+		},
+	}
+	if err := registerMock(registry, mock); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	memPub := progress.NewMemoryPublisher()
+	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
+
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      adapters.ScannerTLSAssessor,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileStandard,
+		HardDeadline: 10 * time.Second,
+	}
+
+	cfg := Config{ProgressPublisher: memPub}
+	_, err := orch.ExecuteScanner(context.Background(), zap.NewNop(), task, cfg)
+	if err != nil {
+		t.Fatalf("ExecuteScanner failed: %v", err)
+	}
+
+	events := memPub.EventsForJob(task.JobID)
+	foundDeterminate := false
+	for _, ev := range events {
+		if ev.Progress != nil && ev.Progress.HasPercentage() {
+			foundDeterminate = true
+			if *ev.Progress.Percentage != 75.0 {
+				t.Errorf("got percentage %.2f, want 75.0", *ev.Progress.Percentage)
+			}
+			if ev.Progress.ItemsCompleted != 75 || ev.Progress.ItemsTotal != 100 {
+				t.Errorf("items mismatch: completed=%d, total=%d", ev.Progress.ItemsCompleted, ev.Progress.ItemsTotal)
+			}
+			if ev.Progress.Units != "templates" {
+				t.Errorf("units = %q, want templates", ev.Progress.Units)
+			}
+		}
+	}
+	if !foundDeterminate {
+		t.Fatal("expected determinate progress from adapter")
+	}
+}
+
+func TestExecuteScannerCancellationStageInterruption(t *testing.T) {
+	registry := adapters.NewRegistry()
+	blockCh := make(chan struct{})
+	mock := inProcessMockAdapter{
+		name:           adapters.ScannerHTTPPreflight,
+		version:        "1.0.0",
+		supportsCancel: true,
+		run: func(ctx context.Context, task adapters.Task) (adapters.Result, error) {
+			close(blockCh)
+			<-ctx.Done()
+			return adapters.Result{}, ctx.Err()
+		},
+	}
+	if err := registerMock(registry, mock); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	memPub := progress.NewMemoryPublisher()
+	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
+
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      adapters.ScannerHTTPPreflight,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileStandard,
+		HardDeadline: 10 * time.Second,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cfg := Config{ProgressPublisher: memPub}
+
+	go func() {
+		<-blockCh
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+	}()
+
+	res, err := orch.ExecuteScanner(ctx, zap.NewNop(), task, cfg)
+	if err == nil || !errors.Is(err, sandbox.ErrCancelled) {
+		t.Fatalf("expected sandbox.ErrCancelled, got %v", err)
+	}
+	if res == nil || !res.Cancelled {
+		t.Fatalf("expected res.Cancelled = true")
+	}
+
+	events := memPub.EventsForJob(task.JobID)
+	if len(events) == 0 {
+		t.Fatal("expected progress events")
+	}
+	lastEvent := events[len(events)-1]
+	if lastEvent.StageStatus != progress.StageStatusCancelled {
+		t.Errorf("last event stage_status = %q, want CANCELLED", lastEvent.StageStatus)
+	}
+	if len(lastEvent.Transitions) == 0 {
+		t.Fatal("expected transition history to be preserved on cancellation")
+	}
+}
+
+func TestExecutePipelineProgressPhases(t *testing.T) {
+	registry := adapters.NewRegistry()
+	makeAdapter := func(name string) {
+		a := &adapters.ReferenceAdapter{
+			AdapterName: name,
+			Caps:        adapters.Capabilities{RequiresSandbox: false},
+			Run: func(ctx context.Context, task adapters.Task) (adapters.Result, error) {
+				exitZero := 0
+				return adapters.Result{Status: adapters.StatusCompleted, ExitCode: &exitZero}, nil
+			},
+		}
+		_ = a.Initialize(context.Background(), zap.NewNop())
+		_ = registry.RegisterAdapter(adapters.Metadata{
+			ID:               name,
+			DisplayName:      name,
+			Version:          "1.0.0",
+			SupportedTargets: []string{"url"},
+			Capabilities:     a.Capabilities(),
+			ConfigVersion:    adapters.ScannerConfigVersion,
+			VersionPolicy:    adapters.VersionPolicy{ScannerVersion: "1.0.0"},
+		}, func() adapters.ScannerAdapter { return a })
+	}
+
+	makeAdapter("nuclei")
+	makeAdapter("zap-baseline")
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	memPub := progress.NewMemoryPublisher()
+	orch := NewOrchestrator(registry, nil, nil, nil, nil, zap.NewNop())
+
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      JobTypeAssessment,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileStandard,
+		HardDeadline: 15 * time.Second,
+	}
+
+	cfg := Config{ProgressPublisher: memPub}
+	res, err := orch.ExecutePipeline(context.Background(), zap.NewNop(), task, cfg)
+	if err != nil {
+		t.Fatalf("ExecutePipeline failed: %v", err)
+	}
+	if res.ExitCode != 0 {
+		t.Fatalf("res.ExitCode = %d, want 0", res.ExitCode)
+	}
+
+	events := memPub.EventsForJob(task.JobID)
+	if len(events) == 0 {
+		t.Fatal("expected pipeline events")
+	}
+
+	foundPhaseProgress := false
+	for _, ev := range events {
+		if ev.Progress != nil && ev.Progress.HasPercentage() && ev.Progress.Units == "phases" {
+			foundPhaseProgress = true
+		}
+	}
+	if !foundPhaseProgress {
+		t.Fatal("expected pipeline phase progress event")
+	}
+}
+

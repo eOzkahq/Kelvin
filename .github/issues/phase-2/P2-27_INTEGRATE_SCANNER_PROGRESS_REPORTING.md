@@ -46,17 +46,18 @@ Expose meaningful execution progress from the assessment engine without dependin
 
 ## ✅ Acceptance Criteria
 
-- [ ] Assessment execution stages are observable.
-- [ ] Supported scanner progress is mapped consistently.
-- [ ] Unknown progress is represented honestly.
-- [ ] Stage transitions are traceable.
-- [ ] Tests cover normal and interrupted execution.
+- [x] Assessment execution stages are observable.
+- [x] Supported scanner progress is mapped consistently.
+- [x] Unknown progress is represented honestly.
+- [x] Stage transitions are traceable.
+- [x] Tests cover normal and interrupted execution.
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- Scanner Progress Reporting: [docs/architecture/SCANNER_PROGRESS_REPORTING.md](../../../docs/architecture/SCANNER_PROGRESS_REPORTING.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
