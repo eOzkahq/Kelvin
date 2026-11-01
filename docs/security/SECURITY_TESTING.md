@@ -156,3 +156,72 @@ npm run test:go:security
 - When the real `sid`-based revocation store is implemented (Identity Layer), add an
   `AC-TOKEN-04` case asserting revoked sessions return 401.
 - Review quarterly, and on any auth-stack, role, permission, or endpoint change.
+
+## 10. Automated code and supply-chain security gates
+
+`.github/workflows/security.yml` runs for every pull request and pushes to `main` or
+`develop`; a weekly scheduled run catches newly disclosed dependency issues. It is
+fail-closed for findings in the configured severities:
+
+| Check | Coverage | Failure threshold |
+| :--- | :--- | :--- |
+| Gitleaks | Commit history and repository secrets | Any finding |
+| `govulncheck` | Reachable Go vulnerabilities in each Go module | Any finding |
+| `gosec` | Go source security patterns | High |
+| Semgrep | Go, JavaScript, TypeScript security audit rules | Finding from selected rulesets |
+| `npm audit` | Root npm workspace lockfile | High and critical |
+| Trivy filesystem scan | Dependency vulnerabilities, secrets and misconfiguration | High and critical |
+| Trivy image scan | PostgreSQL backup image vulnerabilities; emits a CycloneDX SBOM artifact | High and critical |
+
+The frontend CI job also runs the repository ESLint configuration. Semgrep's
+JavaScript and TypeScript rules provide the security-specific frontend analysis.
+`npm run lint` and `npm run test:web` are defined at the repository root so the CI
+commands resolve consistently.
+
+### Local secret prevention
+
+Install [pre-commit](https://pre-commit.com/) and run `pre-commit install` once per
+checkout. `.pre-commit-config.yaml` runs Gitleaks against staged changes before each
+commit. CI scans the full Git history as a second gate. Never add a secret to a
+documented allowlist; the Gitleaks configuration intentionally does not exempt the
+documentation tree. If a real credential is found, revoke it first, then remove it
+from the current source and follow the repository's incident process for history
+cleanup.
+
+### Exceptions and false positives
+
+There are no permanent severity-based bypasses. A developer who believes a result is
+a false positive opens a security issue with the scanner, rule or advisory ID, file
+and line, evidence, impact assessment, and proposed narrow suppression. Product
+Security must approve it in writing before a suppression is merged. Suppressions must
+include an owner, justification, and expiry date and must be limited to the affected
+rule and location; broad path or severity exclusions are prohibited. Recheck the
+finding on expiry, dependency upgrade, and quarterly suppression review. Gitleaks
+findings that may be real credentials are handled as incidents, not suppressed as
+false positives.
+
+### Required PR checks and approval
+
+Repository administrators must configure branch protection or a ruleset for `main`
+and `develop` to require pull requests, the `security` CODEOWNERS review, and these
+checks before merging:
+
+- `Security / Gitleaks`
+- `Security / Go (packages/schemas)`, `Security / Go (packages/common)`,
+  `Security / Go (apps/api)`, and `Security / Go (apps/worker)`
+- `Security / Frontend lint and SAST`
+- `Security / npm dependencies`
+- `Security / Trivy filesystem and configuration`
+- `Security / PostgreSQL backup image SBOM and scan`
+
+Require branches to be up to date before merge and dismiss stale approvals after new
+commits. CODEOWNERS requires Product Security review for security-sensitive paths.
+Branch protection is hosted repository configuration and cannot be enforced by a
+workflow file alone; until administrators apply these rules, CI reports results but
+GitHub may still allow a merge. Revisit required check names if workflow job names
+change.
+
+The weekly scan is an additional detection path, not a substitute for PR checks.
+Security owns triage and approved exceptions; Platform Engineering owns workflow
+health and dependency remediation. A passing scan demonstrates only the coverage of
+these tools and rules, not the absence of all vulnerabilities.
