@@ -9,6 +9,7 @@ import (
 )
 
 const ScannerConfigVersion = "1.0"
+const ZAPSafetyProfileVersion = "kelvin.zap.baseline.v1"
 
 const (
 	ScannerHTTPPreflight = "http_preflight"
@@ -33,8 +34,9 @@ type ScannerConfigV1 struct {
 }
 
 type ZAPSettings struct {
-	MaxURLs  int `json:"max_urls"`
-	MaxDepth int `json:"max_depth"`
+	SafetyProfile string `json:"safety_profile"`
+	MaxChildren   int    `json:"max_children"`
+	MaxDepth      int    `json:"max_depth"`
 }
 
 type NucleiSettings struct {
@@ -63,8 +65,8 @@ func DefaultScannerConfig(scannerID string) (ScannerConfigV1, error) {
 	case ScannerTLSAssessor, ScannerHTTPHeaders:
 		cfg.MaxDurationSeconds, cfg.RequestsPerSecond = 60, 2
 	case ScannerZAPBaseline:
-		cfg.MaxDurationSeconds, cfg.RequestsPerSecond, cfg.MaxConcurrency = 600, 1, 2
-		cfg.ZAP = &ZAPSettings{MaxURLs: 100, MaxDepth: 3}
+		cfg.MaxDurationSeconds, cfg.RequestsPerSecond, cfg.MaxConcurrency = 600, 1, 1
+		cfg.ZAP = &ZAPSettings{SafetyProfile: ZAPSafetyProfileVersion, MaxChildren: 10, MaxDepth: 2}
 	case ScannerNuclei:
 		cfg.MaxDurationSeconds, cfg.RequestsPerSecond, cfg.MaxConcurrency = 300, 2, 2
 		cfg.Nuclei = &NucleiSettings{TemplateSetID: "kelvin.safe.web.v1", SeverityAllowlist: []string{"info", "low", "medium"}}
@@ -150,8 +152,17 @@ func (cfg ScannerConfigV1) Validate() error {
 		if cfg.ZAP == nil || cfg.Nuclei != nil {
 			return fmt.Errorf("adapters: zap configuration requires only zap settings")
 		}
-		if cfg.ZAP.MaxURLs < 1 || cfg.ZAP.MaxURLs > 250 || cfg.ZAP.MaxDepth < 1 || cfg.ZAP.MaxDepth > 5 {
-			return fmt.Errorf("adapters: zap max_urls must be in 1..250 and max_depth in 1..5")
+		if cfg.ZAP.SafetyProfile != ZAPSafetyProfileVersion {
+			return fmt.Errorf("adapters: unsupported ZAP safety profile %q", cfg.ZAP.SafetyProfile)
+		}
+		if cfg.ZAP.MaxChildren < 1 || cfg.ZAP.MaxChildren > 10 || cfg.ZAP.MaxDepth < 1 || cfg.ZAP.MaxDepth > 2 {
+			return fmt.Errorf("adapters: ZAP max_children must be in 1..10 and max_depth in 1..2")
+		}
+		if cfg.MaxDurationSeconds < 60 || cfg.MaxDurationSeconds > 600 || cfg.MaxDurationSeconds%60 != 0 {
+			return fmt.Errorf("adapters: ZAP max_duration_seconds must be a whole minute in 60..600")
+		}
+		if cfg.RequestsPerSecond != 1 || cfg.MaxConcurrency != 1 {
+			return fmt.Errorf("adapters: ZAP safety profile requires one request worker and request rate policy 1")
 		}
 	case ScannerNuclei:
 		if cfg.Nuclei == nil || cfg.ZAP != nil {

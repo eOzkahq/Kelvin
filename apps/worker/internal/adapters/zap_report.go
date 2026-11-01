@@ -72,6 +72,7 @@ func NormalizeZAPReport(task Task, raw []byte, scannerVersion string, started, c
 	if completed.IsZero() {
 		completed = started
 	}
+	profileVersion, _ := json.Marshal(ZAPSafetyProfileVersion)
 	target, err := url.Parse(task.Target)
 	if err != nil || target.Hostname() == "" || (target.Scheme != "https" && target.Scheme != "http") {
 		return Result{}, fmt.Errorf("adapters: ZAP task target is invalid")
@@ -96,6 +97,7 @@ func NormalizeZAPReport(task Task, raw []byte, scannerVersion string, started, c
 		Metadata:      OutputMetadata{AssessmentID: task.AssessmentID, ScannerID: ScannerZAPBaseline, ScannerVersion: scannerVersion, AdapterVersion: "1.0.0", RunID: uuid.NewString(), StartedAt: started, CompletedAt: completed, CorrelationID: task.CorrelationID},
 		Status:        StatusCompleted, ExitCode: intPointer(0), DurationMS: completed.Sub(started).Milliseconds(),
 		Findings: findings, Diagnostics: []ExecutionDiagnostic{}, RawArtifacts: RawArtifactReferences{},
+		ScannerMetadata: map[string]json.RawMessage{"zap.safety_profile": profileVersion},
 	}
 	if err := result.Validate(); err != nil {
 		return Result{}, fmt.Errorf("%w: normalized ZAP output is invalid: %v", ErrMalformedOutput, err)

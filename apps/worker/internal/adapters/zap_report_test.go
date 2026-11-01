@@ -21,6 +21,9 @@ func TestNormalizeZAPReportCreatesCanonicalEnvelopeWithoutTrustingInstanceURLs(t
 	if result.Status != StatusCompleted || len(result.Findings) != 1 || result.Metadata.CorrelationID != task.CorrelationID {
 		t.Fatalf("unexpected normalized output: %+v", result)
 	}
+	if string(result.ScannerMetadata["zap.safety_profile"]) != `"`+ZAPSafetyProfileVersion+`"` {
+		t.Fatalf("safety profile version not stamped in output: %s", result.ScannerMetadata["zap.safety_profile"])
+	}
 	finding := string(result.Findings[0])
 	if !strings.Contains(finding, `"asset":"approved.example"`) || strings.Contains(finding, "evil.example") || strings.Contains(finding, "secret") {
 		t.Fatalf("scanner controlled URLs or evidence escaped normalization: %s", finding)

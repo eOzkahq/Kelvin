@@ -43,9 +43,9 @@ func TestBuildZAPMapsOnlyBoundedValidatedConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config.MaxDurationSeconds = 125
-	config.ZAP.MaxDepth = 4
-	config.ZAP.MaxURLs = 80
+	config.MaxDurationSeconds = 120
+	config.ZAP.MaxDepth = 2
+	config.ZAP.MaxChildren = 8
 	task.Payload, err = json.Marshal(config)
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +57,7 @@ func TestBuildZAPMapsOnlyBoundedValidatedConfiguration(t *testing.T) {
 	if invocation.Executable != "/zap/zap-baseline.py" {
 		t.Fatalf("executable = %q", invocation.Executable)
 	}
-	want := []string{"-t", "https://example.com", "-m", "3", "-T", "3", "-I", "-J", "/tmp/kelvin-zap-report.json", "-z", "-config spider.maxDepth=4 -config spider.maxChildren=80 -config spider.threadCount=2"}
+	want := []string{"-t", "https://example.com", "-m", "2", "-T", "2", "-I", "-J", "/tmp/kelvin-zap-report.json", "-z", "-config spider.maxDepth=2 -config spider.maxChildren=8 -config spider.threadCount=1 -config network.connection.timeoutInSecs=10"}
 	if len(invocation.Args) != len(want) {
 		t.Fatalf("argv = %#v", invocation.Args)
 	}
@@ -65,6 +65,41 @@ func TestBuildZAPMapsOnlyBoundedValidatedConfiguration(t *testing.T) {
 		if invocation.Args[i] != want[i] {
 			t.Errorf("argv[%d] = %q, want %q", i, invocation.Args[i], want[i])
 		}
+	}
+}
+
+func TestZAPSafetyProfileOmitsActiveScanAndOptionalExecutionModes(t *testing.T) {
+	invocation, err := Build(taskFor(adapters.ScannerZAPBaseline, "https://example.com"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(invocation.Args, "\x00")
+	for _, arg := range invocation.Args {
+		switch arg {
+		case "-j", "-a", "-c", "-u", "-n", "--hook", "--auto":
+			t.Fatalf("ZAP invocation contains prohibited option %q: %#v", arg, invocation.Args)
+		}
+	}
+	if !strings.Contains(joined, "spider.maxDepth=2") || !strings.Contains(joined, "spider.maxChildren=10") || !strings.Contains(joined, "spider.threadCount=1") || !strings.Contains(joined, "network.connection.timeoutInSecs=10") {
+		t.Fatalf("safe profile bounds missing: %#v", invocation.Args)
+	}
+}
+
+func TestEffectiveDeadlineUsesNarrowerScannerOrJobLimit(t *testing.T) {
+	task := taskFor(adapters.ScannerZAPBaseline, "https://example.com")
+	if got, err := EffectiveDeadline(task); err != nil || got != 10*time.Minute {
+		t.Fatalf("default effective deadline=%s err=%v", got, err)
+	}
+	task.HardDeadline = 4 * time.Minute
+	if got, err := EffectiveDeadline(task); err != nil || got != 4*time.Minute {
+		t.Fatalf("narrow job deadline=%s err=%v", got, err)
+	}
+	config, _ := adapters.DefaultScannerConfig(task.Scanner)
+	config.MaxDurationSeconds = 120
+	task.HardDeadline = 10 * time.Minute
+	task.Payload, _ = json.Marshal(config)
+	if got, err := EffectiveDeadline(task); err != nil || got != 2*time.Minute {
+		t.Fatalf("narrow scanner deadline=%s err=%v", got, err)
 	}
 }
 

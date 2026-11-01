@@ -46,6 +46,7 @@ func TestZAPReportCaptureIsBoundToFixedZAPReportPath(t *testing.T) {
 	spec.Invocation = ProcessInvocation{Executable: "/zap/zap-baseline.py", Args: []string{"-t", "https://example.com", "-J", "/tmp/kelvin-zap-report.json"}}
 	spec.Labels["scanner"] = "zap"
 	spec.CaptureZAPReport = true
+	spec.NetworkDisabled = true
 	if err := spec.Validate(); err != nil {
 		t.Fatalf("fixed ZAP report capture should validate: %v", err)
 	}
@@ -58,6 +59,11 @@ func TestZAPReportCaptureIsBoundToFixedZAPReportPath(t *testing.T) {
 	spec.Invocation.Args[3] = "/tmp/untrusted.json"
 	if err := spec.Validate(); err == nil {
 		t.Fatal("custom ZAP report path should be rejected")
+	}
+	spec.Invocation.Args[3] = "/tmp/kelvin-zap-report.json"
+	spec.NetworkDisabled = false
+	if err := spec.Validate(); err == nil {
+		t.Fatal("ZAP networking must stay disabled without scoped egress enforcement")
 	}
 }
 

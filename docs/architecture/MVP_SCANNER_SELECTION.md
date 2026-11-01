@@ -47,14 +47,14 @@ Only the Baseline mode is enabled. Active scan policies, authenticated contexts,
 | :--- | :--- | :--- | :--- |
 | Passive external discovery | Not part of these five components | None | May run under an applicable discovery profile. |
 | Bounded observation | Built-in preflight, TLS, headers/cookies | Small number of ordinary requests/connections | Included in standard MVP; count all requests and redirects against budgets. |
-| Passive crawling/analysis | ZAP Baseline | Multiple ordinary requests based on discovered links | Included only with bounded same-origin crawl, exclusions, concurrency, rate, total request cap, and deadline. |
+| Passive crawling/analysis | ZAP Baseline | Multiple ordinary requests based on discovered links | Profile and spider fanout are bounded, but the current Baseline integration cannot enforce strict pacing or scope-aware network access. ZAP remains network-disabled until those worker controls are available. |
 | Template-driven checks | Curated Nuclei | Template-dependent requests | Included only for templates individually approved for the standard profile and through enforced rate, request, scope, and resource limits. |
 | Active or state-changing tests | None | Potentially crafted or mutating traffic | Excluded from default MVP profiles. No exploit execution or state-changing checks. |
 | Denial-of-service / stress / unrestricted discovery | None | Potentially high-volume or broad traffic | Prohibited in the MVP. |
 
 ### 4.1 Effective profile requirement
 
-The `standard` profile values currently shown in `SCAN_PROFILES.md` (50 requests/second, 5,000 requests/target, and 10 concurrent connections) are not approved defaults for this lineup. Before enabling ZAP or Nuclei in a release, Phase 2 must define a conservative web-baseline budget and make the profile, adapters, and worker limiter agree. Limits must be enforced by the worker boundary, not trusted to scanner flags alone. Each adapter must reject profiles whose limits it cannot enforce. This document intentionally does not invent new numeric limits before that profile contract is revised.
+The `standard` profile values currently shown in `SCAN_PROFILES.md` (50 requests/second, 5,000 requests/target, and 10 concurrent connections) are not approved defaults for this lineup. Before enabling ZAP or Nuclei in a release, Phase 2 must define a conservative web-baseline budget and make the profile, adapters, and worker limiter agree. Limits must be enforced by the worker boundary, not trusted to scanner flags alone. Each adapter must reject profiles whose limits it cannot enforce. The ZAP integration remains network-disabled because its Baseline CLI has no documented strict pacing option and Phase 1 scope-aware egress is not wired into the process path.
 
 Requests made for redirects, retries, crawling, template checks, and scanner health/verification against the target all consume the same per-target budget. Redirect destinations must pass the shared scope policy independently. Rate limits apply across the entire assessment and target, not independently per engine. Default behavior excludes login, authentication, payment, checkout, logout, and other stateful paths; path exclusions supplement rather than replace scope enforcement.
 

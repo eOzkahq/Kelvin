@@ -118,6 +118,12 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		fail(jobLog, q, ctx, job, "scanner invocation rejected: "+err.Error())
 		return
 	}
+	executionDeadline, err := scannerprocess.EffectiveDeadline(task)
+	if err != nil {
+		fail(jobLog, q, ctx, job, "scanner duration policy rejected: "+err.Error())
+		return
+	}
+	task.HardDeadline = executionDeadline
 
 	if hb, ok := q.(interface {
 		Heartbeat(context.Context, string, string, time.Duration) error
