@@ -82,6 +82,7 @@ flowchart LR
 ## ✅ Acceptance Criteria
 
 - [x] A documented Go adapter interface exists in `apps/worker/internal/adapter/`.
+- [x] A documented Go adapter interface exists in `apps/worker/internal/adapters/`.
 - [x] Adapter implementations follow the same lifecycle contract.
 - [x] Scanner-specific code does not leak into unrelated application modules.
 - [x] Unit tests verify the expected adapter behavior.
@@ -96,5 +97,6 @@ flowchart LR
 - MVP Scanner Selection Matrix: [`docs/architecture/MVP_SCANNER_SELECTION.md`](../../../docs/architecture/MVP_SCANNER_SELECTION.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
+- Scanner Adapter Contract: [`docs/architecture/SCANNER_ADAPTER_CONTRACT.md`](../../../docs/architecture/SCANNER_ADAPTER_CONTRACT.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
