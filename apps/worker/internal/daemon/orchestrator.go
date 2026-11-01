@@ -13,6 +13,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/classification"
 	"github.com/kelvin/kelvin/apps/worker/internal/egress"
 	"github.com/kelvin/kelvin/apps/worker/internal/limits"
+	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/pacing"
 	"github.com/kelvin/kelvin/apps/worker/internal/progress"
@@ -45,6 +46,7 @@ type AssessmentPipelineReport struct {
 	PhaseResults       []PhaseResult                    `json:"phase_results"`
 	TotalFindings      int                              `json:"total_findings"`
 	DegradationWarning string                           `json:"degradation_warning,omitempty"`
+	ManifestDigest     string                           `json:"manifest_digest,omitempty"`
 	Envelopes          []adapters.ScannerOutputEnvelope `json:"envelopes"`
 }
 
@@ -891,6 +893,50 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 
 	assessmentCtx, cancelAssessment := context.WithTimeout(ctx, assessmentDeadline)
 	defer cancelAssessment()
+
+	manifestBuilder := manifest.NewBuilder(task.TenantID, task.AssessmentID, task.JobID, task.Target, task.ProfileID)
+	manifestBuilder.SetStartedAt(started)
+	manifestBuilder.SetResourceLimits(manifest.ResourceLimits{
+		HardDeadlineSeconds: int64(assessmentDeadline.Seconds()),
+	})
+	for _, phase := range profile.DefaultScannerOrder {
+		for _, scID := range phase.Scanners {
+			scVer := "1.0.0"
+			adVer := "1.0.0"
+			imgDigest := ""
+			rulesetCat := ""
+			rulesetDig := ""
+			if meta, ok := o.registry.Metadata(scID); ok {
+				if meta.VersionPolicy.ScannerVersion != "" {
+					scVer = meta.VersionPolicy.ScannerVersion
+				}
+				imgDigest = meta.VersionPolicy.ImageDigest
+				rulesetCat = meta.VersionPolicy.TemplateCatalogVersion
+				rulesetDig = meta.VersionPolicy.TemplateCatalogDigest
+			}
+			if a, ok := o.registry.Lookup(scID); ok {
+				adVer = a.Version()
+				if scVer == "" {
+					scVer = a.Version()
+				}
+			}
+			manifestBuilder.AddScanner(manifest.ScannerComponent{
+				ScannerID:      scID,
+				ScannerVersion: scVer,
+				AdapterVersion: adVer,
+				ImageDigest:    imgDigest,
+				RulesetCatalog: rulesetCat,
+				RulesetDigest:  rulesetDig,
+			})
+		}
+	}
+	if execManifest, mErr := manifestBuilder.Build(); mErr == nil {
+		report.ManifestDigest = execManifest.Digest
+		jobLog.Info("recorded immutable assessment execution manifest",
+			zap.String("manifest_digest", execManifest.Digest),
+			zap.Int("scanners_count", len(execManifest.Scanners)),
+		)
+	}
 
 	assessmentTimedOut := false
 	assessmentCancelled := false
