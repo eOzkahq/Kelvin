@@ -48,11 +48,11 @@ Implement KELVIN-native checks for common HTTP security configuration weaknesses
 
 ## ✅ Acceptance Criteria
 
-- [ ] Header and cookie checks execute through a built-in adapter.
-- [ ] Each rule has documented detection logic.
-- [ ] Findings include evidence sufficient for later review.
-- [ ] False-positive-sensitive checks have explicit confidence handling.
-- [ ] Automated fixtures verify expected outcomes.
+- [x] Header and cookie checks execute through the built-in `http_security_headers` adapter using one bounded, scope-validated HEAD request.
+- [x] Detection logic and applicability are documented for each rule in `docs/architecture/HTTP_SECURITY_HEADERS_ADAPTER.md`.
+- [x] Findings include bounded header summaries or cookie-attribute evidence with cookie values redacted.
+- [x] Context-sensitive and false-positive-sensitive checks have applicability gates and confidence scores.
+- [x] Automated local fixtures cover compliant/weak headers, cookies, redaction, and context-sensitive suppression.
 
 ---
 
@@ -63,3 +63,4 @@ Implement KELVIN-native checks for common HTTP security configuration weaknesses
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
 - Scan Profiles Specification: [`docs/architecture/SCAN_PROFILES.md`](../../../docs/architecture/SCAN_PROFILES.md)
+- HTTP Security Header and Cookie Adapter: [`docs/architecture/HTTP_SECURITY_HEADERS_ADAPTER.md`](../../../docs/architecture/HTTP_SECURITY_HEADERS_ADAPTER.md)
