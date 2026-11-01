@@ -29,6 +29,7 @@ type Workspace struct {
 	ConfigDir    string    `json:"config_dir"`
 	TmpDir       string    `json:"tmp_dir"`
 	OutputDir    string    `json:"output_dir"`
+	StagingDir   string    `json:"staging_dir"`
 	CreatedAt    time.Time `json:"created_at"`
 
 	mu      sync.Mutex
@@ -57,6 +58,8 @@ func (w *Workspace) ResolveSafePath(subDir string, relativePath string) (string,
 		baseDir = w.TmpDir
 	case "output":
 		baseDir = w.OutputDir
+	case "staging":
+		baseDir = w.StagingDir
 	case "":
 		baseDir = w.RootDir
 	default:
@@ -215,8 +218,9 @@ func (m *Manager) Create(ctx context.Context, tenantID, assessmentID, runID stri
 	configDir := filepath.Join(rootDir, "config")
 	tmpDir := filepath.Join(rootDir, "tmp")
 	outputDir := filepath.Join(rootDir, "output")
+	stagingDir := filepath.Join(rootDir, "staging")
 
-	for _, dir := range []string{configDir, tmpDir, outputDir} {
+	for _, dir := range []string{configDir, tmpDir, outputDir, stagingDir} {
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			_ = os.RemoveAll(rootDir)
 			return nil, fmt.Errorf("workspace: create directory %s: %w", dir, err)
@@ -231,6 +235,7 @@ func (m *Manager) Create(ctx context.Context, tenantID, assessmentID, runID stri
 		ConfigDir:    configDir,
 		TmpDir:       tmpDir,
 		OutputDir:    outputDir,
+		StagingDir:   stagingDir,
 		CreatedAt:    time.Now().UTC(),
 	}
 

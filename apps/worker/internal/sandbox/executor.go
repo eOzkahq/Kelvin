@@ -215,6 +215,10 @@ type Result struct {
 	Duration         time.Duration
 	Stdout           string
 	Stderr           string
+	StdoutBytes      int64
+	StderrBytes      int64
+	StdoutTruncated  bool
+	StderrTruncated  bool
 	Findings         []byte
 	OutputEnvelope   []byte
 	OOMKilled        bool
