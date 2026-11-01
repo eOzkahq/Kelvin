@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
+	"github.com/kelvin/kelvin/apps/worker/internal/concurrency"
+	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
@@ -281,5 +283,130 @@ func TestDaemonCancelsRunningJobViaQueueStatus(t *testing.T) {
 	}
 	if len(q.failedReasons) == 0 || !strings.Contains(q.failedReasons[0], "execution cancelled") {
 		t.Fatalf("expected reason 'execution cancelled', got %v", q.failedReasons)
+	}
+}
+
+func TestDaemonRejectsJobWhenConcurrencySaturated(t *testing.T) {
+	q, registry := newRecordingQueue(), adapters.NewRegistry()
+	if err := registerStub(registry); err != nil {
+		t.Fatal(err)
+	}
+
+	policy := concurrency.Policy{
+		GlobalLimit:     1,
+		PerTenantLimit:  1,
+		DefaultLeaseTTL: time.Minute,
+		WaitTimeout:     50 * time.Millisecond,
+	}
+	ctrl, err := concurrency.NewMemoryController(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Saturate global slot
+	_, err = ctrl.TryAcquire(context.Background(), concurrency.Request{
+		JobID:    "existing-job",
+		TenantID: "existing-tenant",
+		Scanner:  "nuclei",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	metricsReg := metrics.NewRegistry()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, zap.NewNop(), Config{
+			WorkerID:              "test-worker",
+			PollInterval:          time.Millisecond,
+			Executor:              sandbox.NewFake(),
+			Metrics:               metricsReg,
+			ConcurrencyController: ctrl,
+		}, q, registry)
+	}()
+
+	q.inner.Push(queue.Job{
+		ID:           "88888888-8888-8888-8888-888888888888",
+		AssessmentID: "99999999-9999-9999-9999-999999999999",
+		TenantID:     "123e4567-e89b-12d3-a456-426614174000",
+		Type:         adapters.ScannerNuclei,
+		Payload:      []byte(`{"target":"https://example.com","profile_id":"standard","hard_deadline_seconds":10}`),
+	})
+
+	waitEvent(t, q)
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.failed) != 1 || len(q.completed) != 0 {
+		t.Fatalf("expected job to fail due to concurrency saturation: completed=%d failed=%d", len(q.completed), len(q.failed))
+	}
+	if len(q.failedReasons) == 0 || !strings.Contains(q.failedReasons[0], "concurrency capacity unavailable") {
+		t.Fatalf("expected failure reason 'concurrency capacity unavailable', got %v", q.failedReasons)
+	}
+
+	snap := metricsReg.Snapshot()
+	if snap.ResourceViolations[metrics.ViolationConcurrency] != 1 {
+		t.Fatalf("expected 1 ViolationConcurrency metric, got %d", snap.ResourceViolations[metrics.ViolationConcurrency])
+	}
+}
+
+func TestDaemonAcquiresAndReleasesSlotOnSuccess(t *testing.T) {
+	q, registry := newRecordingQueue(), adapters.NewRegistry()
+	if err := registerStub(registry); err != nil {
+		t.Fatal(err)
+	}
+
+	policy := concurrency.Policy{
+		GlobalLimit:     1,
+		PerTenantLimit:  1,
+		DefaultLeaseTTL: time.Minute,
+		WaitTimeout:     100 * time.Millisecond,
+	}
+	ctrl, err := concurrency.NewMemoryController(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, zap.NewNop(), Config{
+			WorkerID:              "test-worker",
+			PollInterval:          time.Millisecond,
+			Executor:              sandbox.NewFake(),
+			ConcurrencyController: ctrl,
+		}, q, registry)
+	}()
+
+	jobID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+	q.inner.Push(queue.Job{
+		ID:           jobID,
+		AssessmentID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+		TenantID:     "123e4567-e89b-12d3-a456-426614174000",
+		Type:         adapters.ScannerNuclei,
+		Payload:      []byte(`{"target":"https://example.com","profile_id":"standard","hard_deadline_seconds":10}`),
+	})
+
+	waitEvent(t, q)
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.completed) != 1 {
+		t.Fatalf("expected 1 completed job, got %d", len(q.completed))
+	}
+
+	// Verify that the concurrency lease was released
+	snap, _ := ctrl.Snapshot(context.Background())
+	if snap.Global.Active != 0 {
+		t.Fatalf("expected 0 active slots after job completed, got %d", snap.Global.Active)
 	}
 }

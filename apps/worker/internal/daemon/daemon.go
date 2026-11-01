@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
+	"github.com/kelvin/kelvin/apps/worker/internal/concurrency"
 	"github.com/kelvin/kelvin/apps/worker/internal/limits"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/progress"
@@ -32,6 +33,7 @@ type Config struct {
 	WorkspaceManager    *workspace.Manager
 	ScopePolicyProvider adapters.ScopePolicyProvider
 	ProgressPublisher   progress.Publisher
+	ConcurrencyController concurrency.Controller
 }
 
 func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, registry *adapters.Registry) error {
@@ -73,6 +75,21 @@ func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, regist
 			}
 		}
 	}()
+
+	if cfg.ConcurrencyController != nil {
+		reapTicker := time.NewTicker(30 * time.Second)
+		defer reapTicker.Stop()
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-reapTicker.C:
+					_, _ = cfg.ConcurrencyController.ReapExpired(ctx)
+				}
+			}
+		}()
+	}
 
 	for {
 		job, err := q.Dequeue(ctx)
@@ -176,6 +193,45 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		if pub, ok := q.(progress.Publisher); ok {
 			cfg.ProgressPublisher = pub
 		}
+	}
+
+	if cfg.ConcurrencyController != nil {
+		req := concurrency.Request{
+			JobID:    job.ID,
+			TenantID: job.TenantID,
+			Scanner:  task.Scanner,
+		}
+		lease, err := cfg.ConcurrencyController.Acquire(jobCtx, req)
+		if err != nil {
+			if cfg.Metrics != nil {
+				cfg.Metrics.IncResourceViolation(metrics.ViolationConcurrency)
+			}
+			jobLog.Warn("concurrency capacity unavailable for job", zap.String("job_id", job.ID), zap.Error(err))
+			fail(jobLog, q, ctx, job, "concurrency capacity unavailable: "+err.Error())
+			return
+		}
+		defer func() {
+			_ = cfg.ConcurrencyController.Release(context.Background(), lease)
+		}()
+
+		leaseHeartbeatCtx, cancelLeaseHb := context.WithCancel(jobCtx)
+		defer cancelLeaseHb()
+		go func() {
+			hbInterval := cfg.HeartbeatEvery
+			if hbInterval <= 0 || hbInterval > 20*time.Second {
+				hbInterval = 10 * time.Second
+			}
+			ticker := time.NewTicker(hbInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-leaseHeartbeatCtx.Done():
+					return
+				case <-ticker.C:
+					_ = cfg.ConcurrencyController.Heartbeat(leaseHeartbeatCtx, lease, hbInterval*3)
+				}
+			}
+		}()
 	}
 
 	orchestrator := NewOrchestrator(registry, cfg.Executor, cfg.ReadinessChecker, cfg.WorkspaceManager, cfg.Metrics, jobLog)
