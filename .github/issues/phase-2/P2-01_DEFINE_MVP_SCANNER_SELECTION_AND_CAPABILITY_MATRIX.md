@@ -24,6 +24,42 @@ Select the initial scanner technologies that KELVIN will support in its MVP. Avo
 
 ---
 
+---
+
+## 📐 Architecture & Workflow Diagram
+
+```mermaid
+flowchart TD
+    subgraph CandidateEvaluation ["Scanner Evaluation Framework"]
+        E1["Licensing & Maintenance"]
+        E2["Resource Footprint"]
+        E3["Container Portability"]
+        E4["Target Scope Safety"]
+    end
+
+    CandidateEvaluation --> DecisionGate{"Capability & Safety Assessment"}
+
+    DecisionGate -->|"Approved (MVP Lineup)"| Approved
+    DecisionGate -->|"Excluded / Non-Goals"| Deferred
+
+    subgraph Approved ["Selected MVP Scanners"]
+        A1["Built-in HTTP/HTTPS Preflight Checks"]
+        A2["Built-in TLS Configuration Assessor"]
+        A3["Built-in Security Headers & Cookies"]
+        A4["OWASP ZAP Baseline (Passive Mode)"]
+        A5["Nuclei Engine (Vetted Safe Templates)"]
+    end
+
+    subgraph Deferred ["Deferred / Out of Scope"]
+        D1["Unrestricted Port Scanners (Nmap/Masscan)"]
+        D2["Destructive Exploit Modules"]
+        D3["Denial-of-Service Fuzzers"]
+        D4["Arbitrary Custom Nuclei Templates"]
+    end
+```
+
+---
+
 ## 📋 Detailed Requirements
 
 - Evaluate potential scanners based on their capabilities, maintenance status, licensing, integration complexity, resource requirements, and compatibility with containerized workers.
@@ -47,17 +83,18 @@ Select the initial scanner technologies that KELVIN will support in its MVP. Avo
 
 ## ✅ Acceptance Criteria
 
-- [ ] An approved scanner selection matrix exists.
-- [ ] Each selected scanner has a documented purpose and capability boundary.
-- [ ] Licensing and distribution considerations are documented.
-- [ ] Default MVP scanning behavior is explicitly defined as non-intrusive and bounded.
-- [ ] Deferred integrations are documented separately.
+- [x] An approved scanner selection matrix exists.
+- [x] Each selected scanner has a documented purpose and capability boundary.
+- [x] Licensing and distribution considerations are documented.
+- [x] Default MVP scanning behavior is explicitly defined as non-intrusive and bounded.
+- [x] Deferred integrations are documented separately.
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- MVP Scanner Selection Matrix: [`docs/architecture/MVP_SCANNER_SELECTION.md`](../../../docs/architecture/MVP_SCANNER_SELECTION.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
