@@ -22,6 +22,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/retry"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/apps/worker/internal/scannerprocess"
+	"github.com/kelvin/kelvin/apps/worker/internal/scopevalidator"
 	"github.com/kelvin/kelvin/apps/worker/internal/workspace"
 	"go.uber.org/zap"
 )
@@ -956,6 +957,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 	var scannersFailed []string
 	var scannersSkipped []string
 	allFindings := []json.RawMessage{}
+	var scopeViolations []scopevalidator.ScopeViolation
 
 	totalPhases := int64(len(profile.DefaultScannerOrder))
 	for _, phase := range profile.DefaultScannerOrder {
@@ -1099,6 +1101,13 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			if len(subResult.OutputEnvelope) > 0 {
 				env, err := adapters.DecodeOutputEnvelope(subResult.OutputEnvelope)
 				if err == nil {
+					if scopeVal, vErr := scopevalidator.NewFromTarget(task.Target, jobLog); vErr == nil {
+						accepted, violations, _ := scopeVal.FilterFindings(assessmentCtx, env.Findings)
+						env.Findings = accepted
+						if len(violations) > 0 {
+							scopeViolations = append(scopeViolations, violations...)
+						}
+					}
 					report.Envelopes = append(report.Envelopes, env)
 					report.TotalFindings += len(env.Findings)
 					allFindings = append(allFindings, env.Findings...)
@@ -1206,6 +1215,10 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 				}
 			}
 		}
+	}
+
+	if len(scopeViolations) > 0 {
+		diagnostics = append(diagnostics, scopevalidator.ToDiagnostics(scopeViolations)...)
 	}
 
 	report.OverallStatus = status
