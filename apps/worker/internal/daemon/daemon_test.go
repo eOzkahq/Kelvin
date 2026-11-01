@@ -12,6 +12,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
+	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
 	"github.com/kelvin/kelvin/packages/schemas"
 	"go.uber.org/zap"
 )
@@ -43,6 +44,12 @@ func (r *recordingQueue) Fail(ctx context.Context, j queue.Job, reason string) e
 	r.mu.Unlock()
 	r.event <- struct{}{}
 	return r.inner.Fail(ctx, j, reason)
+}
+func (r *recordingQueue) Cancel(ctx context.Context, id string) error {
+	return r.inner.Cancel(ctx, id)
+}
+func (r *recordingQueue) GetStatus(ctx context.Context, id string) (commonqueue.Status, error) {
+	return r.inner.GetStatus(ctx, id)
 }
 
 type stubAdapter struct{ name string }
@@ -232,5 +239,47 @@ func TestDaemonRejectsJobWhenScannerNotReady(t *testing.T) {
 	defer q.mu.Unlock()
 	if len(q.failed) != 1 || len(q.completed) != 0 {
 		t.Fatalf("expected job to fail due to unready scanner: completed=%d failed=%d", len(q.completed), len(q.failed))
+	}
+}
+
+func TestDaemonCancelsRunningJobViaQueueStatus(t *testing.T) {
+	q, registry := newRecordingQueue(), adapters.NewRegistry()
+	if err := registerStub(registry); err != nil {
+		t.Fatal(err)
+	}
+
+	fake := sandbox.NewFake()
+	fake.Delay = 100 * time.Millisecond // simulate active work
+
+	cancel, done := runWorker(t, q, registry, fake)
+
+	jobID := "66666666-6666-6666-6666-666666666666"
+	q.inner.Push(queue.Job{
+		ID:           jobID,
+		AssessmentID: "77777777-7777-7777-7777-777777777777",
+		TenantID:     "123e4567-e89b-12d3-a456-426614174000",
+		Type:         adapters.ScannerNuclei,
+		Payload:      []byte(`{"target":"https://example.com","profile_id":"standard","hard_deadline_seconds":10}`),
+	})
+
+	// Cancel job via queue status while worker is executing
+	time.Sleep(20 * time.Millisecond)
+	if err := q.Cancel(context.Background(), jobID); err != nil {
+		t.Fatalf("failed to cancel job: %v", err)
+	}
+
+	waitEvent(t, q)
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.failed) != 1 || len(q.completed) != 0 {
+		t.Fatalf("expected job to fail with cancellation: completed=%d failed=%d", len(q.completed), len(q.failed))
+	}
+	if len(q.failedReasons) == 0 || !strings.Contains(q.failedReasons[0], "execution cancelled") {
+		t.Fatalf("expected reason 'execution cancelled', got %v", q.failedReasons)
 	}
 }

@@ -89,6 +89,22 @@ func (o *Orchestrator) ensureWorkspaceManager(cfg Config) *workspace.Manager {
 // ExecuteScanner executes an individual resolved scanner adapter, choosing in-process
 // execution or OCI container sandboxing based on the adapter's declared capabilities.
 func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, task adapters.Task, cfg Config) (*sandbox.Result, error) {
+	if errors.Is(ctx.Err(), context.Canceled) {
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncTermination(metrics.CauseCancelled)
+		}
+		o.logger.Info("scanner execution cancelled before start",
+			zap.String("job_id", task.JobID),
+			zap.String("scanner", task.Scanner),
+		)
+		result := &sandbox.Result{
+			Cancelled: true,
+			ExitCode:  -1,
+		}
+		result.OutputEnvelope = buildCancelledEnvelope(task, "", 0)
+		return result, sandbox.ErrCancelled
+	}
+
 	adapter, ok := o.registry.LookupExecutable(task.Scanner)
 	if !ok {
 		return nil, fmt.Errorf("no executable adapter registered for scanner %q", task.Scanner)
@@ -157,6 +173,41 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 	// 1. In-process execution (requires no external sandbox/container)
 	if !metadata.Capabilities.RequiresSandbox {
 		res, err := adapter.Execute(execCtx, task)
+		isCancelled := errors.Is(ctx.Err(), context.Canceled) ||
+			errors.Is(execCtx.Err(), context.Canceled) ||
+			errors.Is(err, context.Canceled) ||
+			errors.Is(err, sandbox.ErrCancelled) ||
+			res.Status == adapters.StatusCancelled
+
+		if isCancelled {
+			if cfg.Metrics != nil {
+				cfg.Metrics.IncTermination(metrics.CauseCancelled)
+			}
+			_ = adapter.Cancel()
+			o.logger.Info("scanner execution cancelled",
+				zap.String("job_id", task.JobID),
+				zap.String("scanner", task.Scanner),
+			)
+			if res.Status != adapters.StatusCancelled {
+				res.Status = adapters.StatusCancelled
+				code := -1
+				res.ExitCode = &code
+				res.Diagnostics = append(res.Diagnostics, adapters.ExecutionDiagnostic{
+					Level:   "error",
+					Code:    "CANCELLED",
+					Message: fmt.Sprintf("scanner %q execution was cancelled", task.Scanner),
+				})
+			}
+			_ = o.registry.StampOutput(task.Scanner, &res)
+			encoded, _ := adapters.EncodeOutputEnvelope(res)
+			return &sandbox.Result{
+				Duration:       time.Duration(res.DurationMS) * time.Millisecond,
+				OutputEnvelope: encoded,
+				Cancelled:      true,
+				ExitCode:       -1,
+			}, sandbox.ErrCancelled
+		}
+
 		isTimeout := execCtx.Err() == context.DeadlineExceeded || errors.Is(err, context.DeadlineExceeded) || res.Status == adapters.StatusTimedOut
 		if isTimeout {
 			if cfg.Metrics != nil {
@@ -283,6 +334,37 @@ func (o *Orchestrator) ExecuteScanner(ctx context.Context, jobLog *zap.Logger, t
 			zap.String("memory_limit", spec.Limits.MemoryLimit),
 		)
 	}
+
+	isCancelled := (result != nil && result.Cancelled) ||
+		errors.Is(ctx.Err(), context.Canceled) ||
+		errors.Is(execCtx.Err(), context.Canceled) ||
+		errors.Is(execErr, sandbox.ErrCancelled) ||
+		errors.Is(execErr, context.Canceled)
+
+	if isCancelled {
+		if result == nil {
+			result = &sandbox.Result{
+				Duration:  0,
+				Cancelled: true,
+				ExitCode:  -1,
+			}
+		} else {
+			result.Cancelled = true
+		}
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncTermination(metrics.CauseCancelled)
+		}
+		o.logger.Info("scanner execution cancelled",
+			zap.String("job_id", task.JobID),
+			zap.String("scanner", task.Scanner),
+		)
+		if len(result.OutputEnvelope) == 0 {
+			result.OutputEnvelope = buildCancelledEnvelope(task, metadata.VersionPolicy.ScannerVersion, result.Duration)
+		}
+		_ = adapter.Cancel()
+		return result, sandbox.ErrCancelled
+	}
+
 	isDeadlineExceeded := (result != nil && result.DeadlineExceeded) ||
 		errors.Is(execErr, sandbox.ErrDeadlineExceeded) ||
 		execCtx.Err() == context.DeadlineExceeded
@@ -423,6 +505,42 @@ func buildTimedOutEnvelope(task adapters.Task, scannerVersion string, duration t
 	return encoded
 }
 
+func buildCancelledEnvelope(task adapters.Task, scannerVersion string, duration time.Duration) []byte {
+	completed := time.Now().UTC()
+	started := completed.Add(-duration)
+	code := -1
+	ver := scannerVersion
+	if ver == "" {
+		ver = "1.0.0"
+	}
+	env := adapters.ScannerOutputEnvelope{
+		SchemaVersion: adapters.OutputEnvelopeVersion,
+		Metadata: adapters.OutputMetadata{
+			AssessmentID:   task.AssessmentID,
+			ScannerID:      task.Scanner,
+			ScannerVersion: ver,
+			AdapterVersion: "1.0.0",
+			RunID:          task.JobID,
+			StartedAt:      started,
+			CompletedAt:    completed,
+			CorrelationID:  task.CorrelationID,
+		},
+		Status:      adapters.StatusCancelled,
+		ExitCode:    &code,
+		DurationMS:  duration.Milliseconds(),
+		Findings:    []json.RawMessage{},
+		Diagnostics: []adapters.ExecutionDiagnostic{
+			{
+				Level:   "error",
+				Code:    "CANCELLED",
+				Message: fmt.Sprintf("scanner %q execution was cancelled", task.Scanner),
+			},
+		},
+	}
+	encoded, _ := adapters.EncodeOutputEnvelope(env)
+	return encoded
+}
+
 // ExecutePipeline coordinates execution of all scanners defined by an assessment profile.
 func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, task adapters.Task, cfg Config) (*sandbox.Result, error) {
 	profile, err := adapters.GetAssessmentProfile(task.ProfileID)
@@ -437,6 +555,47 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 		ProfileID:    profile.ProfileID,
 		Target:       task.Target,
 		StartedAt:    started,
+	}
+
+	if errors.Is(ctx.Err(), context.Canceled) {
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncTermination(metrics.CauseCancelled)
+		}
+		completed := time.Now().UTC()
+		report.CompletedAt = completed
+		report.Duration = 0
+		rawReport, _ := json.Marshal(report)
+		envelope := adapters.ScannerOutputEnvelope{
+			SchemaVersion: adapters.OutputEnvelopeVersion,
+			Metadata: adapters.OutputMetadata{
+				AssessmentID:   task.AssessmentID,
+				ScannerID:      "pipeline",
+				ScannerVersion: "1.0.0",
+				AdapterVersion: "1.0.0",
+				RunID:          task.JobID,
+				StartedAt:      started,
+				CompletedAt:    completed,
+				CorrelationID:  task.CorrelationID,
+			},
+			Status:      adapters.StatusCancelled,
+			ExitCode:    intPtr(-1),
+			Findings:    []json.RawMessage{},
+			Diagnostics: []adapters.ExecutionDiagnostic{
+				{
+					Level:   "error",
+					Code:    "CANCELLED",
+					Message: "assessment execution was cancelled before execution began",
+				},
+			},
+		}
+		encodedEnv, _ := adapters.EncodeOutputEnvelope(envelope)
+		return &sandbox.Result{
+			Duration:       0,
+			Stdout:         string(rawReport),
+			OutputEnvelope: encodedEnv,
+			ExitCode:       -1,
+			Cancelled:      true,
+		}, sandbox.ErrCancelled
 	}
 
 	assessmentDeadline := task.HardDeadline
@@ -502,6 +661,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 	defer cancelAssessment()
 
 	assessmentTimedOut := false
+	assessmentCancelled := false
 	prevPhaseSucceeded := true
 
 	for _, phase := range profile.DefaultScannerOrder {
@@ -520,6 +680,14 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 				zap.Int("phase_index", phase.PhaseIndex),
 				zap.String("phase_name", phase.PhaseName),
 			)
+			break
+		}
+
+		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(assessmentCtx.Err(), context.Canceled) {
+			phaseRes.Success = false
+			phaseRes.Error = "assessment execution cancelled"
+			report.PhaseResults = append(report.PhaseResults, phaseRes)
+			assessmentCancelled = true
 			break
 		}
 
@@ -566,6 +734,27 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			subTask.HardDeadline = scannerDeadline
 
 			subResult, err := o.ExecuteScanner(assessmentCtx, jobLog, subTask, cfg)
+			isCancelled := (subResult != nil && subResult.Cancelled) ||
+				errors.Is(err, sandbox.ErrCancelled) ||
+				errors.Is(err, context.Canceled) ||
+				errors.Is(ctx.Err(), context.Canceled) ||
+				errors.Is(assessmentCtx.Err(), context.Canceled)
+
+			if isCancelled {
+				phaseRes.Success = false
+				phaseRes.Error = fmt.Sprintf("scanner %q execution cancelled", scannerID)
+				prevPhaseSucceeded = false
+				assessmentCancelled = true
+				if subResult != nil && len(subResult.OutputEnvelope) > 0 {
+					env, decErr := adapters.DecodeOutputEnvelope(subResult.OutputEnvelope)
+					if decErr == nil {
+						report.Envelopes = append(report.Envelopes, env)
+					}
+				}
+				report.PhaseResults = append(report.PhaseResults, phaseRes)
+				break
+			}
+
 			isTimedOut := (subResult != nil && subResult.DeadlineExceeded) ||
 				errors.Is(err, sandbox.ErrDeadlineExceeded) ||
 				errors.Is(err, context.DeadlineExceeded) ||
@@ -627,7 +816,17 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 	exitCode := 0
 	var diagnostics []adapters.ExecutionDiagnostic
 
-	if assessmentTimedOut {
+	if assessmentCancelled {
+		status = adapters.StatusCancelled
+		exitCode = -1
+		diagnostics = []adapters.ExecutionDiagnostic{
+			{
+				Level:   "error",
+				Code:    "CANCELLED",
+				Message: "assessment execution was cancelled",
+			},
+		}
+	} else if assessmentTimedOut {
 		status = adapters.StatusTimedOut
 		exitCode = -1
 		diagnostics = []adapters.ExecutionDiagnostic{
@@ -664,6 +863,10 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 		OutputEnvelope:   encodedEnv,
 		ExitCode:         exitCode,
 		DeadlineExceeded: assessmentTimedOut,
+		Cancelled:        assessmentCancelled,
+	}
+	if assessmentCancelled {
+		return res, sandbox.ErrCancelled
 	}
 	if assessmentTimedOut {
 		return res, sandbox.ErrDeadlineExceeded

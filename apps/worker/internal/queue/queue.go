@@ -51,9 +51,11 @@ func (NopQueue) Fail(context.Context, Job, string) error { return nil }
 // MemoryQueue is an in-process queue used by daemon unit tests and local
 // wiring experiments; it is not a durable broker.
 type MemoryQueue struct {
-	mu   sync.Mutex
-	jobs []Job
-	ch   chan struct{}
+	mu        sync.Mutex
+	jobs      []Job
+	status    map[string]commonqueue.Status
+	cancelled map[string]bool
+	ch        chan struct{}
 }
 
 // RedisQueue adapts the shared backend-neutral queue to the worker daemon API.
@@ -130,18 +132,49 @@ func (r *RedisQueue) Heartbeat(ctx context.Context, id, worker string, ttl time.
 
 // NewMemoryQueue builds an empty in-process queue.
 func NewMemoryQueue() *MemoryQueue {
-	return &MemoryQueue{ch: make(chan struct{}, 64)}
+	return &MemoryQueue{
+		ch:        make(chan struct{}, 64),
+		status:    make(map[string]commonqueue.Status),
+		cancelled: make(map[string]bool),
+	}
 }
 
 // Push enqueues a job and wakes one waiter.
 func (m *MemoryQueue) Push(job Job) {
 	m.mu.Lock()
 	m.jobs = append(m.jobs, job)
+	m.status[job.ID] = commonqueue.Status{State: "RUNNING", UpdatedAt: time.Now().UTC()}
 	m.mu.Unlock()
 	select {
 	case m.ch <- struct{}{}:
 	default:
 	}
+}
+
+// Cancel marks a job as cancelled in memory.
+func (m *MemoryQueue) Cancel(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cancelled[id] = true
+	s := m.status[id]
+	s.State = "CANCELLED"
+	s.UpdatedAt = time.Now().UTC()
+	m.status[id] = s
+	return nil
+}
+
+// GetStatus retrieves the status of a job.
+func (m *MemoryQueue) GetStatus(_ context.Context, id string) (commonqueue.Status, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.cancelled[id] {
+		return commonqueue.Status{State: "CANCELLED"}, nil
+	}
+	s, ok := m.status[id]
+	if !ok {
+		return commonqueue.Status{State: "RUNNING"}, nil
+	}
+	return s, nil
 }
 
 // Dequeue blocks until a job is pushed or ctx is done.

@@ -48,17 +48,18 @@ Ensure cancelling an assessment terminates the associated scanner process and it
 
 ## ✅ Acceptance Criteria
 
-- [ ] Cancelling an assessment stops associated scanner execution.
-- [ ] Child processes are terminated.
-- [ ] Repeated cancellation requests are handled safely.
-- [ ] Final execution state accurately reflects cancellation.
-- [ ] Automated tests verify cleanup and absence of orphan processes.
+- [x] Cancelling an assessment stops associated scanner execution.
+- [x] Child processes are terminated.
+- [x] Repeated cancellation requests are handled safely.
+- [x] Final execution state accurately reflects cancellation.
+- [x] Automated tests verify cleanup and absence of orphan processes.
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- Scanner Process Cancellation: [docs/architecture/SCANNER_PROCESS_CANCELLATION.md](../../../docs/architecture/SCANNER_PROCESS_CANCELLATION.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)

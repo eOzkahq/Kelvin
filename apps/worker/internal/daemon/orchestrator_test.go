@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/netip"
 	"strings"
@@ -706,5 +707,150 @@ func TestScannerDeadlineRespectsAssessmentRemainingTime(t *testing.T) {
 	// Verify the spec deadline received by executor did not exceed 5 seconds
 	if fakeExec.Last.Deadline > 5*time.Second {
 		t.Errorf("expected spec.Deadline <= 5s, got %v", fakeExec.Last.Deadline)
+	}
+}
+
+func TestExecuteScannerHandlesCancellation(t *testing.T) {
+	registry := adapters.NewRegistry()
+	if err := registerStub(registry); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	metricsReg := metrics.NewRegistry()
+	fakeExec := sandbox.NewFake()
+	fakeExec.Delay = 50 * time.Millisecond
+
+	cfg := Config{
+		WorkerID: "test-worker",
+		Executor: fakeExec,
+		Metrics:  metricsReg,
+	}
+
+	orch := NewOrchestrator(registry, fakeExec, nil, nil, metricsReg, zap.NewNop())
+
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      adapters.ScannerNuclei,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileDeep,
+		HardDeadline: 10 * time.Second,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel after 10ms (while fake execution is delayed 50ms)
+	time.AfterFunc(10*time.Millisecond, cancel)
+
+	res, err := orch.ExecuteScanner(ctx, zap.NewNop(), task, cfg)
+	if err == nil {
+		t.Fatal("expected execution error on cancellation")
+	}
+	if !errors.Is(err, sandbox.ErrCancelled) {
+		t.Fatalf("expected sandbox.ErrCancelled, got %v", err)
+	}
+	if res == nil || !res.Cancelled {
+		t.Fatalf("expected res.Cancelled = true, got %+v", res)
+	}
+
+	snap := metricsReg.Snapshot()
+	if snap.Terminations[metrics.CauseCancelled] != 1 {
+		t.Errorf("expected 1 CauseCancelled termination, got %d", snap.Terminations[metrics.CauseCancelled])
+	}
+
+	env, err := adapters.DecodeOutputEnvelope(res.OutputEnvelope)
+	if err != nil {
+		t.Fatalf("failed to decode cancelled envelope: %v", err)
+	}
+	if env.Status != adapters.StatusCancelled {
+		t.Errorf("env.Status = %q, want %q", env.Status, adapters.StatusCancelled)
+	}
+	hasCancelDiag := false
+	for _, diag := range env.Diagnostics {
+		if diag.Code == "CANCELLED" {
+			hasCancelDiag = true
+			break
+		}
+	}
+	if !hasCancelDiag {
+		t.Errorf("missing CANCELLED diagnostic in envelope: %+v", env.Diagnostics)
+	}
+}
+
+func TestExecutePipelineHaltsImmediatelyOnCancellation(t *testing.T) {
+	registry := adapters.NewRegistry()
+	if err := registerInProcess(registry, adapters.ScannerHTTPPreflight); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerInProcess(registry, adapters.ScannerTLSAssessor); err != nil {
+		t.Fatal(err)
+	}
+
+	metricsReg := metrics.NewRegistry()
+	fakeExec := sandbox.NewFake()
+
+	cfg := Config{
+		WorkerID: "test-worker",
+		Executor: fakeExec,
+		Metrics:  metricsReg,
+	}
+
+	orch := NewOrchestrator(registry, fakeExec, nil, nil, metricsReg, zap.NewNop())
+
+	task := adapters.Task{
+		JobID:        uuid.New().String(),
+		AssessmentID: uuid.New().String(),
+		TenantID:     uuid.New().String(),
+		Scanner:      JobTypeAssessment,
+		Target:       "https://example.com",
+		ProfileID:    adapters.ProfileStandard,
+		HardDeadline: 10 * time.Second,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel before start
+
+	res, err := orch.ExecutePipeline(ctx, zap.NewNop(), task, cfg)
+	if err == nil {
+		t.Fatal("expected error on cancelled pipeline")
+	}
+	if !errors.Is(err, sandbox.ErrCancelled) {
+		t.Fatalf("expected sandbox.ErrCancelled, got %v", err)
+	}
+	if res == nil || !res.Cancelled {
+		t.Fatalf("expected res.Cancelled = true, got %+v", res)
+	}
+
+	env, err := adapters.DecodeOutputEnvelope(res.OutputEnvelope)
+	if err != nil {
+		t.Fatalf("failed to decode pipeline output envelope: %v", err)
+	}
+	if env.Status != adapters.StatusCancelled {
+		t.Errorf("env.Status = %q, want %q", env.Status, adapters.StatusCancelled)
+	}
+}
+
+func TestRepeatedCancellationIsIdempotent(t *testing.T) {
+	adapter := &adapters.ReferenceAdapter{
+		AdapterName: "test-ref",
+		Caps: adapters.Capabilities{
+			SupportsCancel: true,
+		},
+		Run: func(ctx context.Context, task adapters.Task) (adapters.Result, error) {
+			return adapters.Result{}, nil
+		},
+	}
+	if err := adapter.Initialize(context.Background(), zap.NewNop()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Repeated Cancel calls must not panic or error
+	for i := 0; i < 5; i++ {
+		if err := adapter.Cancel(); err != nil {
+			t.Errorf("call %d: Cancel() error = %v", i, err)
+		}
 	}
 }
