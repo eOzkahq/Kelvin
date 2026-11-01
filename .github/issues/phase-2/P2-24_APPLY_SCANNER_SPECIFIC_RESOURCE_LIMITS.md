@@ -47,17 +47,18 @@ Configure and enforce resource constraints for the different scanner runtimes.
 
 ## ✅ Acceptance Criteria
 
-- [ ] Each scanner has approved resource limits.
-- [ ] Limits are enforced by the execution environment.
-- [ ] Resource exhaustion is reported consistently.
-- [ ] User configuration cannot bypass platform ceilings.
-- [ ] Tests verify enforcement and failure handling.
+- [x] Each scanner has approved resource limits (`docs/architecture/SCANNER_RESOURCE_LIMITS.md`).
+- [x] Limits are enforced by the execution environment (`apps/worker/internal/limits/limits.go`, `apps/worker/internal/sandbox/oci.go`, `apps/worker/internal/daemon/orchestrator.go`).
+- [x] Resource exhaustion is reported consistently (OOM exit 137, deadline exit 124, Prometheus `ViolationOOM`/`ViolationDeadline` metrics).
+- [x] User configuration cannot bypass platform ceilings (`limits.ValidateAgainstCeiling` fails closed with `ErrExceedsCeiling`).
+- [x] Tests verify enforcement and failure handling (`apps/worker/internal/limits/limits_test.go`, `apps/worker/internal/daemon/orchestrator_test.go`).
 
 ---
 
 ## 🔗 Related Documentation & Links
 
 - Architecture Baseline: [`docs/architecture/SYSTEM_ARCHITECTURE.md`](../../../docs/architecture/SYSTEM_ARCHITECTURE.md)
+- Scanner Resource Limits: [`docs/architecture/SCANNER_RESOURCE_LIMITS.md`](../../../docs/architecture/SCANNER_RESOURCE_LIMITS.md)
 - Target Scope Enforcement: [`docs/architecture/TARGET_SCOPE_ENFORCEMENT.md`](../../../docs/architecture/TARGET_SCOPE_ENFORCEMENT.md)
 - Worker Execution Isolation: [`docs/architecture/EXECUTION_ISOLATION.md`](../../../docs/architecture/EXECUTION_ISOLATION.md)
 - Canonical Finding Schema: [`docs/architecture/FINDING_SCHEMA.md`](../../../docs/architecture/FINDING_SCHEMA.md)
