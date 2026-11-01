@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -93,6 +94,8 @@ type Spec struct {
 	// CaptureZAPReport asks the executor to copy the fixed baseline JSON report
 	// out of the still-running container before cleanup.
 	CaptureZAPReport bool
+	// WorkspaceMount specifies the host directory to bind-mount to /workspace in the container.
+	WorkspaceMount string
 }
 
 func (s Spec) Validate() error {
@@ -150,9 +153,14 @@ func (s Spec) Validate() error {
 	}
 	for _, entry := range s.Env {
 		key, _, ok := strings.Cut(entry, "=")
-		if !ok || (key != "KELVIN_JOB_ID" && key != "KELVIN_TENANT_ID" && key != "KELVIN_ASSESSMENT_ID" && key != "KELVIN_CORRELATION_ID") || strings.ContainsAny(entry, "\x00\r\n") {
+		if !ok || (key != "KELVIN_JOB_ID" && key != "KELVIN_TENANT_ID" && key != "KELVIN_ASSESSMENT_ID" && key != "KELVIN_CORRELATION_ID" && key != "KELVIN_WORKSPACE") || strings.ContainsAny(entry, "\x00\r\n") {
 			errs = append(errs, "container environment contains an unapproved variable")
 			break
+		}
+	}
+	if s.WorkspaceMount != "" {
+		if !filepath.IsAbs(s.WorkspaceMount) || strings.ContainsAny(s.WorkspaceMount, "\x00\r\n") {
+			errs = append(errs, "workspace mount must be an absolute path without control characters")
 		}
 	}
 	if len(errs) != 0 {

@@ -114,6 +114,9 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	for _, mount := range spec.TmpfsMounts {
 		args = append(args, "--tmpfs="+mount)
 	}
+	if spec.WorkspaceMount != "" {
+		args = append(args, "-v", spec.WorkspaceMount+":/workspace:rw")
+	}
 	if spec.Limits.MemoryLimit != "" {
 		args = append(args, "--memory="+spec.Limits.MemoryLimit)
 	} else if spec.MemoryLimit != "" {
