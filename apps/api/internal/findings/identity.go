@@ -275,6 +275,31 @@ func (r *IdentityResolver) Resolve(
 		scannerData["template_id"] = input.TemplateID
 	}
 
+	var rawSev, rawConf string
+	if s, ok := scannerData["native_severity"].(string); ok {
+		rawSev = s
+	} else {
+		rawSev = input.Severity
+	}
+	if confStr, ok := scannerData["native_confidence"].(string); ok {
+		rawConf = confStr
+	} else if input.Confidence > 0 {
+		rawConf = fmt.Sprintf("%.2f", input.Confidence)
+	}
+
+	interp := InterpretFinding(input.ScannerID, rawSev, rawConf, input.CVSSScore)
+	scannerData["interpretation"] = map[string]any{
+		"version":                interp.RuleVersion,
+		"original_severity":      interp.OriginalSeverity,
+		"original_confidence":    interp.OriginalConfidence,
+		"canonical_severity":     interp.CanonicalSeverity,
+		"canonical_confidence":   interp.CanonicalConfidence,
+		"confidence_band":        interp.ConfidenceBand,
+		"confidence_unspecified": interp.ConfidenceUnspecified,
+		"dimensions_distinct":    interp.DimensionsDistinct,
+		"explanation":            interp.Explanation,
+	}
+
 	newFinding := &PersistentFinding{
 		ID:               findingID,
 		TenantID:         tenantID,
