@@ -1,0 +1,46 @@
+# Ephemeral Scanner Sandbox Specification Template
+# Applied dynamically by the Go Worker Runner when spawning scanner jobs
+apiVersion: v1
+kind: PodTemplate
+metadata:
+  name: kelvin-scanner-sandbox-template
+  labels:
+    app.kubernetes.io/name: kelvin-scanner
+    app.kubernetes.io/component: sandbox
+    kelvin.security/zone: zone-3-sandbox
+template:
+  metadata:
+    labels:
+      app.kubernetes.io/name: kelvin-scanner
+      kelvin.security/zone: zone-3-sandbox
+    annotations:
+      # Block AWS/cloud metadata credential theft
+      container.seccomp.security.alpha.kubernetes.io/pod: runtime/default
+  spec:
+    restartPolicy: Never
+    automountServiceAccountToken: false # NEVER mount K8s API tokens into scanner pods
+    dnsPolicy: ClusterFirst
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 10001
+      runAsGroup: 10001
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+    containers:
+      - name: scanner
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2048Mi
+        # Zero API secrets or database credentials injected here
