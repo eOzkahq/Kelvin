@@ -28,6 +28,9 @@ const (
 	ActionInvitationRevoked  = "org.invitation_revoked"
 	ActionInvitationReissued = "org.invitation_reissued"
 	ActionInvitationDeclined = "org.invitation_declined"
+
+	ActionResourceShared   = "resource.shared"
+	ActionResourceUnshared = "resource.unshared"
 )
 
 // HierarchyAuditRecorder records organization and workspace lifecycle audit events.
@@ -133,6 +136,38 @@ func (r *HierarchyAuditRecorder) RecordInvitationLifecycleEvent(ctx context.Cont
 		Action:      action,
 		EntityType:  "organization_invitation",
 		EntityID:    &invite.ID,
+		Payload:     payloadBytes,
+		CreatedAt:   time.Now().UTC(),
+	}
+
+	return r.recorder.Record(ctx, evt)
+}
+
+func (r *HierarchyAuditRecorder) RecordSharingLifecycleEvent(ctx context.Context, action string, grantID uuid.UUID, resourceType string, resourceID uuid.UUID, actorUserID string, details map[string]interface{}) error {
+	if r == nil || r.recorder == nil {
+		return nil
+	}
+
+	payloadMap := map[string]interface{}{
+		"grant_id":      grantID.String(),
+		"resource_type": resourceType,
+		"resource_id":   resourceID.String(),
+		"details":       details,
+	}
+	payloadBytes, _ := json.Marshal(payloadMap)
+
+	var actorUUID *uuid.UUID
+	if u, err := uuid.Parse(actorUserID); err == nil {
+		actorUUID = &u
+	}
+
+	evt := audit.Event{
+		ID:          uuid.New(),
+		ActorUserID: actorUUID,
+		ActorType:   audit.ActorUser,
+		Action:      action,
+		EntityType:  "resource_sharing_grant",
+		EntityID:    &grantID,
 		Payload:     payloadBytes,
 		CreatedAt:   time.Now().UTC(),
 	}
