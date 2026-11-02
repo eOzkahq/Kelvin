@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.kelvin.security/policy/enterprise-policy.v1.json",
+  "title": "EnterprisePolicyDefinition",
+  "description": "Canonical schema for Kelvin enterprise policy definitions and evaluation rules",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "policy_type",
+    "scope",
+    "precedence",
+    "action",
+    "version",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier of the policy"
+    },
+    "organization_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Organization ID (null for platform-level invariants)"
+    },
+    "workspace_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Workspace ID (null for org-wide or platform policies)"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 255,
+      "description": "Human-readable policy name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed explanation of policy intent and enforcement"
+    },
+    "policy_type": {
+      "type": "string",
+      "enum": [
+        "SCAN_EXECUTION",
+        "TARGET_ADMISSION",
+        "FINDING_ACTION",
+        "DATA_EXPORT",
+        "INTEGRATION_ACCESS"
+      ],
+      "description": "Functional domain where the policy applies"
+    },
+    "scope": {
+      "type": "string",
+      "enum": [
+        "PLATFORM",
+        "ORGANIZATION",
+        "WORKSPACE",
+        "TARGET"
+      ],
+      "description": "Governance level of policy enforcement"
+    },
+    "precedence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000,
+      "description": "Evaluation priority: lower integer evaluates first (Platform is 0-99)"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "ALLOW",
+        "DENY",
+        "REQUIRE_APPROVAL"
+      ],
+      "description": "Policy verdict when condition matches"
+    },
+    "condition_expression": {
+      "type": "string",
+      "description": "Declarative policy condition rule"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonically increasing version number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ACTIVE",
+        "DISABLED",
+        "ARCHIVED"
+      ],
+      "description": "Operational state of the policy"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
