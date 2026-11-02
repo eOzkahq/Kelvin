@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kelvin.security/schemas/permission_catalog.v1.json",
+  "title": "KelvinEnterprisePermissionCatalog",
+  "description": "Defines the enterprise permission catalog and metadata schema (P4-09).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "permissions"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "resource",
+          "action",
+          "scope",
+          "description",
+          "is_privileged"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]+(:[a-z][a-z0-9_-]+)+$"
+          },
+          "resource": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["ORGANIZATION", "WORKSPACE"]
+          },
+          "description": {
+            "type": "string"
+          },
+          "is_privileged": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
