@@ -16,6 +16,12 @@ const (
 	ActionOrgDeletionRequested = "org.deletion_requested"
 	ActionOrgDeletionCancelled = "org.deletion_cancelled"
 	ActionOrgPurged            = "org.purged"
+
+	ActionTeamCreated       = "team.created"
+	ActionTeamUpdated       = "team.updated"
+	ActionTeamArchived      = "team.archived"
+	ActionTeamMemberAdded   = "team.member_added"
+	ActionTeamMemberRemoved = "team.member_removed"
 )
 
 // HierarchyAuditRecorder records organization and workspace lifecycle audit events.
@@ -53,6 +59,40 @@ func (r *HierarchyAuditRecorder) RecordOrgLifecycleEvent(ctx context.Context, ac
 		Action:      action,
 		EntityType:  "organization",
 		EntityID:    &org.ID,
+		Payload:     payloadBytes,
+		CreatedAt:   time.Now().UTC(),
+	}
+
+	return r.recorder.Record(ctx, evt)
+}
+
+func (r *HierarchyAuditRecorder) RecordTeamLifecycleEvent(ctx context.Context, action string, team *Team, actorUserID string, details map[string]interface{}) error {
+	if r == nil || r.recorder == nil {
+		return nil
+	}
+
+	payloadMap := map[string]interface{}{
+		"team_id":   team.ID.String(),
+		"org_id":    team.OrganizationID.String(),
+		"team_name": team.Name,
+		"team_slug": team.Slug,
+		"status":    team.Status,
+		"details":   details,
+	}
+	payloadBytes, _ := json.Marshal(payloadMap)
+
+	var actorUUID *uuid.UUID
+	if u, err := uuid.Parse(actorUserID); err == nil {
+		actorUUID = &u
+	}
+
+	evt := audit.Event{
+		ID:          uuid.New(),
+		ActorUserID: actorUUID,
+		ActorType:   audit.ActorUser,
+		Action:      action,
+		EntityType:  "team",
+		EntityID:    &team.ID,
 		Payload:     payloadBytes,
 		CreatedAt:   time.Now().UTC(),
 	}

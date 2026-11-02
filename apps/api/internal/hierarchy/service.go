@@ -26,7 +26,12 @@ type HierarchyRepository interface {
 	GetWorkspaceMembership(ctx context.Context, workspaceID uuid.UUID, userID string) (*WorkspaceMembership, error)
 
 	CreateTeam(ctx context.Context, team *Team) error
+	GetTeam(ctx context.Context, id uuid.UUID) (*Team, error)
+	UpdateTeam(ctx context.Context, team *Team) error
+	ListTeams(ctx context.Context, orgID uuid.UUID) ([]*Team, error)
 	AddTeamMember(ctx context.Context, mem *TeamMembership) error
+	RemoveTeamMember(ctx context.Context, teamID uuid.UUID, userID string) error
+	GetTeamMembers(ctx context.Context, teamID uuid.UUID) ([]*TeamMembership, error)
 	GetUserTeams(ctx context.Context, orgID uuid.UUID, userID string) ([]*Team, error)
 	GrantTeamWorkspaceRole(ctx context.Context, grant *WorkspaceTeamGrant) error
 	GetTeamWorkspaceGrant(ctx context.Context, workspaceID uuid.UUID, teamID uuid.UUID) (*WorkspaceTeamGrant, error)
@@ -38,10 +43,10 @@ type MemoryHierarchyRepository struct {
 	orgs         map[uuid.UUID]*Organization
 	workspaces   map[uuid.UUID]*Workspace
 	teams        map[uuid.UUID]*Team
-	orgMembers   map[string]*OrganizationMembership   // key: orgID:userID
-	wsMembers    map[string]*WorkspaceMembership      // key: wsID:userID
-	teamMembers  map[string]*TeamMembership           // key: teamID:userID
-	wsTeamGrants map[string]*WorkspaceTeamGrant       // key: wsID:teamID
+	orgMembers   map[string]*OrganizationMembership // key: orgID:userID
+	wsMembers    map[string]*WorkspaceMembership    // key: wsID:userID
+	teamMembers  map[string]*TeamMembership         // key: teamID:userID
+	wsTeamGrants map[string]*WorkspaceTeamGrant     // key: wsID:teamID
 }
 
 func NewMemoryHierarchyRepository() *MemoryHierarchyRepository {
@@ -168,6 +173,38 @@ func (m *MemoryHierarchyRepository) CreateTeam(ctx context.Context, team *Team) 
 	return nil
 }
 
+func (m *MemoryHierarchyRepository) GetTeam(ctx context.Context, id uuid.UUID) (*Team, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	team, ok := m.teams[id]
+	if !ok {
+		return nil, ErrTeamNotFound
+	}
+	return team, nil
+}
+
+func (m *MemoryHierarchyRepository) UpdateTeam(ctx context.Context, team *Team) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.teams[team.ID]; !ok {
+		return ErrTeamNotFound
+	}
+	m.teams[team.ID] = team
+	return nil
+}
+
+func (m *MemoryHierarchyRepository) ListTeams(ctx context.Context, orgID uuid.UUID) ([]*Team, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var result []*Team
+	for _, team := range m.teams {
+		if team.OrganizationID == orgID {
+			result = append(result, team)
+		}
+	}
+	return result, nil
+}
+
 func (m *MemoryHierarchyRepository) AddTeamMember(ctx context.Context, mem *TeamMembership) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -176,17 +213,36 @@ func (m *MemoryHierarchyRepository) AddTeamMember(ctx context.Context, mem *Team
 	return nil
 }
 
+func (m *MemoryHierarchyRepository) RemoveTeamMember(ctx context.Context, teamID uuid.UUID, userID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := teamID.String() + ":" + userID
+	delete(m.teamMembers, key)
+	return nil
+}
+
+func (m *MemoryHierarchyRepository) GetTeamMembers(ctx context.Context, teamID uuid.UUID) ([]*TeamMembership, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var result []*TeamMembership
+	for _, mem := range m.teamMembers {
+		if mem.TeamID == teamID {
+			result = append(result, mem)
+		}
+	}
+	return result, nil
+}
+
 func (m *MemoryHierarchyRepository) GetUserTeams(ctx context.Context, orgID uuid.UUID, userID string) ([]*Team, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	var result []*Team
-	for key, mem := range m.teamMembers {
+	for _, mem := range m.teamMembers {
 		if mem.UserID == userID {
-			if team, ok := m.teams[mem.TeamID]; ok && team.OrganizationID == orgID {
+			if team, ok := m.teams[mem.TeamID]; ok && team.OrganizationID == orgID && (team.Status == "" || team.Status == "ACTIVE") {
 				result = append(result, team)
 			}
 		}
-		_ = key
 	}
 	return result, nil
 }
@@ -264,9 +320,7 @@ func (s *HierarchyService) CreateOrganization(ctx context.Context, name, slug st
 }
 
 // SuspendOrganization transitions an organization to SUSPENDED.
-// Prohibits new assessments and modifications across all workspaces.
 func (s *HierarchyService) SuspendOrganization(ctx context.Context, orgID uuid.UUID, actorUserID string, reason string) error {
-	// Authorization: only OWNER or ADMIN can suspend
 	if err := s.authorizeOrgAdmin(ctx, orgID, actorUserID); err != nil {
 		return err
 	}
@@ -276,12 +330,10 @@ func (s *HierarchyService) SuspendOrganization(ctx context.Context, orgID uuid.U
 		return err
 	}
 
-	// Validate transition
 	if err := ValidateOrgStateTransition(org.Status, OrgStateSuspended); err != nil {
 		return err
 	}
 
-	// Idempotent
 	if org.Status == OrgStateSuspended {
 		return nil
 	}
@@ -347,7 +399,6 @@ func (s *HierarchyService) ReactivateOrganization(ctx context.Context, orgID uui
 
 // RequestOrganizationDeletion places an organization in PENDING_DELETION with a retention grace period.
 func (s *HierarchyService) RequestOrganizationDeletion(ctx context.Context, orgID uuid.UUID, actorUserID string, gracePeriod time.Duration) error {
-	// Only Org OWNER can request deletion
 	mem, err := s.repo.GetOrgMembership(ctx, orgID, actorUserID)
 	if err != nil {
 		return err
@@ -371,7 +422,7 @@ func (s *HierarchyService) RequestOrganizationDeletion(ctx context.Context, orgI
 
 	now := time.Now().UTC()
 	if gracePeriod <= 0 {
-		gracePeriod = 30 * 24 * time.Hour // Default 30 days
+		gracePeriod = 30 * 24 * time.Hour
 	}
 	purgeAt := now.Add(gracePeriod)
 
@@ -399,7 +450,6 @@ func (s *HierarchyService) CancelOrganizationDeletion(ctx context.Context, orgID
 }
 
 // EnsureWorkspaceOperational verifies that the workspace's parent organization is ACTIVE.
-// If the organization is SUSPENDED, PENDING_DELETION, or PURGED, operational execution is blocked.
 func (s *HierarchyService) EnsureWorkspaceOperational(ctx context.Context, workspaceID uuid.UUID) error {
 	ws, err := s.repo.GetWorkspace(ctx, workspaceID)
 	if err != nil {
@@ -425,6 +475,199 @@ func (s *HierarchyService) EnsureWorkspaceOperational(ctx context.Context, works
 	}
 }
 
+// CreateTeam provisions a new team within an organization.
+// Only Org OWNER or ADMIN can create teams.
+func (s *HierarchyService) CreateTeam(ctx context.Context, orgID uuid.UUID, actorUserID string, name, slug, description string) (*Team, error) {
+	if err := s.authorizeOrgAdmin(ctx, orgID, actorUserID); err != nil {
+		return nil, err
+	}
+
+	org, err := s.repo.GetOrganization(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	if org.Status != OrgStateActive {
+		return nil, ErrOrgSuspended
+	}
+
+	now := time.Now().UTC()
+	team := &Team{
+		ID:             uuid.New(),
+		OrganizationID: orgID,
+		Name:           name,
+		Slug:           slug,
+		Description:    description,
+		Status:         "ACTIVE",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	if err := s.repo.CreateTeam(ctx, team); err != nil {
+		return nil, err
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordTeamLifecycleEvent(ctx, ActionTeamCreated, team, actorUserID, map[string]interface{}{
+			"action": "team_created",
+		})
+	}
+
+	return team, nil
+}
+
+// UpdateTeam updates a team's name and description.
+func (s *HierarchyService) UpdateTeam(ctx context.Context, teamID uuid.UUID, actorUserID string, name, description string) (*Team, error) {
+	team, err := s.repo.GetTeam(ctx, teamID)
+	if err != nil {
+		return nil, err
+	}
+	if team.Status == "ARCHIVED" {
+		return nil, ErrTeamArchived
+	}
+
+	if err := s.authorizeTeamAdmin(ctx, team, actorUserID); err != nil {
+		return nil, err
+	}
+
+	team.Name = name
+	team.Description = description
+	team.UpdatedAt = time.Now().UTC()
+
+	if err := s.repo.UpdateTeam(ctx, team); err != nil {
+		return nil, err
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordTeamLifecycleEvent(ctx, ActionTeamUpdated, team, actorUserID, map[string]interface{}{
+			"name": name,
+		})
+	}
+
+	return team, nil
+}
+
+// ArchiveTeam marks a team as ARCHIVED (soft-archive preserving historic links).
+func (s *HierarchyService) ArchiveTeam(ctx context.Context, teamID uuid.UUID, actorUserID string) error {
+	team, err := s.repo.GetTeam(ctx, teamID)
+	if err != nil {
+		return err
+	}
+	if err := s.authorizeTeamAdmin(ctx, team, actorUserID); err != nil {
+		return err
+	}
+
+	team.Status = "ARCHIVED"
+	team.UpdatedAt = time.Now().UTC()
+
+	if err := s.repo.UpdateTeam(ctx, team); err != nil {
+		return err
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordTeamLifecycleEvent(ctx, ActionTeamArchived, team, actorUserID, map[string]interface{}{
+			"action": "archived",
+		})
+	}
+
+	return nil
+}
+
+// AddTeamMember adds a user to a team.
+// Crucial boundary check: target user MUST belong to the team's parent organization.
+func (s *HierarchyService) AddTeamMember(ctx context.Context, teamID uuid.UUID, actorUserID string, targetUserID string, role TeamRole) error {
+	team, err := s.repo.GetTeam(ctx, teamID)
+	if err != nil {
+		return err
+	}
+	if team.Status == "ARCHIVED" {
+		return ErrTeamArchived
+	}
+
+	if err := s.authorizeTeamAdmin(ctx, team, actorUserID); err != nil {
+		return err
+	}
+
+	// Verify target user belongs to the parent organization
+	if _, err := s.repo.GetOrgMembership(ctx, team.OrganizationID, targetUserID); err != nil {
+		return ErrUserNotInOrganization
+	}
+
+	mem := &TeamMembership{
+		ID:        uuid.New(),
+		TeamID:    teamID,
+		UserID:    targetUserID,
+		Role:      role,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if err := s.repo.AddTeamMember(ctx, mem); err != nil {
+		return err
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordTeamLifecycleEvent(ctx, ActionTeamMemberAdded, team, actorUserID, map[string]interface{}{
+			"target_user_id": targetUserID,
+			"role":           string(role),
+		})
+	}
+
+	return nil
+}
+
+// RemoveTeamMember removes a user from a team.
+func (s *HierarchyService) RemoveTeamMember(ctx context.Context, teamID uuid.UUID, actorUserID string, targetUserID string) error {
+	team, err := s.repo.GetTeam(ctx, teamID)
+	if err != nil {
+		return err
+	}
+	if err := s.authorizeTeamAdmin(ctx, team, actorUserID); err != nil {
+		return err
+	}
+
+	if err := s.repo.RemoveTeamMember(ctx, teamID, targetUserID); err != nil {
+		return err
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordTeamLifecycleEvent(ctx, ActionTeamMemberRemoved, team, actorUserID, map[string]interface{}{
+			"target_user_id": targetUserID,
+		})
+	}
+
+	return nil
+}
+
+// ListTeams returns all teams for an organization.
+func (s *HierarchyService) ListTeams(ctx context.Context, orgID uuid.UUID) ([]*Team, error) {
+	return s.repo.ListTeams(ctx, orgID)
+}
+
+// GetTeamMembers returns all members of a team.
+func (s *HierarchyService) GetTeamMembers(ctx context.Context, teamID uuid.UUID) ([]*TeamMembership, error) {
+	return s.repo.GetTeamMembers(ctx, teamID)
+}
+
+func (s *HierarchyService) authorizeTeamAdmin(ctx context.Context, team *Team, actorUserID string) error {
+	// 1. Check if actor is Org Owner or Org Admin
+	if mem, err := s.repo.GetOrgMembership(ctx, team.OrganizationID, actorUserID); err == nil {
+		if mem.Role == OrgRoleOwner || mem.Role == OrgRoleAdmin {
+			return nil
+		}
+	}
+
+	// 2. Check if actor is Team Lead
+	teamMembers, err := s.repo.GetTeamMembers(ctx, team.ID)
+	if err == nil {
+		for _, tm := range teamMembers {
+			if tm.UserID == actorUserID && tm.Role == TeamRoleLead {
+				return nil
+			}
+		}
+	}
+
+	return ErrUnauthorized
+}
+
 func (s *HierarchyService) authorizeOrgAdmin(ctx context.Context, orgID uuid.UUID, userID string) error {
 	mem, err := s.repo.GetOrgMembership(ctx, orgID, userID)
 	if err != nil {
@@ -438,7 +681,6 @@ func (s *HierarchyService) authorizeOrgAdmin(ctx context.Context, orgID uuid.UUI
 
 // CreateWorkspace registers an operational workspace mapped directly to an isolated tenant.
 func (s *HierarchyService) CreateWorkspace(ctx context.Context, orgID uuid.UUID, tenantID uuid.UUID, name, slug, environment string) (*Workspace, error) {
-	// Verify organization exists and is active
 	org, err := s.repo.GetOrganization(ctx, orgID)
 	if err != nil {
 		return nil, err
@@ -469,28 +711,24 @@ func (s *HierarchyService) CreateWorkspace(ctx context.Context, orgID uuid.UUID,
 // AuthorizeWorkspaceAccess validates that:
 // 1. Context tenant matches the workspace tenant (strict tenant isolation per ADR-0002).
 // 2. User has an explicit direct membership or team grant with sufficient role privileges.
-// Note: Org ownership does NOT implicitly bypass workspace boundaries.
 func (s *HierarchyService) AuthorizeWorkspaceAccess(ctx context.Context, workspaceID uuid.UUID, userID string, minRole WorkspaceRole) error {
 	ws, err := s.repo.GetWorkspace(ctx, workspaceID)
 	if err != nil {
 		return err
 	}
 
-	// 1. Verify tenant context match if present in context
 	if tID, err := tenant.ID(ctx); err == nil {
 		if tID != ws.TenantID {
 			return ErrTenantMismatch
 		}
 	}
 
-	// 2. Check direct membership
 	if mem, err := s.repo.GetWorkspaceMembership(ctx, workspaceID, userID); err == nil {
 		if isWorkspaceRoleSufficient(mem.Role, minRole) {
 			return nil
 		}
 	}
 
-	// 3. Check team-based grants
 	teams, err := s.repo.GetUserTeams(ctx, ws.OrganizationID, userID)
 	if err == nil {
 		for _, t := range teams {
@@ -502,7 +740,6 @@ func (s *HierarchyService) AuthorizeWorkspaceAccess(ctx context.Context, workspa
 		}
 	}
 
-	// Implicit access denied
 	return ErrUnauthorized
 }
 

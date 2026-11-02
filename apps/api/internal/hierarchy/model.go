@@ -42,8 +42,10 @@ const (
 type TeamRole string
 
 const (
-	TeamRoleLead   TeamRole = "LEAD"
-	TeamRoleMember TeamRole = "MEMBER"
+	TeamRoleLead        TeamRole = "LEAD"
+	TeamRoleContributor TeamRole = "CONTRIBUTOR"
+	TeamRoleReviewer    TeamRole = "REVIEWER"
+	TeamRoleMember      TeamRole = "MEMBER"
 )
 
 // ResourceScope indicates whether a resource belongs to an Organization or an isolated Workspace.
@@ -90,6 +92,7 @@ type Team struct {
 	Name           string    `json:"name"`
 	Slug           string    `json:"slug"`
 	Description    string    `json:"description"`
+	Status         string    `json:"status"` // ACTIVE, ARCHIVED
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
@@ -144,6 +147,8 @@ var (
 	ErrOrgSuspended                = errors.New("organization is suspended: operational modifications prohibited")
 	ErrOrgPendingDeletion          = errors.New("organization is pending deletion: operational modifications prohibited")
 	ErrOrgPurged                   = errors.New("organization has been purged and cannot be accessed")
+	ErrUserNotInOrganization       = errors.New("user does not belong to the organization")
+	ErrTeamArchived                = errors.New("team is archived: modifications prohibited")
 )
 
 // ValidateOrgStateTransition checks whether a transition between two organization states is permitted.
