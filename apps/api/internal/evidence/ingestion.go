@@ -55,10 +55,12 @@ type FindingEvidenceLink struct {
 // Repository defines data access operations for persisting and querying evidence and links.
 type Repository interface {
 	SaveEvidence(ctx context.Context, item *EvidenceItem) error
+	UpdateEvidence(ctx context.Context, item *EvidenceItem) error
 	LinkFindingEvidence(ctx context.Context, link *FindingEvidenceLink) error
 	GetEvidenceByID(ctx context.Context, tenantID, evidenceID string) (*EvidenceItem, error)
 	GetEvidenceByFindingID(ctx context.Context, tenantID, findingID string) ([]*EvidenceItem, error)
 	GetLinksByFindingID(ctx context.Context, tenantID, findingID string) ([]*FindingEvidenceLink, error)
+	ListExpiredEvidence(ctx context.Context, before time.Time) ([]*EvidenceItem, error)
 }
 
 // IngestionService orchestrates intake, validation, redaction, and finding association of evidence.
@@ -295,6 +297,27 @@ func (m *MemoryRepository) SaveEvidence(_ context.Context, item *EvidenceItem) e
 	defer m.mu.Unlock()
 	m.evidence[item.ID] = item
 	return nil
+}
+
+// UpdateEvidence updates an existing evidence item in memory.
+func (m *MemoryRepository) UpdateEvidence(_ context.Context, item *EvidenceItem) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.evidence[item.ID] = item
+	return nil
+}
+
+// ListExpiredEvidence returns evidence items whose expires_at is before the given timestamp.
+func (m *MemoryRepository) ListExpiredEvidence(_ context.Context, before time.Time) ([]*EvidenceItem, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var expired []*EvidenceItem
+	for _, item := range m.evidence {
+		if item.ExpiresAt.Before(before) {
+			expired = append(expired, item)
+		}
+	}
+	return expired, nil
 }
 
 // LinkFindingEvidence links a finding to an evidence item.
