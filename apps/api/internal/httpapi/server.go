@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"crypto/sha256"
 	"github.com/kelvin/kelvin/apps/api/internal/config"
+	"github.com/kelvin/kelvin/apps/api/internal/evidence"
 	"github.com/kelvin/kelvin/apps/api/internal/idempotency"
 	"github.com/kelvin/kelvin/apps/api/internal/metrics"
 	"github.com/kelvin/kelvin/apps/api/internal/middleware"
@@ -27,12 +29,21 @@ type Server struct {
 	jobStore         jobStoreIface     // nil means cancel endpoint returns 503
 	idempotencyStore idempotency.Store // nil means idempotency middleware is disabled
 	findingStore     findingStoreIface // nil means finding endpoints return 503
+	evidenceSigner   *evidence.Signer
 	protectedRoute   func(http.Handler) http.Handler
 }
 
 // New builds the server with all registered routes.
 func New(cfg config.Config, log *zap.Logger) *Server {
 	s := &Server{cfg: cfg, log: log, mux: http.NewServeMux()}
+	var signerKey []byte
+	if len(cfg.Evidence.SigningKey) >= 32 {
+		signerKey = []byte(cfg.Evidence.SigningKey)
+	} else {
+		hash := sha256.Sum256([]byte("kelvin-default-evidence-signing-key-32-bytes"))
+		signerKey = hash[:]
+	}
+	s.evidenceSigner, _ = evidence.NewSigner(signerKey)
 	s.routes()
 	return s
 }
@@ -157,6 +168,11 @@ func (s *Server) routes() {
 	}
 	s.mux.Handle("PUT /api/v1/projects/{project_id}/targets/context", s.protect(upsertTargetContextHandler))
 	s.mux.Handle("GET /api/v1/projects/{project_id}/targets/context", s.protect(http.HandlerFunc(s.handleGetTargetRiskContext)))
+
+	// Evidence retrieval and access controls (P3-31)
+	s.mux.Handle("GET /api/v1/findings/{id}/evidence", s.protect(http.HandlerFunc(s.handleListFindingEvidence)))
+	s.mux.Handle("GET /api/v1/findings/{id}/evidence/{evidence_id}", s.protect(http.HandlerFunc(s.handleGetFindingEvidenceDetail)))
+	s.mux.Handle("GET /api/v1/findings/{id}/evidence/{evidence_id}/download", s.protect(http.HandlerFunc(s.handleGetFindingEvidenceDownload)))
 
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))

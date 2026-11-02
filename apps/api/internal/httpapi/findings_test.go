@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"bytes"
 	"fmt"
 	"context"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kelvin/kelvin/apps/api/internal/config"
+	"github.com/kelvin/kelvin/apps/api/internal/evidence"
 	"github.com/kelvin/kelvin/apps/api/internal/findings"
 	"github.com/kelvin/kelvin/packages/common/tenant"
 	"github.com/kelvin/kelvin/packages/common/normalization"
@@ -24,6 +26,8 @@ type mockFindingStore struct {
 	timeline       map[uuid.UUID][]*findings.TimelineEntry
 	targetContexts map[string]*findings.TargetRiskContext
 	riskHistory    map[uuid.UUID][]*findings.FindingRiskHistoryEntry
+	evidenceByFinding map[uuid.UUID][]*evidence.EvidenceItem
+	evidenceByID      map[uuid.UUID]*evidence.EvidenceItem
 }
 
 func (m *mockFindingStore) GetFindingByID(ctx context.Context, tenantID, findingID uuid.UUID) (*findings.PersistentFinding, error) {
@@ -388,6 +392,24 @@ func (m *mockFindingStore) GetRiskHistoryByFinding(ctx context.Context, tenantID
 		return []*findings.FindingRiskHistoryEntry{}, nil
 	}
 	return entries, nil
+}
+
+func (m *mockFindingStore) GetEvidenceByFindingID(ctx context.Context, tenantID, findingID uuid.UUID) ([]*evidence.EvidenceItem, error) {
+	if m.evidenceByFinding == nil {
+		return []*evidence.EvidenceItem{}, nil
+	}
+	return m.evidenceByFinding[findingID], nil
+}
+
+func (m *mockFindingStore) GetEvidenceByID(ctx context.Context, tenantID, evidenceID uuid.UUID) (*evidence.EvidenceItem, error) {
+	if m.evidenceByID == nil {
+		return nil, errors.New("evidence not found")
+	}
+	item, ok := m.evidenceByID[evidenceID]
+	if !ok || item.TenantID != tenantID.String() {
+		return nil, errors.New("evidence not found")
+	}
+	return item, nil
 }
 
 func (m *mockFindingStore) RecalculateFindingRisk(ctx context.Context, tenantID, findingID uuid.UUID, reason string, actorID *uuid.UUID) (*findings.RecalculateRiskResult, error) {
