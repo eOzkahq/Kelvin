@@ -21,9 +21,12 @@ type HierarchyRepository interface {
 
 	SaveOrgMembership(ctx context.Context, mem *OrganizationMembership) error
 	GetOrgMembership(ctx context.Context, orgID uuid.UUID, userID string) (*OrganizationMembership, error)
+	ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]*OrganizationMembership, error)
+	RemoveOrgMembership(ctx context.Context, orgID uuid.UUID, userID string) error
 
 	SaveWorkspaceMembership(ctx context.Context, mem *WorkspaceMembership) error
 	GetWorkspaceMembership(ctx context.Context, workspaceID uuid.UUID, userID string) (*WorkspaceMembership, error)
+	RemoveWorkspaceMembership(ctx context.Context, workspaceID uuid.UUID, userID string) error
 
 	CreateTeam(ctx context.Context, team *Team) error
 	GetTeam(ctx context.Context, id uuid.UUID) (*Team, error)
@@ -157,6 +160,26 @@ func (m *MemoryHierarchyRepository) GetOrgMembership(ctx context.Context, orgID 
 	return mem, nil
 }
 
+func (m *MemoryHierarchyRepository) ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]*OrganizationMembership, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var result []*OrganizationMembership
+	for _, mem := range m.orgMembers {
+		if mem.OrganizationID == orgID {
+			result = append(result, mem)
+		}
+	}
+	return result, nil
+}
+
+func (m *MemoryHierarchyRepository) RemoveOrgMembership(ctx context.Context, orgID uuid.UUID, userID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := orgID.String() + ":" + userID
+	delete(m.orgMembers, key)
+	return nil
+}
+
 func (m *MemoryHierarchyRepository) SaveWorkspaceMembership(ctx context.Context, mem *WorkspaceMembership) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -174,6 +197,14 @@ func (m *MemoryHierarchyRepository) GetWorkspaceMembership(ctx context.Context, 
 		return nil, ErrUnauthorized
 	}
 	return mem, nil
+}
+
+func (m *MemoryHierarchyRepository) RemoveWorkspaceMembership(ctx context.Context, workspaceID uuid.UUID, userID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := workspaceID.String() + ":" + userID
+	delete(m.wsMembers, key)
+	return nil
 }
 
 func (m *MemoryHierarchyRepository) CreateTeam(ctx context.Context, team *Team) error {
