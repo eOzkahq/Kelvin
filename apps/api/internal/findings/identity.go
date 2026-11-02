@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,7 +15,27 @@ var (
 	ErrTenantMismatch  = errors.New("identity: tenant mismatch in finding resolution")
 	ErrProjectMismatch = errors.New("identity: project mismatch in finding resolution")
 	ErrEmptyTarget     = errors.New("identity: target asset must not be empty")
+
+	numericPathSegment = regexp.MustCompile(`/\d+(/|$)`)
+	uuidPathSegment    = regexp.MustCompile(`/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(/|$)`)
 )
+
+// NormalizeDynamicPath normalizes dynamic path segments (IDs, UUIDs) and strips query params for recurring matching.
+func NormalizeDynamicPath(endpoint string) string {
+	if endpoint == "" {
+		return ""
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Path == "" {
+		return endpoint
+	}
+	p := u.Path
+	p = uuidPathSegment.ReplaceAllString(p, "/{uuid}$1")
+	p = numericPathSegment.ReplaceAllString(p, "/{id}$1")
+	u.Path = p
+	u.RawQuery = ""
+	return u.String()
+}
 
 // ObservationInput encapsulates the raw inputs for finding identity resolution.
 type ObservationInput struct {
@@ -39,12 +60,14 @@ type ObservationInput struct {
 
 // IdentityResolutionResult captures the outcome of resolving an observation to a finding.
 type IdentityResolutionResult struct {
-	Finding     *PersistentFinding
-	Observation *FindingObservation
-	IsNew       bool
-	Event       *FindingEvent
-	IsAmbiguous bool
-	Algorithm   string
+	Finding         *PersistentFinding
+	Observation     *FindingObservation
+	IsNew           bool
+	Event           *FindingEvent
+	IsAmbiguous     bool
+	Algorithm       string
+	MatchReason     string
+	MatchConfidence float64
 }
 
 // IdentityResolver coordinates deduplication and identity binding for finding observations.
@@ -85,6 +108,9 @@ func (r *IdentityResolver) Resolve(
 
 	var matchedFinding *PersistentFinding
 	var isAmbiguous bool
+	matchAlgorithm := fpResult.Algorithm
+	matchConfidence := 1.0
+	matchReason := "Exact deterministic fingerprint match (Algorithm v1)"
 	vulnKey := normalization.DeriveVulnerabilityKey(input.TemplateID, input.CVEIDs, input.CWEID, input.Title)
 
 	for _, f := range existingFindings {
@@ -112,7 +138,55 @@ func (r *IdentityResolver) Resolve(
 		}
 		existingVulnKey := normalization.DeriveVulnerabilityKey(existingTemplateID, f.CVEIDs, f.CWEID, f.Title)
 		if normalization.IsAmbiguousIdentity(fAsset, f.AffectedEndpoint, existingVulnKey, input.TargetAsset, input.TargetEndpoint, vulnKey) {
-			isAmbiguous = true
+			if NormalizeDynamicPath(f.AffectedEndpoint) != NormalizeDynamicPath(input.TargetEndpoint) {
+				isAmbiguous = true
+			}
+		}
+	}
+
+	// Dynamic path recurrence matching: handle dynamic URL IDs/UUIDs across assessments conservatively
+	if matchedFinding == nil && !isAmbiguous && input.TargetEndpoint != "" {
+		normInputDynamic := NormalizeDynamicPath(input.TargetEndpoint)
+		normInputAsset := normalization.NormalizeAsset(input.TargetAsset)
+
+		for _, f := range existingFindings {
+			if f.TenantID != tenantID || f.ProjectID != projectID {
+				continue
+			}
+			fAsset := f.AffectedEndpoint
+			if u, err := url.Parse(f.AffectedEndpoint); err == nil && u.Hostname() != "" {
+				fAsset = u.Hostname()
+			}
+			if normalization.NormalizeAsset(fAsset) != normInputAsset {
+				continue
+			}
+
+			var existingTemplateID string
+			if f.ScannerData != nil {
+				if tID, ok := f.ScannerData["template_id"].(string); ok {
+					existingTemplateID = tID
+				}
+			}
+			existingVulnKey := normalization.DeriveVulnerabilityKey(existingTemplateID, f.CVEIDs, f.CWEID, f.Title)
+			if existingVulnKey == vulnKey && f.AffectedEndpoint != "" {
+				normExistingDynamic := NormalizeDynamicPath(f.AffectedEndpoint)
+				if normInputDynamic == normExistingDynamic {
+					matchedFinding = f
+					matchAlgorithm = "v1-dynamic-path"
+					matchConfidence = 0.95
+					matchReason = "Dynamic path parameterized match ({id}/{uuid})"
+					break
+				}
+			}
+		}
+	}
+
+	if matchedFinding == nil {
+		matchConfidence = 0.0
+		if isAmbiguous {
+			matchReason = "Uncertain match: distinct endpoint routes; preserved as separate findings"
+		} else {
+			matchReason = "No matching prior finding discovered in project scope"
 		}
 	}
 
@@ -126,6 +200,21 @@ func (r *IdentityResolver) Resolve(
 		now = time.Now().UTC()
 	}
 
+	rawMeta := make(map[string]any, len(input.ScannerData)+1)
+	for k, v := range input.ScannerData {
+		rawMeta[k] = v
+	}
+	decisionMeta := map[string]any{
+		"is_recurrent":     matchedFinding != nil,
+		"algorithm":        matchAlgorithm,
+		"match_reason":     matchReason,
+		"match_confidence": matchConfidence,
+	}
+	if matchedFinding != nil {
+		decisionMeta["existing_finding_id"] = matchedFinding.ID.String()
+	}
+	rawMeta["match_decision"] = decisionMeta
+
 	// Case 1: Match existing persistent finding (redetection / recurrence)
 	if matchedFinding != nil {
 		obs := &FindingObservation{
@@ -137,7 +226,7 @@ func (r *IdentityResolver) Resolve(
 			ScannerID:    input.ScannerID,
 			ObservedAt:   now,
 			EvidenceRefs: input.EvidenceRefs,
-			RawMetadata:  input.ScannerData,
+			RawMetadata:  rawMeta,
 			CreatedAt:    time.Now().UTC(),
 		}
 
@@ -147,12 +236,14 @@ func (r *IdentityResolver) Resolve(
 		}
 
 		return &IdentityResolutionResult{
-			Finding:     matchedFinding,
-			Observation: obs,
-			IsNew:       false,
-			Event:       event,
-			IsAmbiguous: false,
-			Algorithm:   fpResult.Algorithm,
+			Finding:         matchedFinding,
+			Observation:     obs,
+			IsNew:           false,
+			Event:           event,
+			IsAmbiguous:     false,
+			Algorithm:       matchAlgorithm,
+			MatchReason:     matchReason,
+			MatchConfidence: matchConfidence,
 		}, nil
 	}
 
@@ -210,7 +301,7 @@ func (r *IdentityResolver) Resolve(
 		ScannerID:    input.ScannerID,
 		ObservedAt:   now,
 		EvidenceRefs: input.EvidenceRefs,
-		RawMetadata:  input.ScannerData,
+		RawMetadata:  rawMeta,
 		CreatedAt:    time.Now().UTC(),
 	}
 
@@ -226,11 +317,13 @@ func (r *IdentityResolver) Resolve(
 	}
 
 	return &IdentityResolutionResult{
-		Finding:     newFinding,
-		Observation: obs,
-		IsNew:       true,
-		Event:       event,
-		IsAmbiguous: isAmbiguous,
-		Algorithm:   fpResult.Algorithm,
+		Finding:         newFinding,
+		Observation:     obs,
+		IsNew:           true,
+		Event:           event,
+		IsAmbiguous:     isAmbiguous,
+		Algorithm:       matchAlgorithm,
+		MatchReason:     matchReason,
+		MatchConfidence: matchConfidence,
 	}, nil
 }

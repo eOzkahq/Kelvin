@@ -216,3 +216,65 @@ func TestIdentityResolverAmbiguousLocationHandledAsDistinct(t *testing.T) {
 		t.Errorf("expected algorithm v1, got %s", res2.Algorithm)
 	}
 }
+
+func TestCrossAssessmentDynamicPathRecurrence(t *testing.T) {
+	resolver := NewIdentityResolver()
+	tenantID := uuid.New()
+	projectID := uuid.New()
+	assessment1 := uuid.New()
+	assessment2 := uuid.New()
+	job1 := uuid.New()
+	job2 := uuid.New()
+	corrID := uuid.New()
+
+	input1 := ObservationInput{
+		AssessmentID:   assessment1,
+		JobID:          job1,
+		ScannerID:      "nuclei",
+		TargetAsset:    "api.example.com",
+		TargetEndpoint: "https://api.example.com/api/v1/users/1001/profile",
+		TemplateID:     "idor-rule",
+		Title:          "IDOR Profile Access",
+		Severity:       "HIGH",
+		ObservedAt:     time.Now().UTC().Add(-2 * time.Hour),
+	}
+
+	res1, err := resolver.Resolve(tenantID, projectID, input1, nil, corrID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Assessment 2 scans a different dynamic user ID
+	input2 := ObservationInput{
+		AssessmentID:   assessment2,
+		JobID:          job2,
+		ScannerID:      "nuclei",
+		TargetAsset:    "api.example.com",
+		TargetEndpoint: "https://api.example.com/api/v1/users/2002/profile",
+		TemplateID:     "idor-rule",
+		Title:          "IDOR Profile Access",
+		Severity:       "HIGH",
+		ObservedAt:     time.Now().UTC(),
+	}
+
+	res2, err := resolver.Resolve(tenantID, projectID, input2, []*PersistentFinding{res1.Finding}, corrID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if res2.IsNew {
+		t.Errorf("expected dynamic path finding to be matched as recurrent, but was treated as new")
+	}
+	if res2.Finding.ID != res1.Finding.ID {
+		t.Errorf("expected observation to bind to existing finding ID %s, got %s", res1.Finding.ID, res2.Finding.ID)
+	}
+	if res2.Algorithm != "v1-dynamic-path" {
+		t.Errorf("expected algorithm v1-dynamic-path, got %s", res2.Algorithm)
+	}
+	if res2.MatchConfidence < 0.9 {
+		t.Errorf("expected match confidence >= 0.9, got %f", res2.MatchConfidence)
+	}
+	if res2.Finding.OccurrenceCount != 2 {
+		t.Errorf("expected occurrence count 2, got %d", res2.Finding.OccurrenceCount)
+	}
+}
