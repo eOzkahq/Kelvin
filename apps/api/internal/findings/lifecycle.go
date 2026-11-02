@@ -12,19 +12,39 @@ import (
 type FindingStatus string
 
 const (
-	StatusOpen          FindingStatus = "OPEN"
+	StatusNew           FindingStatus = "NEW"
+	StatusOpen          FindingStatus = "OPEN" // Backward-compatible alias for StatusNew
 	StatusConfirmed     FindingStatus = "CONFIRMED"
-	StatusFalsePositive FindingStatus = "FALSE_POSITIVE"
-	StatusRiskAccepted  FindingStatus = "RISK_ACCEPTED"
+	StatusInProgress    FindingStatus = "IN_PROGRESS"
 	StatusResolved      FindingStatus = "RESOLVED"
+	StatusReopened      FindingStatus = "REOPENED"
+	StatusFalsePositive FindingStatus = "FALSE_POSITIVE"
+	StatusAcceptedRisk  FindingStatus = "ACCEPTED_RISK"
+	StatusRiskAccepted  FindingStatus = "RISK_ACCEPTED" // Backward-compatible alias for StatusAcceptedRisk
 )
 
 var validStatuses = map[FindingStatus]bool{
+	StatusNew:           true,
 	StatusOpen:          true,
 	StatusConfirmed:     true,
-	StatusFalsePositive: true,
-	StatusRiskAccepted:  true,
+	StatusInProgress:    true,
 	StatusResolved:      true,
+	StatusReopened:      true,
+	StatusFalsePositive: true,
+	StatusAcceptedRisk:  true,
+	StatusRiskAccepted:  true,
+}
+
+// CanonicalStatus maps legacy/alias statuses to canonical representation.
+func CanonicalStatus(s FindingStatus) FindingStatus {
+	switch s {
+	case StatusOpen:
+		return StatusNew
+	case StatusRiskAccepted:
+		return StatusAcceptedRisk
+	default:
+		return s
+	}
 }
 
 // FindingEventType records historical triage and redetection events.
@@ -39,48 +59,90 @@ const (
 )
 
 var (
-	ErrInvalidStatus     = errors.New("findings: invalid finding status")
-	ErrIllegalTransition = errors.New("findings: illegal status transition")
-	ErrSameStatus        = errors.New("findings: cannot transition to identical status")
+	ErrInvalidStatus         = errors.New("findings: invalid finding status")
+	ErrIllegalTransition     = errors.New("findings: illegal status transition")
+	ErrSameStatus            = errors.New("findings: cannot transition to identical status")
+	ErrAutomatedNotPermitted = errors.New("findings: automated scanner cannot trigger analyst-controlled state transition")
 )
 
 // ValidateTransition enforces Kelvin's finding lifecycle state machine rules.
 func ValidateTransition(from, to FindingStatus) error {
-	if !validStatuses[from] {
+	return ValidateTransitionWithActor(from, to, false)
+}
+
+// ValidateTransitionWithActor enforces state machine rules while checking whether automated scanners may trigger the change.
+func ValidateTransitionWithActor(from, to FindingStatus, isAutomated bool) error {
+	normFrom := CanonicalStatus(from)
+	normTo := CanonicalStatus(to)
+
+	if !validStatuses[from] && !validStatuses[normFrom] {
 		return fmt.Errorf("%w: unknown source status %q", ErrInvalidStatus, from)
 	}
-	if !validStatuses[to] {
+	if !validStatuses[to] && !validStatuses[normTo] {
 		return fmt.Errorf("%w: unknown target status %q", ErrInvalidStatus, to)
 	}
-	if from == to {
+	if normFrom == normTo {
 		return fmt.Errorf("%w: already in status %q", ErrSameStatus, from)
 	}
 
-	switch from {
-	case StatusOpen:
-		// OPEN can transition to any triage or resolution state
-		return nil
+	// Scanner automation constraint: Automated runs can only auto-reopen RESOLVED findings
+	if isAutomated {
+		if normFrom == StatusResolved && (normTo == StatusReopened || normTo == StatusNew) {
+			return nil
+		}
+		return fmt.Errorf("%w: cannot transition from %s to %s automatically", ErrAutomatedNotPermitted, from, to)
+	}
+
+	switch normFrom {
+	case StatusNew:
+		// NEW -> CONFIRMED, FALSE_POSITIVE, ACCEPTED_RISK, IN_PROGRESS
+		if normTo == StatusConfirmed || normTo == StatusFalsePositive || normTo == StatusAcceptedRisk || normTo == StatusInProgress {
+			return nil
+		}
+		return fmt.Errorf("%w: cannot transition from %s to %s", ErrIllegalTransition, from, to)
+
 	case StatusConfirmed:
-		// CONFIRMED can be resolved, marked false positive, risk-accepted, or set back to open
-		return nil
-	case StatusFalsePositive:
-		// Reconsideration allows reopening
-		if to == StatusOpen || to == StatusConfirmed {
+		// CONFIRMED -> IN_PROGRESS, FALSE_POSITIVE, ACCEPTED_RISK, RESOLVED
+		if normTo == StatusInProgress || normTo == StatusFalsePositive || normTo == StatusAcceptedRisk || normTo == StatusResolved {
 			return nil
 		}
-		return fmt.Errorf("%w: cannot transition FALSE_POSITIVE directly to %s", ErrIllegalTransition, to)
-	case StatusRiskAccepted:
-		// Expired or revoked risk acceptance transitions back to open, confirmed, or resolved
-		if to == StatusOpen || to == StatusConfirmed || to == StatusResolved {
+		return fmt.Errorf("%w: cannot transition from %s to %s", ErrIllegalTransition, from, to)
+
+	case StatusInProgress:
+		// IN_PROGRESS -> RESOLVED, CONFIRMED
+		if normTo == StatusResolved || normTo == StatusConfirmed {
 			return nil
 		}
-		return fmt.Errorf("%w: cannot transition RISK_ACCEPTED directly to %s", ErrIllegalTransition, to)
+		return fmt.Errorf("%w: cannot transition from %s to %s", ErrIllegalTransition, from, to)
+
 	case StatusResolved:
-		// Redetection or re-opening
-		if to == StatusOpen || to == StatusConfirmed {
+		// RESOLVED -> REOPENED, IN_PROGRESS, NEW
+		if normTo == StatusReopened || normTo == StatusInProgress || normTo == StatusNew {
 			return nil
 		}
-		return fmt.Errorf("%w: cannot transition RESOLVED directly to %s", ErrIllegalTransition, to)
+		return fmt.Errorf("%w: cannot transition from %s to %s", ErrIllegalTransition, from, to)
+
+	case StatusReopened:
+		// REOPENED -> IN_PROGRESS, RESOLVED, CONFIRMED
+		if normTo == StatusInProgress || normTo == StatusResolved || normTo == StatusConfirmed {
+			return nil
+		}
+		return fmt.Errorf("%w: cannot transition from %s to %s", ErrIllegalTransition, from, to)
+
+	case StatusFalsePositive:
+		// FALSE_POSITIVE -> NEW (reconsidered by analyst)
+		if normTo == StatusNew {
+			return nil
+		}
+		return fmt.Errorf("%w: cannot transition from %s to %s", ErrIllegalTransition, from, to)
+
+	case StatusAcceptedRisk:
+		// ACCEPTED_RISK -> NEW (policy expiry / revocation), RESOLVED
+		if normTo == StatusNew || normTo == StatusResolved {
+			return nil
+		}
+		return fmt.Errorf("%w: cannot transition from %s to %s", ErrIllegalTransition, from, to)
+
 	default:
 		return fmt.Errorf("%w: unhandled status %s", ErrIllegalTransition, from)
 	}
@@ -117,16 +179,16 @@ type PersistentFinding struct {
 
 // FindingObservation represents an immutable occurrence from a specific assessment.
 type FindingObservation struct {
-	ID            uuid.UUID      `json:"id"`
-	TenantID      uuid.UUID      `json:"tenant_id"`
-	FindingID     uuid.UUID      `json:"finding_id"`
-	AssessmentID  uuid.UUID      `json:"assessment_id"`
-	JobID         uuid.UUID      `json:"job_id"`
-	ScannerID     string         `json:"scanner_id"`
-	ObservedAt    time.Time      `json:"observed_at"`
-	EvidenceRefs  []string       `json:"evidence_refs"`
-	RawMetadata   map[string]any `json:"raw_metadata"`
-	CreatedAt     time.Time      `json:"created_at"`
+	ID           uuid.UUID      `json:"id"`
+	TenantID     uuid.UUID      `json:"tenant_id"`
+	FindingID    uuid.UUID      `json:"finding_id"`
+	AssessmentID uuid.UUID      `json:"assessment_id"`
+	JobID        uuid.UUID      `json:"job_id"`
+	ScannerID    string         `json:"scanner_id"`
+	ObservedAt   time.Time      `json:"observed_at"`
+	EvidenceRefs []string       `json:"evidence_refs"`
+	RawMetadata  map[string]any `json:"raw_metadata"`
+	CreatedAt    time.Time      `json:"created_at"`
 }
 
 // CorrelationGroup models a logical group of related findings across scanners or targets.
@@ -155,7 +217,8 @@ type FindingEvent struct {
 }
 
 // IngestObservation updates a persistent finding upon observing a new assessment occurrence.
-// If the finding was previously RESOLVED, it is automatically reopened (AUTO_REOPENED).
+// If the finding was previously RESOLVED, it is automatically reopened (REOPENED).
+// Analyst-controlled states (CONFIRMED, FALSE_POSITIVE, ACCEPTED_RISK) are preserved without status overwrite.
 func IngestObservation(finding *PersistentFinding, obs FindingObservation, corrID uuid.UUID) (*FindingEvent, error) {
 	if finding.TenantID != obs.TenantID {
 		return nil, fmt.Errorf("findings: tenant mismatch between finding (%s) and observation (%s)", finding.TenantID, obs.TenantID)
@@ -168,16 +231,16 @@ func IngestObservation(finding *PersistentFinding, obs FindingObservation, corrI
 
 	var event *FindingEvent
 
-	// Auto-reopening rule: If an issue was resolved but is re-observed, reopen it
-	if finding.Status == StatusResolved {
+	// Auto-reopening rule: If an issue was resolved but is re-observed, transition to REOPENED
+	if CanonicalStatus(finding.Status) == StatusResolved {
 		oldStatus := StatusResolved
-		finding.Status = StatusOpen
+		finding.Status = StatusReopened
 		event = &FindingEvent{
 			ID:            uuid.New(),
 			TenantID:      finding.TenantID,
 			FindingID:     finding.ID,
 			FromStatus:    &oldStatus,
-			ToStatus:      StatusOpen,
+			ToStatus:      StatusReopened,
 			EventType:     EventAutoReopened,
 			Note:          fmt.Sprintf("Automatically reopened upon redetection by scanner %s in job %s", obs.ScannerID, obs.JobID),
 			CorrelationID: corrID,
