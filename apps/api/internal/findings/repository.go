@@ -314,6 +314,28 @@ func (r *PostgresFindingRepository) UpdateFindingStatus(
 		return nil, nil, fmt.Errorf("findings: record triage event failed: %w", err)
 	}
 
+	timelineType := TimelineEventStatusTransitioned
+	if newStatus == StatusFalsePositive {
+		timelineType = TimelineEventFalsePositiveMarked
+	} else if newStatus == StatusAcceptedRisk {
+		timelineType = TimelineEventAcceptedRiskMarked
+	}
+
+	_ = r.RecordTimelineEvent(ctx, &TimelineEntry{
+		ID:            uuid.New(),
+		TenantID:      tenantID,
+		FindingID:     findingID,
+		ActorID:       actorUserID,
+		EventType:     timelineType,
+		Payload: map[string]any{
+			"from_status": string(fromStatus),
+			"to_status":   string(newStatus),
+			"reason":      note,
+		},
+		CorrelationID: correlationID,
+		CreatedAt:     now,
+	})
+
 	return current, event, nil
 }
 
