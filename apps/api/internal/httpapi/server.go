@@ -26,6 +26,7 @@ type Server struct {
 	readyCheckers    ReadyCheckers
 	jobStore         jobStoreIface     // nil means cancel endpoint returns 503
 	idempotencyStore idempotency.Store // nil means idempotency middleware is disabled
+	findingStore     findingStoreIface // nil means finding endpoints return 503
 	protectedRoute   func(http.Handler) http.Handler
 }
 
@@ -90,6 +91,10 @@ func (s *Server) routes() {
 		cancelHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(cancelHandler)
 	}
 	s.mux.Handle("POST /api/v1/assessments/{id}/cancel", s.protect(cancelHandler))
+
+	// Finding detail retrieval endpoint (P3-08)
+	s.mux.Handle("GET /api/v1/findings/{id}", s.protect(http.HandlerFunc(s.handleGetFinding)))
+
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
 		s.mux.Handle(method+" /health/live", methodNotAllowed("GET"))
