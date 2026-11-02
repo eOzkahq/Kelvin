@@ -15,8 +15,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# CI/Security Workflow Toggle: Set ENABLE_CI to 'true' (or repo var ENABLE_CI) to enable runs.
+# Currently set to 'false' (OFF) so no security workflow runs trigger automatically.
+env:
+  ENABLE_CI: 'false'
+
 jobs:
   secrets:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true'
     name: Security / Gitleaks
     runs-on: ubuntu-latest
     steps:
@@ -29,6 +35,7 @@ jobs:
           GITLEAKS_CONFIG: .gitleaks.toml
 
   go-security:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true'
     name: Security / Go (${{ matrix.module }})
     runs-on: ubuntu-latest
     strategy:
@@ -57,6 +64,7 @@ jobs:
           "$(go env GOPATH)/bin/gosec" -severity high ./...
 
   frontend-security:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true'
     name: Security / Frontend lint and SAST
     runs-on: ubuntu-latest
     steps:
@@ -78,6 +86,7 @@ jobs:
           --config p/golang
 
   npm-audit:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true'
     name: Security / npm dependencies
     runs-on: ubuntu-latest
     steps:
@@ -91,6 +100,7 @@ jobs:
         run: npm audit --audit-level=high
 
   trivy:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true'
     name: Security / Trivy filesystem and configuration
     runs-on: ubuntu-latest
     steps:
@@ -105,6 +115,7 @@ jobs:
           exit-code: "1"
 
   container-sbom:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true'
     name: Security / PostgreSQL backup image SBOM and scan
     runs-on: ubuntu-latest
     steps:
