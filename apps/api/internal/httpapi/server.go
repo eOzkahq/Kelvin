@@ -105,6 +105,10 @@ func (s *Server) routes() {
 	// Assessment-to-assessment delta comparison (P3-35)
 	s.mux.Handle("GET /api/v1/assessments/{base_id}/compare/{target_id}", s.protect(http.HandlerFunc(s.handleCompareAssessments)))
 
+	// Findings search, filtering and dashboard endpoints (P3-44)
+	s.mux.Handle("GET /api/v1/findings", s.protect(http.HandlerFunc(s.handleListFindingsQuery)))
+	s.mux.Handle("GET /api/v1/findings/dashboard", s.protect(http.HandlerFunc(s.handleGetFindingsDashboard)))
+
 	// Finding detail retrieval endpoint (P3-08)
 	s.mux.Handle("GET /api/v1/findings/{id}", s.protect(http.HandlerFunc(s.handleGetFinding)))
 	// Finding observation timeline & assessment history (P3-34)

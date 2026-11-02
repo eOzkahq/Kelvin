@@ -38,6 +38,8 @@ type findingStoreIface interface {
 	GetEvidenceByFindingID(ctx context.Context, tenantID, findingID uuid.UUID) ([]*evidence.EvidenceItem, error)
 	GetEvidenceByID(ctx context.Context, tenantID, evidenceID uuid.UUID) (*evidence.EvidenceItem, error)
 	GetObservationsByAssessment(ctx context.Context, tenantID, assessmentID uuid.UUID) ([]*findings.FindingObservation, []string, error)
+	SearchFindings(ctx context.Context, q findings.FindingSearchQuery) (*findings.FindingSearchResult, error)
+	GetDashboardMetrics(ctx context.Context, tenantID uuid.UUID) (*findings.FindingDashboardMetrics, error)
 }
 
 // UpsertTargetRiskContextRequest models the request payload for defining target risk attributes.
@@ -1738,4 +1740,113 @@ func (s *Server) handleCompareAssessments(w http.ResponseWriter, r *http.Request
 	}
 
 	WriteSuccess(w, r, http.StatusOK, comparison, nil)
+}
+
+
+// handleListFindingsQuery handles GET /api/v1/findings.
+func (s *Server) handleListFindingsQuery(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	limit := 20
+	if lStr := r.URL.Query().Get("limit"); lStr != "" {
+		if l, err := strconv.Atoi(lStr); err == nil {
+			if l > 100 {
+				limit = 100
+			} else if l > 0 {
+				limit = l
+			}
+		}
+	}
+
+	offset := 0
+	if oStr := r.URL.Query().Get("offset"); oStr != "" {
+		if o, err := strconv.Atoi(oStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
+	var asmtIDPtr *uuid.UUID
+	if asmtStr := r.URL.Query().Get("assessment_id"); asmtStr != "" {
+		if uid, err := uuid.Parse(asmtStr); err == nil {
+			asmtIDPtr = &uid
+		}
+	}
+
+	var isSuppPtr *bool
+	if suppStr := r.URL.Query().Get("is_suppressed"); suppStr != "" {
+		if b, err := strconv.ParseBool(suppStr); err == nil {
+			isSuppPtr = &b
+		}
+	}
+
+	q := findings.FindingSearchQuery{
+		TenantID:     tenantID,
+		Query:        r.URL.Query().Get("q"),
+		Severity:     r.URL.Query().Get("severity"),
+		Status:       findings.FindingStatus(r.URL.Query().Get("status")),
+		RiskPriority: r.URL.Query().Get("risk_priority"),
+		Scanner:      r.URL.Query().Get("scanner"),
+		Target:       r.URL.Query().Get("target"),
+		AssessmentID: asmtIDPtr,
+		IsSuppressed: isSuppPtr,
+		SortBy:       r.URL.Query().Get("sort_by"),
+		SortOrder:    r.URL.Query().Get("sort_order"),
+		Limit:        limit,
+		Offset:       offset,
+	}
+
+	res, err := s.findingStore.SearchFindings(r.Context(), q)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	meta := map[string]any{
+		"limit":       res.Limit,
+		"offset":      res.Offset,
+		"total_count": res.TotalCount,
+	}
+
+	WriteSuccess(w, r, http.StatusOK, res.Items, meta)
+}
+
+// handleGetFindingsDashboard handles GET /api/v1/findings/dashboard.
+func (s *Server) handleGetFindingsDashboard(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	metrics, err := s.findingStore.GetDashboardMetrics(r.Context(), tenantID)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	WriteSuccess(w, r, http.StatusOK, metrics, nil)
 }

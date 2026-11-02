@@ -474,6 +474,22 @@ func (m *mockFindingStore) RecalculateFindingRisk(ctx context.Context, tenantID,
 	}, nil
 }
 
+func (m *mockFindingStore) SearchFindings(ctx context.Context, q findings.FindingSearchQuery) (*findings.FindingSearchResult, error) {
+	engine := findings.NewMemoryFindingSearchEngine()
+	for _, f := range m.findings {
+		engine.IndexFinding(f)
+	}
+	return engine.SearchFindings(ctx, q)
+}
+
+func (m *mockFindingStore) GetDashboardMetrics(ctx context.Context, tenantID uuid.UUID) (*findings.FindingDashboardMetrics, error) {
+	engine := findings.NewMemoryFindingSearchEngine()
+	for _, f := range m.findings {
+		engine.IndexFinding(f)
+	}
+	return engine.GetDashboardMetrics(ctx, tenantID)
+}
+
 func TestGetFindingSuccess(t *testing.T) {
 	tenantID := uuid.New()
 	findingID := uuid.New()
