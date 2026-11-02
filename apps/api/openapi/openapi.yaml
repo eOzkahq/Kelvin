@@ -497,6 +497,72 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /findings/{id}/recalculate-risk:
+    post:
+      tags: [findings]
+      operationId: recalculateFindingRisk
+      summary: Trigger an auditable, versioned recalculation of finding risk score.
+      description: Re-evaluates risk score and priority band using current target context and threat intelligence, archiving prior calculation into finding_risk_history without altering lifecycle state.
+      x-required-permission: finding:write
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecalculateRiskRequest"
+      responses:
+        "200":
+          description: Risk score recalculated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecalculateRiskResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /findings/{id}/risk-history:
+    get:
+      tags: [findings]
+      operationId: getFindingRiskHistory
+      summary: Retrieve the immutable point-in-time calculation history of finding risk scores.
+      description: Returns all historical risk calculations for a finding, including model versions, trigger reasons, and timestamps.
+      x-required-permission: finding:read
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Risk calculation history retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FindingRiskHistoryEntry"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
   /findings/{id}/risk-explanation:
     get:
       tags: [findings]
@@ -742,6 +808,87 @@ components:
           $ref: "#/components/schemas/BusinessCriticality"
         source:
           type: string
+
+    FindingRiskHistoryEntry:
+      type: object
+      additionalProperties: false
+      required: [id, tenant_id, finding_id, model_version, risk_score, priority_band, trigger_reason, calculated_at, superseded_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        finding_id:
+          type: string
+          format: uuid
+        model_version:
+          type: string
+        risk_score:
+          type: number
+          format: double
+        priority_band:
+          type: string
+          enum: [CRITICAL, HIGH, MEDIUM, LOW, INFO]
+        risk_factors:
+          type: object
+          additionalProperties: true
+        trigger_reason:
+          type: string
+          enum: [INITIAL_INGESTION, CONTEXT_UPDATE, MODEL_UPGRADE, MANUAL_RECALCULATION, THREAT_INTEL_UPDATE]
+        actor_id:
+          type: string
+          format: uuid
+        calculated_at:
+          type: string
+          format: date-time
+        superseded_at:
+          type: string
+          format: date-time
+
+    RecalculateRiskRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+        actor_id:
+          type: string
+          format: uuid
+
+    RecalculateRiskResult:
+      type: object
+      additionalProperties: false
+      required: [finding_id, current_score, current_band, model_version, explanation]
+      properties:
+        finding_id:
+          type: string
+          format: uuid
+        previous_score:
+          type: number
+          format: double
+        previous_band:
+          type: string
+        current_score:
+          type: number
+          format: double
+        current_band:
+          type: string
+        model_version:
+          type: string
+        history_entry:
+          $ref: "#/components/schemas/FindingRiskHistoryEntry"
+        explanation:
+          type: string
+
+    RecalculateRiskResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/RecalculateRiskResult"
 
     RiskFactorItem:
       type: object

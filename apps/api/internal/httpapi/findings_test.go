@@ -23,6 +23,7 @@ type mockFindingStore struct {
 	observations   map[uuid.UUID][]*findings.FindingObservation
 	timeline       map[uuid.UUID][]*findings.TimelineEntry
 	targetContexts map[string]*findings.TargetRiskContext
+	riskHistory    map[uuid.UUID][]*findings.FindingRiskHistoryEntry
 }
 
 func (m *mockFindingStore) GetFindingByID(ctx context.Context, tenantID, findingID uuid.UUID) (*findings.PersistentFinding, error) {
@@ -368,6 +369,73 @@ func (m *mockFindingStore) GetRiskExplanation(ctx context.Context, tenantID, fin
 		return nil, findings.ErrFindingNotFound
 	}
 	return findings.GenerateRiskExplanation(f)
+}
+
+func (m *mockFindingStore) ArchiveRiskHistory(ctx context.Context, entry *findings.FindingRiskHistoryEntry) error {
+	if m.riskHistory == nil {
+		m.riskHistory = make(map[uuid.UUID][]*findings.FindingRiskHistoryEntry)
+	}
+	m.riskHistory[entry.FindingID] = append(m.riskHistory[entry.FindingID], entry)
+	return nil
+}
+
+func (m *mockFindingStore) GetRiskHistoryByFinding(ctx context.Context, tenantID, findingID uuid.UUID) ([]*findings.FindingRiskHistoryEntry, error) {
+	if m.riskHistory == nil {
+		return []*findings.FindingRiskHistoryEntry{}, nil
+	}
+	entries, exists := m.riskHistory[findingID]
+	if !exists {
+		return []*findings.FindingRiskHistoryEntry{}, nil
+	}
+	return entries, nil
+}
+
+func (m *mockFindingStore) RecalculateFindingRisk(ctx context.Context, tenantID, findingID uuid.UUID, reason string, actorID *uuid.UUID) (*findings.RecalculateRiskResult, error) {
+	f, exists := m.findings[findingID]
+	if !exists || f.TenantID != tenantID {
+		return nil, findings.ErrFindingNotFound
+	}
+	now := time.Now().UTC()
+	var historyEntry *findings.FindingRiskHistoryEntry
+	if f.RiskScore != nil {
+		historyEntry = &findings.FindingRiskHistoryEntry{
+			ID:            uuid.New(),
+			TenantID:      tenantID,
+			FindingID:     findingID,
+			ModelVersion:  findings.RiskModelVersion,
+			RiskScore:     *f.RiskScore,
+			PriorityBand:  f.RiskPriorityBand,
+			RiskFactors:   f.RiskFactors,
+			TriggerReason: reason,
+			ActorID:       actorID,
+			CalculatedAt:  f.UpdatedAt,
+			SupersededAt:  now,
+		}
+		_ = m.ArchiveRiskHistory(ctx, historyEntry)
+	}
+
+	newScore := 9.0
+	f.RiskScore = &newScore
+	f.RiskPriorityBand = findings.RiskBandCritical
+	f.UpdatedAt = now
+
+	var prevScore *float64
+	var prevBand findings.RiskPriorityBand
+	if historyEntry != nil {
+		prevScore = &historyEntry.RiskScore
+		prevBand = historyEntry.PriorityBand
+	}
+
+	return &findings.RecalculateRiskResult{
+		FindingID:     findingID,
+		PreviousScore: prevScore,
+		PreviousBand:  prevBand,
+		CurrentScore:  newScore,
+		CurrentBand:   findings.RiskBandCritical,
+		ModelVersion:  findings.RiskModelVersion,
+		HistoryEntry:  historyEntry,
+		Explanation:   "Recalculated successfully",
+	}, nil
 }
 
 func TestGetFindingSuccess(t *testing.T) {

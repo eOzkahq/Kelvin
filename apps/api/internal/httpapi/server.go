@@ -97,6 +97,14 @@ func (s *Server) routes() {
 	// Finding risk score explainability endpoint (P3-24)
 	s.mux.Handle("GET /api/v1/findings/{id}/risk-explanation", s.protect(http.HandlerFunc(s.handleGetRiskExplanation)))
 
+	// Versioned risk recalculation & history endpoints (P3-25)
+	var recalcRiskHandler http.Handler = http.HandlerFunc(s.handleRecalculateFindingRisk)
+	if s.idempotencyStore != nil {
+		recalcRiskHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(recalcRiskHandler)
+	}
+	s.mux.Handle("POST /api/v1/findings/{id}/recalculate-risk", s.protect(recalcRiskHandler))
+	s.mux.Handle("GET /api/v1/findings/{id}/risk-history", s.protect(http.HandlerFunc(s.handleGetFindingRiskHistory)))
+
 	// Finding status transition command endpoint (P3-10)
 	var transitionHandler http.Handler = http.HandlerFunc(s.handleTransitionFinding)
 	if s.idempotencyStore != nil {
