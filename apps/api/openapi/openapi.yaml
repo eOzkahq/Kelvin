@@ -168,6 +168,84 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /findings/{id}/false-positive:
+    post:
+      tags: [findings]
+      operationId: markFindingFalsePositive
+      summary: Mark finding as false positive.
+      description: Allows an authorized analyst to classify a finding as false positive with a mandatory substantive justification (minimum 20 characters) and optional evidence rebuttal.
+      x-required-permission: finding:write
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkFalsePositiveRequest"
+      responses:
+        "200":
+          description: Finding marked as false positive and review record persisted.
+          headers:
+            X-Correlation-ID:
+              $ref: "#/components/headers/CorrelationID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /findings/{id}/false-positive/reverse:
+    post:
+      tags: [findings]
+      operationId: reverseFindingFalsePositive
+      summary: Reverse false-positive classification.
+      description: Reopens or returns a previously marked false-positive finding back to an active state (e.g. REOPENED, NEW, IN_PROGRESS) upon reconsideration or material change.
+      x-required-permission: finding:write
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReverseFalsePositiveRequest"
+      responses:
+        "200":
+          description: False-positive classification reversed and finding returned to active state.
+          headers:
+            X-Correlation-ID:
+              $ref: "#/components/headers/CorrelationID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
   /findings/{id}/triage:
     post:
       tags: [findings]
@@ -362,6 +440,41 @@ components:
           type: integer
           minimum: 0
           description: Emitted only where an exact count is cheap.
+    MarkFalsePositiveRequest:
+      type: object
+      additionalProperties: false
+      required: [justification]
+      properties:
+        justification:
+          type: string
+          minLength: 20
+          description: Mandatory substantive rationale (minimum 20 characters) explaining why this finding is a false positive.
+        evidence_rebuttal:
+          type: string
+          description: Optional technical rebuttal or testing details.
+        actor_id:
+          type: string
+          format: uuid
+          description: Optional analyst identifier overriding context default.
+
+    ReverseFalsePositiveRequest:
+      type: object
+      additionalProperties: false
+      required: [target_status, justification]
+      properties:
+        target_status:
+          type: string
+          enum: [NEW, IN_PROGRESS, REOPENED]
+          description: Active lifecycle status to which the finding is returned.
+        justification:
+          type: string
+          minLength: 20
+          description: Mandatory substantive rationale explaining the reversal.
+        actor_id:
+          type: string
+          format: uuid
+          description: Optional analyst identifier overriding context default.
+
     TriageFindingRequest:
       type: object
       additionalProperties: false

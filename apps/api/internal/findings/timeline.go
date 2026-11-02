@@ -23,6 +23,8 @@ const (
 	TimelineEventRemediationUpdated  = "REMEDIATION_UPDATED"
 	TimelineEventEvidenceAdded       = "EVIDENCE_ADDED"
 	TimelineEventEvidenceRemoved     = "EVIDENCE_REMOVED"
+	TimelineEventFalsePositiveReopened = "FALSE_POSITIVE_REOPENED"
+	TimelineEventFalsePositiveReviewFlagged = "FALSE_POSITIVE_REVIEW_FLAGGED"
 )
 
 var (

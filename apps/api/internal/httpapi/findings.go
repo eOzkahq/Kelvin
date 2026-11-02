@@ -21,6 +21,9 @@ type findingStoreIface interface {
 	GetTimelineByFinding(ctx context.Context, tenantID, findingID uuid.UUID, limit, offset int) ([]*findings.TimelineEntry, error)
 	UpdateFindingStatus(ctx context.Context, tenantID, findingID uuid.UUID, newStatus findings.FindingStatus, actorUserID *uuid.UUID, note string, correlationID uuid.UUID) (*findings.PersistentFinding, *findings.FindingEvent, error)
 	SaveTriageDecision(ctx context.Context, decision *findings.TriageDecision) error
+	MarkFindingFalsePositive(ctx context.Context, tenantID, findingID uuid.UUID, actorID uuid.UUID, justification, rebuttal string, corrID uuid.UUID) (*findings.FalsePositiveReview, error)
+	ReverseFalsePositive(ctx context.Context, tenantID, findingID uuid.UUID, actorID uuid.UUID, targetStatus findings.FindingStatus, justification string, corrID uuid.UUID) (*findings.FalsePositiveReview, error)
+	GetFalsePositiveReviewsByFinding(ctx context.Context, tenantID, findingID uuid.UUID) ([]*findings.FalsePositiveReview, error)
 }
 
 // FindingDetailResponse encapsulates the finding record and paginated observation history.
@@ -39,6 +42,20 @@ type TransitionFindingRequest struct {
 type TransitionFindingResponse struct {
 	Finding *findings.PersistentFinding `json:"finding"`
 	Event   *findings.FindingEvent      `json:"event"`
+}
+
+// MarkFalsePositiveRequest captures the analyst review input for classifying a finding as false positive.
+type MarkFalsePositiveRequest struct {
+	Justification    string     `json:"justification"`
+	EvidenceRebuttal string     `json:"evidence_rebuttal,omitempty"`
+	ActorID          *uuid.UUID `json:"actor_id,omitempty"`
+}
+
+// ReverseFalsePositiveRequest captures the analyst reversal input.
+type ReverseFalsePositiveRequest struct {
+	TargetStatus  string     `json:"target_status"`
+	Justification string     `json:"justification"`
+	ActorID       *uuid.UUID `json:"actor_id,omitempty"`
 }
 
 // TriageFindingRequest captures an analyst's triage disposition decision.
@@ -418,4 +435,222 @@ func (s *Server) handleTriageFinding(w http.ResponseWriter, r *http.Request) {
 		"finding_id":  decision.FindingID,
 		"status":      "triage_applied",
 	}, nil)
+}
+
+// handleMarkFalsePositive handles POST /api/v1/findings/{id}/false-positive.
+func (s *Server) handleMarkFalsePositive(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	idStr := r.PathValue("id")
+	if idStr == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "missing_finding_id",
+			Message: "finding id is required",
+		}}))
+		return
+	}
+
+	findingID, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "invalid_finding_id",
+			Message: "finding id must be a valid UUID",
+		}}))
+		return
+	}
+
+	var req MarkFalsePositiveRequest
+	if !DecodeJSON(w, r, &req) {
+		return
+	}
+
+	trimmedJustification := strings.TrimSpace(req.Justification)
+	if len(trimmedJustification) < findings.MinRationaleLength {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "justification",
+			Code:    "rationale_too_short",
+			Message: "documented justification of at least 20 characters is required to mark finding as false positive",
+		}}))
+		return
+	}
+
+	var actorID uuid.UUID
+	if req.ActorID != nil && *req.ActorID != uuid.Nil {
+		actorID = *req.ActorID
+	} else {
+		actorID = uuid.New()
+	}
+
+	corrID := logging.CorrelationFromContext(r.Context())
+	var corrUUID uuid.UUID
+	if parsed, err := uuid.Parse(corrID); err == nil {
+		corrUUID = parsed
+	} else {
+		corrUUID = uuid.New()
+	}
+
+	review, err := s.findingStore.MarkFindingFalsePositive(
+		r.Context(),
+		tenantID,
+		findingID,
+		actorID,
+		req.Justification,
+		req.EvidenceRebuttal,
+		corrUUID,
+	)
+	if err != nil {
+		if errors.Is(err, findings.ErrFindingNotFound) {
+			WriteProblem(w, r, kelvinerrors.NewNotFound("finding not found"))
+			return
+		}
+		if errors.Is(err, findings.ErrAlreadyFalsePositive) {
+			WriteProblem(w, r, kelvinerrors.NewConflict("finding is already marked as false positive"))
+			return
+		}
+		if errors.Is(err, findings.ErrRationaleTooShort) || errors.Is(err, findings.ErrActorRequired) {
+			WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+				Field:   "false_positive",
+				Code:    "validation_error",
+				Message: err.Error(),
+			}}))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	WriteSuccess(w, r, http.StatusOK, review, nil)
+}
+
+// handleReverseFalsePositive handles POST /api/v1/findings/{id}/false-positive/reverse.
+func (s *Server) handleReverseFalsePositive(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	idStr := r.PathValue("id")
+	if idStr == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "missing_finding_id",
+			Message: "finding id is required",
+		}}))
+		return
+	}
+
+	findingID, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "invalid_finding_id",
+			Message: "finding id must be a valid UUID",
+		}}))
+		return
+	}
+
+	var req ReverseFalsePositiveRequest
+	if !DecodeJSON(w, r, &req) {
+		return
+	}
+
+	targetStatusStr := strings.TrimSpace(req.TargetStatus)
+	if targetStatusStr == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "target_status",
+			Code:    "missing_target_status",
+			Message: "target_status is required for false-positive reversal",
+		}}))
+		return
+	}
+
+	targetStatus := findings.FindingStatus(strings.ToUpper(targetStatusStr))
+
+	trimmedJustification := strings.TrimSpace(req.Justification)
+	if len(trimmedJustification) < findings.MinRationaleLength {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "justification",
+			Code:    "rationale_too_short",
+			Message: "documented justification of at least 20 characters is required for false-positive reversal",
+		}}))
+		return
+	}
+
+	var actorID uuid.UUID
+	if req.ActorID != nil && *req.ActorID != uuid.Nil {
+		actorID = *req.ActorID
+	} else {
+		actorID = uuid.New()
+	}
+
+	corrID := logging.CorrelationFromContext(r.Context())
+	var corrUUID uuid.UUID
+	if parsed, err := uuid.Parse(corrID); err == nil {
+		corrUUID = parsed
+	} else {
+		corrUUID = uuid.New()
+	}
+
+	review, err := s.findingStore.ReverseFalsePositive(
+		r.Context(),
+		tenantID,
+		findingID,
+		actorID,
+		targetStatus,
+		req.Justification,
+		corrUUID,
+	)
+	if err != nil {
+		if errors.Is(err, findings.ErrFindingNotFound) {
+			WriteProblem(w, r, kelvinerrors.NewNotFound("finding not found"))
+			return
+		}
+		if errors.Is(err, findings.ErrNotFalsePositive) {
+			WriteProblem(w, r, kelvinerrors.NewConflict("finding is not currently marked as false positive"))
+			return
+		}
+		if errors.Is(err, findings.ErrIllegalTransition) {
+			WriteProblem(w, r, kelvinerrors.NewConflict("illegal reversal transition: "+err.Error()))
+			return
+		}
+		if errors.Is(err, findings.ErrRationaleTooShort) || errors.Is(err, findings.ErrTargetStatusRequired) {
+			WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+				Field:   "reversal",
+				Code:    "validation_error",
+				Message: err.Error(),
+			}}))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	WriteSuccess(w, r, http.StatusOK, review, nil)
 }

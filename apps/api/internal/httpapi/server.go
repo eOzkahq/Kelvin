@@ -112,6 +112,16 @@ func (s *Server) routes() {
 	}
 	s.mux.Handle("POST /api/v1/findings/{id}/triage", s.protect(triageHandler))
 
+	// False-positive review endpoints (P3-17)
+	var fpMarkHandler http.Handler = http.HandlerFunc(s.handleMarkFalsePositive)
+	var fpReverseHandler http.Handler = http.HandlerFunc(s.handleReverseFalsePositive)
+	if s.idempotencyStore != nil {
+		fpMarkHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(fpMarkHandler)
+		fpReverseHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(fpReverseHandler)
+	}
+	s.mux.Handle("POST /api/v1/findings/{id}/false-positive", s.protect(fpMarkHandler))
+	s.mux.Handle("POST /api/v1/findings/{id}/false-positive/reverse", s.protect(fpReverseHandler))
+
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
 		s.mux.Handle(method+" /health/live", methodNotAllowed("GET"))
