@@ -1,0 +1,160 @@
+name: Production Quality & Verification Gate
+
+on:
+  push:
+    branches: [main, release/*]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release_candidate:
+        description: 'Release Candidate Tag (e.g., v1.0.0-rc1)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: prod-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+# Controlled toggle adhering to PR CI skip requirements
+env:
+  ENABLE_CI: 'false'
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # Gate 1: Code Quality, Style & Static Analysis
+  # ----------------------------------------------------------------------------
+  code-quality:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
+    name: Code Quality & Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify Go Formatting & Vet
+        run: |
+          test -z "$(gofmt -l apps/ packages/)" || { echo "Unformatted Go code detected"; exit 1; }
+          go vet ./apps/api/...
+          go vet ./apps/worker/...
+
+      - name: Frontend Lint & TypeScript Type Check
+        run: |
+          npm ci
+          npm run lint
+          npm run build:web
+
+  # ----------------------------------------------------------------------------
+  # Gate 2: Full Test Verification Suite with Race Detector
+  # ----------------------------------------------------------------------------
+  test-verification:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
+    name: Unit & Integration Test Verification
+    needs: [code-quality]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: kelvin_test
+          POSTGRES_USER: kelvin
+          POSTGRES_PASSWORD: kelvin_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kelvin -d kelvin_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Run Backend Unit & Race Tests
+        run: |
+          go test -race -v -coverprofile=coverage-api.txt ./apps/api/...
+          go test -race -v -coverprofile=coverage-worker.txt ./apps/worker/...
+
+      - name: Run Integration Tests
+        env:
+          KELVIN_DATABASE_URL: postgres://kelvin:kelvin_test_password@localhost:5432/kelvin_test?sslmode=disable
+          KELVIN_REDIS_ADDR: localhost:6379
+        working-directory: tests/integration
+        run: go test -v -race ./...
+
+      - name: Run Frontend Tests
+        run: |
+          npm ci
+          npm run test:web
+
+  # ----------------------------------------------------------------------------
+  # Gate 3: Security, Contracts & Compliance Verification
+  # ----------------------------------------------------------------------------
+  security-contracts:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
+    name: Security, Contracts & Supply-Chain
+    needs: [code-quality]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: OpenAPI Contract Lint
+        run: npx --yes @redocly/cli@2.64.1 lint apps/api/openapi/openapi.yaml
+
+      - name: IaC Validation & Secret Scan
+        run: bash scripts/validate-iac.sh
+
+      - name: Dependency Vulnerability Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+  # ----------------------------------------------------------------------------
+  # Gate 4: Release Readiness Gate (All upstream checks required)
+  # ----------------------------------------------------------------------------
+  release-gate:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
+    name: Release Readiness Gate
+    needs: [code-quality, test-verification, security-contracts]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record Build Metadata & Test Evidence
+        run: |
+          echo "=========================================="
+          echo " Production CI Release Verification Passed"
+          echo " SHA: ${{ github.sha }}"
+          echo " Ref: ${{ github.ref }}"
+          echo " Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo " Status: RELEASE GATES CLEARED"
+          echo "=========================================="
