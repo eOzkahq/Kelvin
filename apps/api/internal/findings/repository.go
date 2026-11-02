@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -12,7 +14,11 @@ import (
 )
 
 var (
-	ErrFindingNotFound = errors.New("findings: finding not found")
+	ErrFindingNotFound       = errors.New("findings: finding not found")
+	ErrTenantRequired        = errors.New("findings: tenant_id is required and must not be nil")
+	ErrProjectRequired       = errors.New("findings: project_id is required and must not be nil")
+	ErrFindingIDRequired     = errors.New("findings: finding_id is required and must not be nil")
+	ErrCrossTenantOperation  = errors.New("findings: cross-tenant access prohibited")
 )
 
 // DBTX defines the database executor interface satisfied by *pgxpool.Pool, *pgx.Conn, and pgx.Tx.
@@ -22,7 +28,16 @@ type DBTX interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
+// FindingFilter provides query criteria for filtering findings within tenant and project bounds.
+type FindingFilter struct {
+	Status   *FindingStatus
+	Severity *string
+	Limit    int
+	Offset   int
+}
+
 // PostgresFindingRepository provides PostgreSQL persistence for persistent findings, observations, and events.
+// Every operation enforces strict tenant boundary validation as defense-in-depth alongside PostgreSQL RLS.
 type PostgresFindingRepository struct {
 	db DBTX
 }
@@ -37,6 +52,13 @@ func (r *PostgresFindingRepository) GetFindingsByProject(
 	ctx context.Context,
 	tenantID, projectID uuid.UUID,
 ) ([]*PersistentFinding, error) {
+	if tenantID == uuid.Nil {
+		return nil, ErrTenantRequired
+	}
+	if projectID == uuid.Nil {
+		return nil, ErrProjectRequired
+	}
+
 	const query = `
 		SELECT
 			id, tenant_id, project_id, assessment_id, job_id, asset_id, correlation_group_id,
@@ -84,11 +106,111 @@ func (r *PostgresFindingRepository) GetFindingsByProject(
 	return findings, nil
 }
 
+// ListFindings queries findings for a tenant with optional status and severity filtering.
+func (r *PostgresFindingRepository) ListFindings(
+	ctx context.Context,
+	tenantID, projectID uuid.UUID,
+	filter FindingFilter,
+) ([]*PersistentFinding, error) {
+	if tenantID == uuid.Nil {
+		return nil, ErrTenantRequired
+	}
+	if projectID == uuid.Nil {
+		return nil, ErrProjectRequired
+	}
+
+	queryBuilder := strings.Builder{}
+	queryBuilder.WriteString(`
+		SELECT
+			id, tenant_id, project_id, assessment_id, job_id, asset_id, correlation_group_id,
+			fingerprint, title, severity, confidence, cvss_score, cwe_id, cve_ids, status,
+			affected_endpoint, scanner_data, tags, first_seen_at, last_seen_at,
+			first_job_id, last_job_id, occurrence_count, created_at, updated_at
+		FROM findings
+		WHERE tenant_id = $1 AND project_id = $2 AND deleted_at IS NULL
+	`)
+
+	args := []any{tenantID, projectID}
+	paramIdx := 3
+
+	if filter.Status != nil {
+		queryBuilder.WriteString(fmt.Sprintf(" AND status = $%d", paramIdx))
+		args = append(args, string(*filter.Status))
+		paramIdx++
+	}
+
+	if filter.Severity != nil && *filter.Severity != "" {
+		queryBuilder.WriteString(fmt.Sprintf(" AND severity = $%d", paramIdx))
+		args = append(args, *filter.Severity)
+		paramIdx++
+	}
+
+	queryBuilder.WriteString(" ORDER BY last_seen_at DESC")
+
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	queryBuilder.WriteString(fmt.Sprintf(" LIMIT $%d", paramIdx))
+	args = append(args, limit)
+	paramIdx++
+
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	queryBuilder.WriteString(fmt.Sprintf(" OFFSET $%d", paramIdx))
+	args = append(args, offset)
+
+	rows, err := r.db.Query(ctx, queryBuilder.String(), args...)
+	if err != nil {
+		return nil, fmt.Errorf("findings: list findings failed: %w", err)
+	}
+	defer rows.Close()
+
+	var findings []*PersistentFinding
+	for rows.Next() {
+		f := &PersistentFinding{}
+		var scannerDataBytes []byte
+		var cvssScore *float64
+
+		err := rows.Scan(
+			&f.ID, &f.TenantID, &f.ProjectID, &f.AssessmentID, &f.JobID, &f.AssetID, &f.CorrelationGroupID,
+			&f.Fingerprint, &f.Title, &f.Severity, &f.Confidence, &cvssScore, &f.CWEID, &f.CVEIDs, &f.Status,
+			&f.AffectedEndpoint, &scannerDataBytes, &f.Tags, &f.FirstSeenAt, &f.LastSeenAt,
+			&f.FirstJobID, &f.LastJobID, &f.OccurrenceCount, &f.CreatedAt, &f.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("findings: scan finding row failed: %w", err)
+		}
+
+		f.CVSSScore = cvssScore
+		if len(scannerDataBytes) > 0 {
+			_ = json.Unmarshal(scannerDataBytes, &f.ScannerData)
+		}
+		findings = append(findings, f)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("findings: rows iteration error: %w", err)
+	}
+
+	return findings, nil
+}
+
 // GetFindingByID retrieves a single finding by tenant and ID.
+// IDOR Protection: Querying a finding that does not belong to tenantID returns ErrFindingNotFound.
 func (r *PostgresFindingRepository) GetFindingByID(
 	ctx context.Context,
 	tenantID, findingID uuid.UUID,
 ) (*PersistentFinding, error) {
+	if tenantID == uuid.Nil {
+		return nil, ErrTenantRequired
+	}
+	if findingID == uuid.Nil {
+		return nil, ErrFindingIDRequired
+	}
+
 	const query = `
 		SELECT
 			id, tenant_id, project_id, assessment_id, job_id, asset_id, correlation_group_id,
@@ -123,12 +245,83 @@ func (r *PostgresFindingRepository) GetFindingByID(
 	return f, nil
 }
 
+// UpdateFindingStatus transitions a finding status within tenant boundaries.
+func (r *PostgresFindingRepository) UpdateFindingStatus(
+	ctx context.Context,
+	tenantID, findingID uuid.UUID,
+	newStatus FindingStatus,
+	actorUserID *uuid.UUID,
+	note string,
+	correlationID uuid.UUID,
+) (*PersistentFinding, *FindingEvent, error) {
+	if tenantID == uuid.Nil {
+		return nil, nil, ErrTenantRequired
+	}
+	if findingID == uuid.Nil {
+		return nil, nil, ErrFindingIDRequired
+	}
+
+	current, err := r.GetFindingByID(ctx, tenantID, findingID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := ValidateTransition(current.Status, newStatus); err != nil {
+		return nil, nil, err
+	}
+
+	fromStatus := current.Status
+	now := time.Now().UTC()
+
+	const updateQuery = `
+		UPDATE findings
+		SET status = $1, updated_at = $2
+		WHERE tenant_id = $3 AND id = $4 AND deleted_at IS NULL;
+	`
+	tag, err := r.db.Exec(ctx, updateQuery, string(newStatus), now, tenantID, findingID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("findings: update status failed: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, nil, ErrFindingNotFound
+	}
+
+	current.Status = newStatus
+	current.UpdatedAt = now
+
+	event := &FindingEvent{
+		ID:            uuid.New(),
+		TenantID:      tenantID,
+		FindingID:     findingID,
+		FromStatus:    &fromStatus,
+		ToStatus:      newStatus,
+		EventType:     EventTriage,
+		ActorUserID:   actorUserID,
+		Note:          note,
+		CorrelationID: correlationID,
+		CreatedAt:     now,
+	}
+
+	if err := r.SaveEvent(ctx, event); err != nil {
+		return nil, nil, fmt.Errorf("findings: record triage event failed: %w", err)
+	}
+
+	return current, event, nil
+}
+
 // GetObservationsByFinding retrieves paginated historical observation records for a finding.
 func (r *PostgresFindingRepository) GetObservationsByFinding(
 	ctx context.Context,
 	tenantID, findingID uuid.UUID,
 	limit, offset int,
 ) ([]*FindingObservation, error) {
+	if tenantID == uuid.Nil {
+		return nil, ErrTenantRequired
+	}
+	if findingID == uuid.Nil {
+		return nil, ErrFindingIDRequired
+	}
+
 	const query = `
 		SELECT
 			id, tenant_id, finding_id, assessment_id, job_id, scanner_id,
@@ -182,8 +375,36 @@ func (r *PostgresFindingRepository) GetObservationsByFinding(
 	return observations, nil
 }
 
+// ObservationExists checks whether an observation has already been recorded for a finding in a specific assessment.
+func (r *PostgresFindingRepository) ObservationExists(
+	ctx context.Context,
+	tenantID, assessmentID, findingID uuid.UUID,
+) (bool, error) {
+	if tenantID == uuid.Nil {
+		return false, ErrTenantRequired
+	}
+
+	const query = `
+		SELECT EXISTS (
+			SELECT 1 FROM finding_observations
+			WHERE tenant_id = $1 AND assessment_id = $2 AND finding_id = $3
+		);
+	`
+
+	var exists bool
+	err := r.db.QueryRow(ctx, query, tenantID, assessmentID, findingID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("findings: check observation exists failed: %w", err)
+	}
+	return exists, nil
+}
+
 // SaveFinding inserts or updates a persistent finding record.
 func (r *PostgresFindingRepository) SaveFinding(ctx context.Context, f *PersistentFinding) error {
+	if f.TenantID == uuid.Nil {
+		return ErrTenantRequired
+	}
+
 	const query = `
 		INSERT INTO findings (
 			id, tenant_id, project_id, assessment_id, job_id, asset_id, correlation_group_id,
@@ -231,28 +452,12 @@ func (r *PostgresFindingRepository) SaveFinding(ctx context.Context, f *Persiste
 	return nil
 }
 
-// ObservationExists checks whether an observation has already been recorded for a finding in a specific assessment.
-func (r *PostgresFindingRepository) ObservationExists(
-	ctx context.Context,
-	tenantID, assessmentID, findingID uuid.UUID,
-) (bool, error) {
-	const query = `
-		SELECT EXISTS (
-			SELECT 1 FROM finding_observations
-			WHERE tenant_id = $1 AND assessment_id = $2 AND finding_id = $3
-		);
-	`
-
-	var exists bool
-	err := r.db.QueryRow(ctx, query, tenantID, assessmentID, findingID).Scan(&exists)
-	if err != nil {
-		return false, fmt.Errorf("findings: check observation exists failed: %w", err)
-	}
-	return exists, nil
-}
-
 // SaveObservation inserts an immutable point-in-time observation record idempotently.
 func (r *PostgresFindingRepository) SaveObservation(ctx context.Context, obs *FindingObservation) error {
+	if obs.TenantID == uuid.Nil {
+		return ErrTenantRequired
+	}
+
 	const query = `
 		INSERT INTO finding_observations (
 			id, tenant_id, finding_id, assessment_id, job_id, scanner_id,
@@ -284,6 +489,10 @@ func (r *PostgresFindingRepository) SaveObservation(ctx context.Context, obs *Fi
 
 // SaveEvent appends an audit event to finding_events.
 func (r *PostgresFindingRepository) SaveEvent(ctx context.Context, ev *FindingEvent) error {
+	if ev.TenantID == uuid.Nil {
+		return ErrTenantRequired
+	}
+
 	const query = `
 		INSERT INTO finding_events (
 			id, tenant_id, finding_id, from_status, to_status,

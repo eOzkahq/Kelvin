@@ -395,3 +395,105 @@ func TestPostgresFindingRepositoryObservationExists(t *testing.T) {
 		t.Errorf("expected exists = true")
 	}
 }
+
+func TestPostgresFindingRepositoryStrictTenantRequired(t *testing.T) {
+	ctx := context.Background()
+	repo := NewPostgresFindingRepository(&mockDBTX{})
+
+	_, err := repo.GetFindingsByProject(ctx, uuid.Nil, uuid.New())
+	if err != ErrTenantRequired {
+		t.Errorf("expected ErrTenantRequired, got %v", err)
+	}
+
+	_, err = repo.GetFindingByID(ctx, uuid.Nil, uuid.New())
+	if err != ErrTenantRequired {
+		t.Errorf("expected ErrTenantRequired, got %v", err)
+	}
+
+	_, err = repo.GetObservationsByFinding(ctx, uuid.Nil, uuid.New(), 10, 0)
+	if err != ErrTenantRequired {
+		t.Errorf("expected ErrTenantRequired, got %v", err)
+	}
+
+	_, err = repo.ObservationExists(ctx, uuid.Nil, uuid.New(), uuid.New())
+	if err != ErrTenantRequired {
+		t.Errorf("expected ErrTenantRequired, got %v", err)
+	}
+
+	err = repo.SaveFinding(ctx, &PersistentFinding{TenantID: uuid.Nil})
+	if err != ErrTenantRequired {
+		t.Errorf("expected ErrTenantRequired, got %v", err)
+	}
+
+	err = repo.SaveObservation(ctx, &FindingObservation{TenantID: uuid.Nil})
+	if err != ErrTenantRequired {
+		t.Errorf("expected ErrTenantRequired, got %v", err)
+	}
+
+	err = repo.SaveEvent(ctx, &FindingEvent{TenantID: uuid.Nil})
+	if err != ErrTenantRequired {
+		t.Errorf("expected ErrTenantRequired, got %v", err)
+	}
+}
+
+func TestPostgresFindingRepositoryIDORProtectionReturnsNotFound(t *testing.T) {
+	ctx := context.Background()
+	tenantA := uuid.New()
+	findingID := uuid.New()
+
+	mock := &mockDBTX{
+		queryRowFn: func(ctx context.Context, sql string, args ...any) pgx.Row {
+			// Simulates PostgreSQL RLS or WHERE tenant_id = $1 filtering returning no rows
+			return &mockRow{
+				scanFn: func(dest ...any) error {
+					return pgx.ErrNoRows
+				},
+			}
+		},
+	}
+
+	repo := NewPostgresFindingRepository(mock)
+
+	// An unauthorized tenant querying another tenant's finding ID must get ErrFindingNotFound
+	_, err := repo.GetFindingByID(ctx, tenantA, findingID)
+	if err != ErrFindingNotFound {
+		t.Errorf("expected ErrFindingNotFound to prevent IDOR disclosure, got %v", err)
+	}
+}
+
+func TestPostgresFindingRepositoryListFindingsTenantScoped(t *testing.T) {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	projectID := uuid.New()
+
+	var executedSQL string
+	var capturedArgs []any
+	mock := &mockDBTX{
+		queryFn: func(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+			executedSQL = sql
+			capturedArgs = args
+			return &mockRows{}, nil
+		},
+	}
+
+	repo := NewPostgresFindingRepository(mock)
+	status := StatusOpen
+	sev := "HIGH"
+	_, err := repo.ListFindings(ctx, tenantID, projectID, FindingFilter{
+		Status:   &status,
+		Severity: &sev,
+		Limit:    25,
+		Offset:   0,
+	})
+	if err != nil {
+		t.Fatalf("ListFindings failed: %v", err)
+	}
+
+	if capturedArgs[0] != tenantID {
+		t.Errorf("first parameter must be tenantID for strict isolation, got %v", capturedArgs[0])
+	}
+	if capturedArgs[1] != projectID {
+		t.Errorf("second parameter must be projectID, got %v", capturedArgs[1])
+	}
+	_ = executedSQL
+}
