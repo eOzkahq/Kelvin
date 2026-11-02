@@ -102,6 +102,8 @@ func (s *Server) routes() {
 		cancelHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(cancelHandler)
 	}
 	s.mux.Handle("POST /api/v1/assessments/{id}/cancel", s.protect(cancelHandler))
+	// Assessment-to-assessment delta comparison (P3-35)
+	s.mux.Handle("GET /api/v1/assessments/{base_id}/compare/{target_id}", s.protect(http.HandlerFunc(s.handleCompareAssessments)))
 
 	// Finding detail retrieval endpoint (P3-08)
 	s.mux.Handle("GET /api/v1/findings/{id}", s.protect(http.HandlerFunc(s.handleGetFinding)))

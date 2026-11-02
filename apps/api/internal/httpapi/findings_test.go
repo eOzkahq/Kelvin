@@ -28,6 +28,8 @@ type mockFindingStore struct {
 	riskHistory    map[uuid.UUID][]*findings.FindingRiskHistoryEntry
 	evidenceByFinding map[uuid.UUID][]*evidence.EvidenceItem
 	evidenceByID      map[uuid.UUID]*evidence.EvidenceItem
+	asmtObservations  map[uuid.UUID][]*findings.FindingObservation
+	asmtScanners      map[uuid.UUID][]string
 }
 
 func (m *mockFindingStore) GetFindingByID(ctx context.Context, tenantID, findingID uuid.UUID) (*findings.PersistentFinding, error) {
@@ -399,6 +401,18 @@ func (m *mockFindingStore) GetEvidenceByFindingID(ctx context.Context, tenantID,
 		return []*evidence.EvidenceItem{}, nil
 	}
 	return m.evidenceByFinding[findingID], nil
+}
+
+func (m *mockFindingStore) GetObservationsByAssessment(ctx context.Context, tenantID, assessmentID uuid.UUID) ([]*findings.FindingObservation, []string, error) {
+	if m.asmtObservations == nil {
+		return nil, nil, errors.New("assessment not found")
+	}
+	obs, ok := m.asmtObservations[assessmentID]
+	if !ok {
+		return nil, nil, errors.New("assessment not found")
+	}
+	scanners := m.asmtScanners[assessmentID]
+	return obs, scanners, nil
 }
 
 func (m *mockFindingStore) GetEvidenceByID(ctx context.Context, tenantID, evidenceID uuid.UUID) (*evidence.EvidenceItem, error) {
