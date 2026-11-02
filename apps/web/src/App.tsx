@@ -4,22 +4,34 @@ import HomePage from "./pages/HomePage";
 import { useUI } from "./store/ui";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const FindingsWorkspacePage = lazy(() => import("./pages/FindingsWorkspacePage"));
+const AssessmentComparePage = lazy(() => import("./pages/AssessmentComparePage"));
+const ReportCenterPage = lazy(() => import("./pages/ReportCenterPage"));
 
 export default function App() {
   const { sidebarOpen, toggleSidebar } = useUI();
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-zinc-800">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      <header className="border-b border-zinc-800 bg-zinc-900/60 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
+          <div className="flex items-center gap-6">
             <span className="text-lg font-semibold tracking-tight text-emerald-400">Kelvin</span>
-            <nav className="flex gap-3 text-sm text-zinc-400" aria-label="Primary">
+            <nav className="flex gap-4 text-sm text-zinc-400" aria-label="Primary">
               <Link className="hover:text-zinc-100" to="/">
                 Status
               </Link>
               <Link className="hover:text-zinc-100" to="/dashboard">
                 Dashboard
+              </Link>
+              <Link className="hover:text-zinc-100" to="/findings">
+                Findings
+              </Link>
+              <Link className="hover:text-zinc-100" to="/compare">
+                Compare
+              </Link>
+              <Link className="hover:text-zinc-100" to="/reports">
+                Reports
               </Link>
             </nav>
           </div>
@@ -34,11 +46,14 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main className="mx-auto max-w-7xl px-4 py-8">
         <Suspense fallback={<p className="text-sm text-zinc-400">Loading…</p>}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/findings" element={<FindingsWorkspacePage />} />
+            <Route path="/compare" element={<AssessmentComparePage />} />
+            <Route path="/reports" element={<ReportCenterPage />} />
             <Route path="*" element={<HomePage />} />
           </Routes>
         </Suspense>
