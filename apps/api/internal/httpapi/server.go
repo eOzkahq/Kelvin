@@ -95,6 +95,13 @@ func (s *Server) routes() {
 	// Finding detail retrieval endpoint (P3-08)
 	s.mux.Handle("GET /api/v1/findings/{id}", s.protect(http.HandlerFunc(s.handleGetFinding)))
 
+	// Finding status transition command endpoint (P3-10)
+	var transitionHandler http.Handler = http.HandlerFunc(s.handleTransitionFinding)
+	if s.idempotencyStore != nil {
+		transitionHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(transitionHandler)
+	}
+	s.mux.Handle("POST /api/v1/findings/{id}/transition", s.protect(transitionHandler))
+
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
 		s.mux.Handle(method+" /health/live", methodNotAllowed("GET"))

@@ -276,13 +276,21 @@ func (r *PostgresFindingRepository) UpdateFindingStatus(
 	const updateQuery = `
 		UPDATE findings
 		SET status = $1, updated_at = $2
-		WHERE tenant_id = $3 AND id = $4 AND deleted_at IS NULL;
+		WHERE tenant_id = $3 AND id = $4 AND status = $5 AND deleted_at IS NULL;
 	`
-	tag, err := r.db.Exec(ctx, updateQuery, string(newStatus), now, tenantID, findingID)
+	tag, err := r.db.Exec(ctx, updateQuery, string(newStatus), now, tenantID, findingID, string(fromStatus))
 	if err != nil {
 		return nil, nil, fmt.Errorf("findings: update status failed: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
+		// Verify if the finding exists or failed due to concurrent modification
+		recheck, err := r.GetFindingByID(ctx, tenantID, findingID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if recheck.Status != fromStatus {
+			return nil, nil, fmt.Errorf("%w: status concurrently modified from %s to %s", ErrIllegalTransition, fromStatus, recheck.Status)
+		}
 		return nil, nil, ErrFindingNotFound
 	}
 

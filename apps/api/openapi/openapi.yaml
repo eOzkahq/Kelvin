@@ -129,6 +129,45 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /findings/{id}/transition:
+    post:
+      tags: [findings]
+      operationId: transitionFindingStatus
+      summary: Transition finding lifecycle status.
+      description: Validates and updates a finding lifecycle state, requiring documented rationale for risk acceptance or false positive marking.
+      x-required-permission: finding:write
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransitionFindingRequest"
+      responses:
+        "200":
+          description: Finding status successfully updated.
+          headers:
+            X-Correlation-ID:
+              $ref: "#/components/headers/CorrelationID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -245,6 +284,18 @@ components:
           type: integer
           minimum: 0
           description: Emitted only where an exact count is cheap.
+    TransitionFindingRequest:
+      type: object
+      additionalProperties: false
+      required: [target_status]
+      properties:
+        target_status:
+          type: string
+          enum: [NEW, CONFIRMED, IN_PROGRESS, RESOLVED, REOPENED, FALSE_POSITIVE, ACCEPTED_RISK]
+          description: Desired lifecycle status for the finding.
+        reason:
+          type: string
+          description: Analyst-provided rationale. Mandatory for FALSE_POSITIVE and ACCEPTED_RISK.
     HealthEnvelope:
       type: object
       additionalProperties: false
