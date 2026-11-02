@@ -63,6 +63,7 @@ type RiskAssessmentInput struct {
 	Exposure        TargetExposure        `json:"exposure"`         // Optional (default UNKNOWN)
 	Criticality     AssetCriticality      `json:"criticality"`      // Optional (default UNKNOWN)
 	Vulnerability   VulnerabilityMetadata `json:"vulnerability"`    // Optional
+	Context         *TargetRiskContext    `json:"context,omitempty"`// Optional target risk context
 }
 
 // RiskAssessmentResult provides the calculated risk score, priority band, and mathematical explanation.
@@ -208,9 +209,16 @@ func CalculateRiskScore(input RiskAssessmentInput) (*RiskAssessmentResult, error
 		threatSignals = append(threatSignals, fmt.Sprintf("High EPSS (%.2f)", *input.Vulnerability.EPSSScore))
 	}
 
+	// Contextual multiplier
+	contextMult := 1.0
+	var contextSignals []string
+	if input.Context != nil {
+		contextMult, contextSignals = CalculateContextualMultiplier(input.Context)
+	}
+
 	// Composite Risk Formula:
-	// RawScore = (BaseSeverity * ConfidenceFactor * ExposureMultiplier * CriticalityMultiplier) + ExploitBoost
-	rawScore := (baseSeverity * confFactor * expMult * critMult) + exploitBoost
+	// RawScore = (BaseSeverity * ConfidenceFactor * ExposureMultiplier * CriticalityMultiplier * ContextMultiplier) + ExploitBoost
+	rawScore := (baseSeverity * confFactor * expMult * critMult * contextMult) + exploitBoost
 
 	// Clamp to [0.1, 10.0] range
 	if rawScore > 10.0 {
@@ -239,20 +247,41 @@ func CalculateRiskScore(input RiskAssessmentInput) (*RiskAssessmentResult, error
 		threatSummary = strings.Join(threatSignals, ", ")
 	}
 
-	explanation := fmt.Sprintf(
-		"Base Severity: %.1f | Confidence: %.2f (factor %.2f) | Exposure: %s (x%.2f) | Asset Criticality: %s (x%.2f) | Threat Boost: +%.1f (%s) -> Final Risk: %.1f [%s]",
-		baseSeverity,
-		conf,
-		confFactor,
-		expDetails,
-		expMult,
-		critDetails,
-		critMult,
-		exploitBoost,
-		threatSummary,
-		finalScore,
-		priorityBand,
-	)
+	var explanation string
+	if len(contextSignals) > 0 {
+		contextDetails := strings.Join(contextSignals, ", ")
+		explanation = fmt.Sprintf(
+			"Base Severity: %.1f | Confidence: %.2f (factor %.2f) | Exposure: %s (x%.2f) | Asset Criticality: %s (x%.2f) | Target Context: [%s] (x%.2f) | Threat Boost: +%.1f (%s) -> Final Risk: %.1f [%s]",
+			baseSeverity,
+			conf,
+			confFactor,
+			expDetails,
+			expMult,
+			critDetails,
+			critMult,
+			contextDetails,
+			contextMult,
+			exploitBoost,
+			threatSummary,
+			finalScore,
+			priorityBand,
+		)
+	} else {
+		explanation = fmt.Sprintf(
+			"Base Severity: %.1f | Confidence: %.2f (factor %.2f) | Exposure: %s (x%.2f) | Asset Criticality: %s (x%.2f) | Threat Boost: +%.1f (%s) -> Final Risk: %.1f [%s]",
+			baseSeverity,
+			conf,
+			confFactor,
+			expDetails,
+			expMult,
+			critDetails,
+			critMult,
+			exploitBoost,
+			threatSummary,
+			finalScore,
+			priorityBand,
+		)
+	}
 
 	return &RiskAssessmentResult{
 		FindingID:             input.FindingID,

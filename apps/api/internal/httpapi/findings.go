@@ -28,6 +28,25 @@ type findingStoreIface interface {
 	RevokeSuppressionRule(ctx context.Context, tenantID, findingID uuid.UUID, actorID *uuid.UUID, revocationReason string, corrID uuid.UUID) (*findings.SuppressionRule, error)
 	GetSuppressionsByFinding(ctx context.Context, tenantID, findingID uuid.UUID) ([]*findings.SuppressionRule, error)
 	ExecuteBulkTriage(ctx context.Context, tenantID uuid.UUID, req *findings.BulkTriageRequest, corrID uuid.UUID) (*findings.BulkTriageResult, error)
+	UpsertTargetRiskContext(ctx context.Context, trc *findings.TargetRiskContext) error
+	GetTargetRiskContext(ctx context.Context, tenantID, projectID uuid.UUID, targetAsset string) (*findings.TargetRiskContext, error)
+}
+
+// UpsertTargetRiskContextRequest models the request payload for defining target risk attributes.
+type UpsertTargetRiskContextRequest struct {
+	TargetAsset         string                       `json:"target_asset"`
+	Environment         findings.TargetEnvironment   `json:"environment"`
+	InternetFacing      bool                         `json:"internet_facing"`
+	ContainsPII         bool                         `json:"contains_pii"`
+	BusinessCriticality findings.BusinessCriticality `json:"business_criticality"`
+	Source              string                       `json:"source,omitempty"`
+}
+
+// TargetRiskContextResponse encapsulates target context alongside computed multipliers.
+type TargetRiskContextResponse struct {
+	Context             *findings.TargetRiskContext `json:"context"`
+	CompositeMultiplier float64                     `json:"composite_multiplier"`
+	Signals             []string                    `json:"signals"`
 }
 
 // FindingDetailResponse encapsulates the finding record and paginated observation history.
@@ -970,4 +989,160 @@ func (s *Server) handleBulkTriage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	WriteSuccess(w, r, http.StatusOK, result, nil)
+}
+
+
+// handleUpsertTargetRiskContext handles PUT /api/v1/projects/{project_id}/targets/context.
+func (s *Server) handleUpsertTargetRiskContext(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	projStr := r.PathValue("project_id")
+	if projStr == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "project_id",
+			Code:    "missing_project_id",
+			Message: "project id is required",
+		}}))
+		return
+	}
+
+	projectID, err := uuid.Parse(projStr)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "project_id",
+			Code:    "invalid_project_id",
+			Message: "project id must be a valid UUID",
+		}}))
+		return
+	}
+
+	var req UpsertTargetRiskContextRequest
+	if !DecodeJSON(w, r, &req) {
+		return
+	}
+
+	trc := &findings.TargetRiskContext{
+		TenantID:            tenantID,
+		ProjectID:           projectID,
+		TargetAsset:         req.TargetAsset,
+		Environment:         req.Environment,
+		InternetFacing:      req.InternetFacing,
+		ContainsPII:         req.ContainsPII,
+		BusinessCriticality: req.BusinessCriticality,
+		Source:              req.Source,
+	}
+
+	if err := s.findingStore.UpsertTargetRiskContext(r.Context(), trc); err != nil {
+		if errors.Is(err, findings.ErrTargetAssetRequired) ||
+			errors.Is(err, findings.ErrInvalidEnvironment) ||
+			errors.Is(err, findings.ErrInvalidCriticality) {
+			WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+				Field:   "context",
+				Code:    "validation_error",
+				Message: err.Error(),
+			}}))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	mult, signals := findings.CalculateContextualMultiplier(trc)
+	resp := TargetRiskContextResponse{
+		Context:             trc,
+		CompositeMultiplier: mult,
+		Signals:             signals,
+	}
+
+	WriteSuccess(w, r, http.StatusOK, resp, nil)
+}
+
+// handleGetTargetRiskContext handles GET /api/v1/projects/{project_id}/targets/context.
+func (s *Server) handleGetTargetRiskContext(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	projStr := r.PathValue("project_id")
+	if projStr == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "project_id",
+			Code:    "missing_project_id",
+			Message: "project id is required",
+		}}))
+		return
+	}
+
+	projectID, err := uuid.Parse(projStr)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "project_id",
+			Code:    "invalid_project_id",
+			Message: "project id must be a valid UUID",
+		}}))
+		return
+	}
+
+	targetAsset := r.URL.Query().Get("target_asset")
+	if strings.TrimSpace(targetAsset) == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "target_asset",
+			Code:    "target_asset_required",
+			Message: "target_asset query parameter is required",
+		}}))
+		return
+	}
+
+	trc, err := s.findingStore.GetTargetRiskContext(r.Context(), tenantID, projectID, targetAsset)
+	if err != nil {
+		if errors.Is(err, findings.ErrTargetRiskContextNotFound) {
+			WriteProblem(w, r, kelvinerrors.NewNotFound("target risk context not found"))
+			return
+		}
+		if errors.Is(err, findings.ErrTargetAssetRequired) {
+			WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+				Field:   "target_asset",
+				Code:    "invalid_target_asset",
+				Message: err.Error(),
+			}}))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	mult, signals := findings.CalculateContextualMultiplier(trc)
+	resp := TargetRiskContextResponse{
+		Context:             trc,
+		CompositeMultiplier: mult,
+		Signals:             signals,
+	}
+
+	WriteSuccess(w, r, http.StatusOK, resp, nil)
 }
