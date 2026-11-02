@@ -2,6 +2,8 @@ package findings
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -32,13 +34,15 @@ type AssessmentContext struct {
 
 // IngestionSummary summarizes the outcome of processing a batch of findings.
 type IngestionSummary struct {
-	TotalProcessed int
-	NewFindings    int
-	Redetected     int
-	Replayed       int
-	AmbiguousCount int
-	Observations   []*FindingObservation
-	CreatedEvents  []*FindingEvent
+	TotalProcessed           int
+	NewFindings              int
+	Redetected               int
+	Replayed                 int
+	SameAssessmentDuplicates int
+	AmbiguousCount           int
+	Observations             []*FindingObservation
+	CreatedEvents            []*FindingEvent
+	Decisions                []DeduplicationDecision
 }
 
 // AssessmentValidator checks that the target assessment exists, matches the tenant, and is in a valid state.
@@ -68,10 +72,11 @@ type IngestionEventPublisher interface {
 
 // IngestionService orchestrates intake of validated canonical scanner results into persistent findings and observations.
 type IngestionService struct {
-	resolver  *IdentityResolver
-	validator AssessmentValidator
-	repo      FindingRepository
-	publisher IngestionEventPublisher
+	resolver     *IdentityResolver
+	deduplicator *InAssessmentDeduplicator
+	validator    AssessmentValidator
+	repo         FindingRepository
+	publisher    IngestionEventPublisher
 }
 
 // NewIngestionService constructs a finding ingestion service.
@@ -81,10 +86,11 @@ func NewIngestionService(
 	publisher IngestionEventPublisher,
 ) *IngestionService {
 	return &IngestionService{
-		resolver:  NewIdentityResolver(),
-		validator: validator,
-		repo:      repo,
-		publisher: publisher,
+		resolver:     NewIdentityResolver(),
+		deduplicator: NewInAssessmentDeduplicator(),
+		validator:    validator,
+		repo:         repo,
+		publisher:    publisher,
 	}
 }
 
@@ -121,7 +127,13 @@ func (s *IngestionService) IngestBatch(
 
 	isPartial := asmtCtx.Status == "COMPLETED_WITH_WARNINGS"
 
-	// 2. Fetch existing persistent findings for in-memory deduplication lookup
+	// 2. In-Assessment Deduplication (P3-12)
+	dedupedFindings, decisions, err := s.deduplicator.Deduplicate(findings)
+	if err != nil {
+		return nil, fmt.Errorf("ingestion: deduplicate findings failed: %w", err)
+	}
+
+	// 3. Fetch existing persistent findings for in-memory deduplication lookup
 	existingFindings, err := s.repo.GetFindingsByProject(ctx, tenantID, asmtCtx.ProjectID)
 	if err != nil {
 		return nil, fmt.Errorf("ingestion: fetch existing project findings failed: %w", err)
@@ -132,11 +144,13 @@ func (s *IngestionService) IngestBatch(
 	copy(currentFindings, existingFindings)
 
 	summary := &IngestionSummary{
-		Observations:  make([]*FindingObservation, 0, len(findings)),
-		CreatedEvents: make([]*FindingEvent, 0, len(findings)),
+		Observations:             make([]*FindingObservation, 0, len(dedupedFindings)),
+		CreatedEvents:            make([]*FindingEvent, 0, len(dedupedFindings)),
+		SameAssessmentDuplicates: len(findings) - len(dedupedFindings),
+		Decisions:                decisions,
 	}
 
-	for _, f := range findings {
+	for _, f := range dedupedFindings {
 		if f.Target.Asset == "" || f.Title == "" || f.Severity == "" {
 			return nil, fmt.Errorf("%w: missing required target, title, or severity", ErrInvalidFindingData)
 		}
@@ -154,6 +168,9 @@ func (s *IngestionService) IngestBatch(
 				evidenceRefs = append(evidenceRefs, ev.ID)
 			} else if ev.ChecksumSHA256 != "" {
 				evidenceRefs = append(evidenceRefs, ev.ChecksumSHA256)
+			} else if ev.ContentRedacted != "" {
+				sum := sha256.Sum256([]byte(ev.ContentRedacted))
+				evidenceRefs = append(evidenceRefs, hex.EncodeToString(sum[:]))
 			}
 		}
 
