@@ -35,6 +35,12 @@ type HierarchyRepository interface {
 	GetUserTeams(ctx context.Context, orgID uuid.UUID, userID string) ([]*Team, error)
 	GrantTeamWorkspaceRole(ctx context.Context, grant *WorkspaceTeamGrant) error
 	GetTeamWorkspaceGrant(ctx context.Context, workspaceID uuid.UUID, teamID uuid.UUID) (*WorkspaceTeamGrant, error)
+
+	SaveInvitation(ctx context.Context, invite *OrganizationInvitation) error
+	GetInvitation(ctx context.Context, id uuid.UUID) (*OrganizationInvitation, error)
+	GetInvitationByTokenHash(ctx context.Context, tokenHash string) (*OrganizationInvitation, error)
+	UpdateInvitation(ctx context.Context, invite *OrganizationInvitation) error
+	ListInvitations(ctx context.Context, orgID uuid.UUID) ([]*OrganizationInvitation, error)
 }
 
 // MemoryHierarchyRepository provides a concurrency-safe in-memory implementation of HierarchyRepository.
@@ -47,6 +53,8 @@ type MemoryHierarchyRepository struct {
 	wsMembers    map[string]*WorkspaceMembership    // key: wsID:userID
 	teamMembers  map[string]*TeamMembership         // key: teamID:userID
 	wsTeamGrants map[string]*WorkspaceTeamGrant     // key: wsID:teamID
+	invitations  map[uuid.UUID]*OrganizationInvitation
+	inviteTokens map[string]uuid.UUID // tokenHash -> inviteID
 }
 
 func NewMemoryHierarchyRepository() *MemoryHierarchyRepository {
@@ -58,6 +66,8 @@ func NewMemoryHierarchyRepository() *MemoryHierarchyRepository {
 		wsMembers:    make(map[string]*WorkspaceMembership),
 		teamMembers:  make(map[string]*TeamMembership),
 		wsTeamGrants: make(map[string]*WorkspaceTeamGrant),
+		invitations:  make(map[uuid.UUID]*OrganizationInvitation),
+		inviteTokens: make(map[string]uuid.UUID),
 	}
 }
 
@@ -264,6 +274,57 @@ func (m *MemoryHierarchyRepository) GetTeamWorkspaceGrant(ctx context.Context, w
 		return nil, ErrUnauthorized
 	}
 	return grant, nil
+}
+
+func (m *MemoryHierarchyRepository) SaveInvitation(ctx context.Context, invite *OrganizationInvitation) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.invitations[invite.ID] = invite
+	m.inviteTokens[invite.TokenHash] = invite.ID
+	return nil
+}
+
+func (m *MemoryHierarchyRepository) GetInvitation(ctx context.Context, id uuid.UUID) (*OrganizationInvitation, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	invite, ok := m.invitations[id]
+	if !ok {
+		return nil, ErrInvitationNotFound
+	}
+	return invite, nil
+}
+
+func (m *MemoryHierarchyRepository) GetInvitationByTokenHash(ctx context.Context, tokenHash string) (*OrganizationInvitation, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	id, ok := m.inviteTokens[tokenHash]
+	if !ok {
+		return nil, ErrInvitationNotFound
+	}
+	return m.invitations[id], nil
+}
+
+func (m *MemoryHierarchyRepository) UpdateInvitation(ctx context.Context, invite *OrganizationInvitation) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.invitations[invite.ID]; !ok {
+		return ErrInvitationNotFound
+	}
+	m.invitations[invite.ID] = invite
+	m.inviteTokens[invite.TokenHash] = invite.ID
+	return nil
+}
+
+func (m *MemoryHierarchyRepository) ListInvitations(ctx context.Context, orgID uuid.UUID) ([]*OrganizationInvitation, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var result []*OrganizationInvitation
+	for _, inv := range m.invitations {
+		if inv.OrganizationID == orgID {
+			result = append(result, inv)
+		}
+	}
+	return result, nil
 }
 
 // HierarchyService coordinates enterprise organizations, workspaces, and access validation.
@@ -750,4 +811,222 @@ func isWorkspaceRoleSufficient(actual, required WorkspaceRole) bool {
 		WorkspaceRoleAdmin:    3,
 	}
 	return weights[actual] >= weights[required]
+}
+
+// CreateInvitation provisions a cryptographically signed, single-use invitation.
+func (s *HierarchyService) CreateInvitation(
+	ctx context.Context,
+	orgID uuid.UUID,
+	actorUserID string,
+	email string,
+	role OrgRole,
+	teamID *uuid.UUID,
+	ttl time.Duration,
+) (*OrganizationInvitation, string, error) {
+	// Verify caller is Org Owner or Admin
+	if err := s.authorizeOrgAdmin(ctx, orgID, actorUserID); err != nil {
+		return nil, "", err
+	}
+
+	org, err := s.repo.GetOrganization(ctx, orgID)
+	if err != nil {
+		return nil, "", err
+	}
+	if org.Status != OrgStateActive {
+		return nil, "", ErrOrgSuspended
+	}
+
+	// If teamID provided, verify it belongs to this org
+	if teamID != nil {
+		team, err := s.repo.GetTeam(ctx, *teamID)
+		if err != nil {
+			return nil, "", err
+		}
+		if team.OrganizationID != orgID {
+			return nil, "", ErrUserNotInOrganization
+		}
+		if team.Status == "ARCHIVED" {
+			return nil, "", ErrTeamArchived
+		}
+	}
+
+	rawToken, tokenHash, err := GenerateInvitationToken()
+	if err != nil {
+		return nil, "", err
+	}
+
+	now := time.Now().UTC()
+	if ttl == 0 {
+		ttl = 7 * 24 * time.Hour // Default 7 days
+	}
+	expiresAt := now.Add(ttl)
+
+	invite := &OrganizationInvitation{
+		ID:             uuid.New(),
+		OrganizationID: orgID,
+		InviterUserID:  actorUserID,
+		InviteeEmail:   email,
+		Role:           role,
+		TeamID:         teamID,
+		TokenHash:      tokenHash,
+		Status:         InvitationStatusPending,
+		ExpiresAt:      expiresAt,
+		CreatedAt:      now,
+	}
+
+	if err := s.repo.SaveInvitation(ctx, invite); err != nil {
+		return nil, "", err
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordInvitationLifecycleEvent(ctx, ActionInvitationCreated, invite, actorUserID, map[string]interface{}{
+			"expires_at": expiresAt.Format(time.RFC3339),
+		})
+	}
+
+	return invite, rawToken, nil
+}
+
+// AcceptInvitation consumes a single-use token and creates or updates organization membership.
+func (s *HierarchyService) AcceptInvitation(ctx context.Context, rawToken string, acceptingUserID string) (*OrganizationMembership, error) {
+	tokenHash := HashInvitationToken(rawToken)
+	invite, err := s.repo.GetInvitationByTokenHash(ctx, tokenHash)
+	if err != nil {
+		return nil, ErrInvitationNotFound
+	}
+
+	// Check status
+	if invite.Status != InvitationStatusPending {
+		return nil, ErrInvitationAlreadyUsed
+	}
+
+	now := time.Now().UTC()
+	// Check expiry
+	if now.After(invite.ExpiresAt) {
+		invite.Status = InvitationStatusExpired
+		_ = s.repo.UpdateInvitation(ctx, invite)
+		return nil, ErrInvitationExpired
+	}
+
+	// Single-use update
+	invite.Status = InvitationStatusAccepted
+	invite.AcceptedAt = &now
+	if err := s.repo.UpdateInvitation(ctx, invite); err != nil {
+		return nil, err
+	}
+
+	// Create or update organization membership
+	mem := &OrganizationMembership{
+		ID:             uuid.New(),
+		OrganizationID: invite.OrganizationID,
+		UserID:         acceptingUserID,
+		Role:           invite.Role,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := s.repo.SaveOrgMembership(ctx, mem); err != nil {
+		return nil, err
+	}
+
+	// If teamID attached, add to team
+	if invite.TeamID != nil {
+		teamMem := &TeamMembership{
+			ID:        uuid.New(),
+			TeamID:    *invite.TeamID,
+			UserID:    acceptingUserID,
+			Role:      TeamRoleMember,
+			CreatedAt: now,
+		}
+		_ = s.repo.AddTeamMember(ctx, teamMem)
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordInvitationLifecycleEvent(ctx, ActionInvitationAccepted, invite, acceptingUserID, map[string]interface{}{
+			"accepted_by": acceptingUserID,
+		})
+	}
+
+	return mem, nil
+}
+
+// RevokeInvitation revokes a pending invitation.
+func (s *HierarchyService) RevokeInvitation(ctx context.Context, inviteID uuid.UUID, actorUserID string) error {
+	invite, err := s.repo.GetInvitation(ctx, inviteID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.authorizeOrgAdmin(ctx, invite.OrganizationID, actorUserID); err != nil {
+		return err
+	}
+
+	if invite.Status != InvitationStatusPending {
+		return ErrInvitationAlreadyUsed
+	}
+
+	now := time.Now().UTC()
+	invite.Status = InvitationStatusRevoked
+	invite.RevokedAt = &now
+
+	if err := s.repo.UpdateInvitation(ctx, invite); err != nil {
+		return err
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordInvitationLifecycleEvent(ctx, ActionInvitationRevoked, invite, actorUserID, map[string]interface{}{
+			"revoked_by": actorUserID,
+		})
+	}
+
+	return nil
+}
+
+// ReissueInvitation invalidates the old token and generates a fresh token with renewed expiration.
+func (s *HierarchyService) ReissueInvitation(ctx context.Context, inviteID uuid.UUID, actorUserID string, ttl time.Duration) (string, error) {
+	invite, err := s.repo.GetInvitation(ctx, inviteID)
+	if err != nil {
+		return "", err
+	}
+
+	if err := s.authorizeOrgAdmin(ctx, invite.OrganizationID, actorUserID); err != nil {
+		return "", err
+	}
+
+	rawToken, tokenHash, err := GenerateInvitationToken()
+	if err != nil {
+		return "", err
+	}
+
+	now := time.Now().UTC()
+	if ttl <= 0 {
+		ttl = 7 * 24 * time.Hour
+	}
+	expiresAt := now.Add(ttl)
+
+	invite.TokenHash = tokenHash
+	invite.Status = InvitationStatusPending
+	invite.ExpiresAt = expiresAt
+	invite.RevokedAt = nil
+	invite.AcceptedAt = nil
+
+	if err := s.repo.UpdateInvitation(ctx, invite); err != nil {
+		return "", err
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordInvitationLifecycleEvent(ctx, ActionInvitationReissued, invite, actorUserID, map[string]interface{}{
+			"reissued_by": actorUserID,
+			"expires_at":  expiresAt.Format(time.RFC3339),
+		})
+	}
+
+	return rawToken, nil
+}
+
+// ListInvitations lists all invitations for an organization.
+func (s *HierarchyService) ListInvitations(ctx context.Context, orgID uuid.UUID, actorUserID string) ([]*OrganizationInvitation, error) {
+	if err := s.authorizeOrgAdmin(ctx, orgID, actorUserID); err != nil {
+		return nil, err
+	}
+	return s.repo.ListInvitations(ctx, orgID)
 }
