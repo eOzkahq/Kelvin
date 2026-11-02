@@ -129,6 +129,45 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /findings/{id}/timeline:
+    get:
+      tags: [findings]
+      operationId: getFindingTimeline
+      summary: Retrieve finding activity timeline.
+      description: Returns an immutable, chronological stream of activity and lifecycle events for the finding within the caller's tenant.
+      x-required-permission: finding:read
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - $ref: "#/components/parameters/Limit"
+        - name: offset
+          in: query
+          required: false
+          description: Timeline offset index.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Activity timeline successfully retrieved.
+          headers:
+            X-Correlation-ID:
+              $ref: "#/components/headers/CorrelationID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
   /findings/{id}/transition:
     post:
       tags: [findings]

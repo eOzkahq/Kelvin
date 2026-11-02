@@ -102,6 +102,9 @@ func (s *Server) routes() {
 	}
 	s.mux.Handle("POST /api/v1/findings/{id}/transition", s.protect(transitionHandler))
 
+	// Finding activity timeline endpoint (P3-11)
+	s.mux.Handle("GET /api/v1/findings/{id}/timeline", s.protect(http.HandlerFunc(s.handleGetFindingTimeline)))
+
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
 		s.mux.Handle(method+" /health/live", methodNotAllowed("GET"))

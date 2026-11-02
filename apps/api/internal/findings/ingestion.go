@@ -57,6 +57,10 @@ type FindingRepository interface {
 	SaveEvent(ctx context.Context, event *FindingEvent) error
 }
 
+type timelineRecorder interface {
+	RecordTimelineEvent(ctx context.Context, entry *TimelineEntry) error
+}
+
 // IngestionEventPublisher notifies the system bus when findings are ingested.
 type IngestionEventPublisher interface {
 	PublishFindingsIngested(ctx context.Context, tenantID, assessmentID uuid.UUID, summary IngestionSummary) error
@@ -256,6 +260,35 @@ func (s *IngestionService) IngestBatch(
 				return nil, fmt.Errorf("ingestion: save event failed: %w", err)
 			}
 			summary.CreatedEvents = append(summary.CreatedEvents, res.Event)
+		}
+
+		if tr, ok := s.repo.(timelineRecorder); ok {
+			if res.IsNew {
+				_ = tr.RecordTimelineEvent(ctx, &TimelineEntry{
+					TenantID:      res.Finding.TenantID,
+					FindingID:     res.Finding.ID,
+					EventType:     TimelineEventFindingCreated,
+					Payload: map[string]any{
+						"title":       res.Finding.Title,
+						"severity":    string(res.Finding.Severity),
+						"fingerprint": res.Finding.Fingerprint,
+					},
+					CorrelationID: correlationID,
+					CreatedAt:     res.Finding.CreatedAt,
+				})
+			}
+			_ = tr.RecordTimelineEvent(ctx, &TimelineEntry{
+				TenantID:      res.Observation.TenantID,
+				FindingID:     res.Observation.FindingID,
+				EventType:     TimelineEventObservationRecorded,
+				Payload: map[string]any{
+					"assessment_id": res.Observation.AssessmentID.String(),
+					"job_id":        res.Observation.JobID.String(),
+					"scanner_id":    res.Observation.ScannerID,
+				},
+				CorrelationID: correlationID,
+				CreatedAt:     res.Observation.ObservedAt,
+			})
 		}
 
 		summary.Observations = append(summary.Observations, res.Observation)
