@@ -389,6 +389,80 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /projects/{project_id}/targets/context:
+    put:
+      tags: [targets, findings]
+      operationId: upsertTargetRiskContext
+      summary: Define or update contextual risk attributes for a target asset.
+      description: Captures environment tier, reachability, data sensitivity, and business criticality for a target asset within project and tenant boundaries.
+      x-required-permission: finding:write
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertTargetRiskContextRequest"
+      responses:
+        "200":
+          description: Contextual risk factors updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TargetRiskContextResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+    get:
+      tags: [targets, findings]
+      operationId: getTargetRiskContext
+      summary: Retrieve contextual risk attributes for a target asset.
+      description: Returns verified target risk factors and computed composite multiplier for an asset.
+      x-required-permission: finding:read
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: target_asset
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The canonical target domain, host, or URL.
+      responses:
+        "200":
+          description: Contextual risk factors retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TargetRiskContextResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
   /findings/bulk-triage:
     post:
       tags: [findings]
@@ -578,6 +652,85 @@ components:
           type: integer
           minimum: 0
           description: Emitted only where an exact count is cheap.
+    TargetEnvironment:
+      type: string
+      enum: [PRODUCTION, STAGING, DEVELOPMENT, UNKNOWN]
+      description: Deployment boundary and operational environment of the asset.
+
+    BusinessCriticality:
+      type: string
+      enum: [MISSION_CRITICAL, BUSINESS_OPERATIONAL, NON_CRITICAL, UNKNOWN]
+      description: Enterprise business impact classification of the affected asset.
+
+    TargetRiskContext:
+      type: object
+      additionalProperties: false
+      required: [id, tenant_id, project_id, target_asset, environment, internet_facing, contains_pii, business_criticality, source, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        target_asset:
+          type: string
+        environment:
+          $ref: "#/components/schemas/TargetEnvironment"
+        internet_facing:
+          type: boolean
+        contains_pii:
+          type: boolean
+        business_criticality:
+          $ref: "#/components/schemas/BusinessCriticality"
+        source:
+          type: string
+        updated_by:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UpsertTargetRiskContextRequest:
+      type: object
+      additionalProperties: false
+      required: [target_asset, environment, internet_facing, contains_pii, business_criticality]
+      properties:
+        target_asset:
+          type: string
+        environment:
+          $ref: "#/components/schemas/TargetEnvironment"
+        internet_facing:
+          type: boolean
+        contains_pii:
+          type: boolean
+        business_criticality:
+          $ref: "#/components/schemas/BusinessCriticality"
+        source:
+          type: string
+
+    TargetRiskContextResponse:
+      type: object
+      additionalProperties: false
+      required: [context, composite_multiplier, signals]
+      properties:
+        context:
+          $ref: "#/components/schemas/TargetRiskContext"
+        composite_multiplier:
+          type: number
+          format: double
+        signals:
+          type: array
+          items:
+            type: string
+
     BulkTriageRequest:
       type: object
       additionalProperties: false

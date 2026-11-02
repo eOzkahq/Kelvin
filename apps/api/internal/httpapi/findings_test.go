@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"fmt"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -13,13 +14,15 @@ import (
 	"github.com/kelvin/kelvin/apps/api/internal/config"
 	"github.com/kelvin/kelvin/apps/api/internal/findings"
 	"github.com/kelvin/kelvin/packages/common/tenant"
+	"github.com/kelvin/kelvin/packages/common/normalization"
 	"go.uber.org/zap"
 )
 
 type mockFindingStore struct {
-	findings     map[uuid.UUID]*findings.PersistentFinding
-	observations map[uuid.UUID][]*findings.FindingObservation
-	timeline     map[uuid.UUID][]*findings.TimelineEntry
+	findings       map[uuid.UUID]*findings.PersistentFinding
+	observations   map[uuid.UUID][]*findings.FindingObservation
+	timeline       map[uuid.UUID][]*findings.TimelineEntry
+	targetContexts map[string]*findings.TargetRiskContext
 }
 
 func (m *mockFindingStore) GetFindingByID(ctx context.Context, tenantID, findingID uuid.UUID) (*findings.PersistentFinding, error) {
@@ -323,6 +326,40 @@ func (m *mockFindingStore) UpdateFindingStatus(
 		CreatedAt:     f.UpdatedAt,
 	}
 	return f, event, nil
+}
+
+func (m *mockFindingStore) UpsertTargetRiskContext(ctx context.Context, trc *findings.TargetRiskContext) error {
+	if err := findings.ValidateTargetRiskContext(trc); err != nil {
+		return err
+	}
+	if m.targetContexts == nil {
+		m.targetContexts = make(map[string]*findings.TargetRiskContext)
+	}
+	key := fmt.Sprintf("%s:%s:%s", trc.TenantID, trc.ProjectID, trc.TargetAsset)
+	m.targetContexts[key] = trc
+	return nil
+}
+
+func (m *mockFindingStore) GetTargetRiskContext(ctx context.Context, tenantID, projectID uuid.UUID, targetAsset string) (*findings.TargetRiskContext, error) {
+	if tenantID == uuid.Nil {
+		return nil, findings.ErrTenantRequired
+	}
+	if projectID == uuid.Nil {
+		return nil, findings.ErrProjectRequired
+	}
+	normAsset := normalization.NormalizeAsset(targetAsset)
+	if normAsset == "" {
+		return nil, findings.ErrTargetAssetRequired
+	}
+	if m.targetContexts == nil {
+		return nil, findings.ErrTargetRiskContextNotFound
+	}
+	key := fmt.Sprintf("%s:%s:%s", tenantID, projectID, normAsset)
+	trc, exists := m.targetContexts[key]
+	if !exists {
+		return nil, findings.ErrTargetRiskContextNotFound
+	}
+	return trc, nil
 }
 
 func TestGetFindingSuccess(t *testing.T) {

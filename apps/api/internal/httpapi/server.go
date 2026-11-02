@@ -140,6 +140,14 @@ func (s *Server) routes() {
 	}
 	s.mux.Handle("POST /api/v1/findings/bulk-triage", s.protect(bulkTriageHandler))
 
+	// Target contextual risk factors (P3-22)
+	var upsertTargetContextHandler http.Handler = http.HandlerFunc(s.handleUpsertTargetRiskContext)
+	if s.idempotencyStore != nil {
+		upsertTargetContextHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(upsertTargetContextHandler)
+	}
+	s.mux.Handle("PUT /api/v1/projects/{project_id}/targets/context", s.protect(upsertTargetContextHandler))
+	s.mux.Handle("GET /api/v1/projects/{project_id}/targets/context", s.protect(http.HandlerFunc(s.handleGetTargetRiskContext)))
+
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
 		s.mux.Handle(method+" /health/live", methodNotAllowed("GET"))
