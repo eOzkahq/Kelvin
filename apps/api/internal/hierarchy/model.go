@@ -180,6 +180,8 @@ var (
 	ErrInvitationExpired           = errors.New("invitation token has expired")
 	ErrInvitationAlreadyUsed       = errors.New("invitation token has already been accepted or revoked")
 	ErrInvalidInvitationToken      = errors.New("invalid invitation token")
+	ErrLastAdministratorProtection = errors.New("cannot remove or demote the last organization owner")
+	ErrPrivilegeEscalationForbidden = errors.New("insufficient privileges: privilege escalation forbidden")
 )
 
 // ValidateOrgStateTransition checks whether a transition between two organization states is permitted.

@@ -33,6 +33,12 @@ const (
 	ActionResourceUnshared = "resource.unshared"
 
 	ActionOrgSettingsUpdated = "org.settings_updated"
+
+	ActionOrgOwnershipTransferred = "org.ownership_transferred"
+	ActionOrgMemberRoleUpdated    = "org.member_role_updated"
+	ActionOrgMemberRemoved        = "org.member_removed"
+	ActionWorkspaceAdminAssigned  = "workspace.admin_assigned"
+	ActionWorkspaceAdminRevoked   = "workspace.admin_revoked"
 )
 
 // HierarchyAuditRecorder records organization and workspace lifecycle audit events.
