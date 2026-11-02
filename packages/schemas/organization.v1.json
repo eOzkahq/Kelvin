@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kelvin.security/schemas/organization.v1.json",
+  "title": "KelvinEnterpriseOrganization",
+  "description": "Defines the Enterprise Organization and Workspace hierarchy domain model (P4-01).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "organization_id",
+    "organization_name",
+    "organization_slug",
+    "billing_tier",
+    "workspaces"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "organization_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "organization_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "organization_slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,62}$"
+    },
+    "billing_tier": {
+      "type": "string",
+      "enum": ["COMMUNITY", "TEAM", "ENTERPRISE"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ACTIVE", "SUSPENDED", "OFFBOARDING"],
+      "default": "ACTIVE"
+    },
+    "workspaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "tenant_id",
+          "name",
+          "slug",
+          "environment"
+        ],
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{1,62}$"
+          },
+          "environment": {
+            "type": "string",
+            "enum": ["production", "staging", "development"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "ARCHIVED"],
+            "default": "ACTIVE"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
