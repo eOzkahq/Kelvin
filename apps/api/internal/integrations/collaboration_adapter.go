@@ -40,7 +40,7 @@ var (
 	bearerTokenRegex = regexp.MustCompile(`(?i)bearer\s+[a-zA-Z0-9_\-\.]{10,}`)
 	awsKeyRegex      = regexp.MustCompile(`AKIA[0-9A-Z]{16}`)
 	privateKeyRegex  = regexp.MustCompile(`(?s)-----BEGIN[ A-Z0-9_-]+PRIVATE KEY-----.*?-----END[ A-Z0-9_-]+PRIVATE KEY-----`)
-	passwordRegex    = regexp.MustCompile(`(?i)(password|secret|token|apiKey)\s*[:=]\s*["']?([^\s"',;]+)["']?`)
+	passwordRegex    = regexp.MustCompile(`(?i)["']?(password|secret|token|apiKey)["']?\s*[:=]\s*["']?([^\s"',;]+)["']?`)
 	kelvinKeyRegex   = regexp.MustCompile(`klv_live_[a-f0-9]{32,64}`)
 	webhookSecRegex  = regexp.MustCompile(`whsec_[a-f0-9]{32,64}`)
 )
@@ -55,7 +55,7 @@ func RedactSensitiveContent(text string) string {
 	out = awsKeyRegex.ReplaceAllString(out, "AKIA[REDACTED]")
 	out = kelvinKeyRegex.ReplaceAllString(out, "klv_live_[REDACTED]")
 	out = webhookSecRegex.ReplaceAllString(out, "whsec_[REDACTED]")
-	out = passwordRegex.ReplaceAllString(out, "$1: [REDACTED]")
+	out = passwordRegex.ReplaceAllString(out, `"$1": "[REDACTED]"`)
 	return out
 }
 
