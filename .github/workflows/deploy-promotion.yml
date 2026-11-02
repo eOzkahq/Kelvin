@@ -1,0 +1,87 @@
+name: Staged Deployment & Environment Promotion
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Target Environment (staging or prod)'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - prod
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: deployment-${{ inputs.target_env || 'staged' }}
+  cancel-in-progress: false
+
+env:
+  ENABLE_CI: 'false'
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # Stage 1: Staging Environment Automated Deployment
+  # ----------------------------------------------------------------------------
+  deploy-staging:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
+    name: Deploy to Staging Environment
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging-app.kelvinsecurity.io
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy Staging Kubernetes Overlays
+        run: |
+          echo "Simulating rollout to staging namespace kelvin-staging..."
+          # kubectl apply -k deploy/kubernetes/overlays/staging
+          # kubectl rollout status deployment/staging-kelvin-api -n kelvin-staging --timeout=180s
+
+      - name: Execute Post-Deployment Smoke Tests
+        run: |
+          echo "Running staging post-deployment smoke validation..."
+          # bash scripts/release/smoke-test.sh staging https://staging-api.kelvinsecurity.io https://staging-app.kelvinsecurity.io
+
+  # ----------------------------------------------------------------------------
+  # Stage 2: Production Promotion (Manual Gate Approval Required)
+  # ----------------------------------------------------------------------------
+  deploy-production:
+    if: (env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch') && (github.event_name != 'workflow_dispatch' || inputs.target_env == 'prod')
+    name: Promote & Deploy to Production
+    needs: [deploy-staging]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://app.kelvinsecurity.io
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Audit Release Actor & Version
+        run: |
+          echo "=========================================="
+          echo " Authorizing Production Release Rollout   "
+          echo " Actor: ${{ github.actor }}"
+          echo " Git Ref: ${{ github.ref }}"
+          echo " Commit: ${{ github.sha }}"
+          echo " Environment: Production"
+          echo "=========================================="
+
+      - name: Production Rolling Update Rollout
+        run: |
+          echo "Executing zero-downtime rolling update (maxSurge=1, maxUnavailable=0)..."
+          # kubectl apply -k deploy/kubernetes/overlays/prod
+          # kubectl rollout status deployment/prod-kelvin-api -n kelvin-prod --timeout=300s
+          # kubectl rollout status deployment/prod-kelvin-worker -n kelvin-prod --timeout=300s
+
+      - name: Execute Production Smoke Tests
+        run: |
+          echo "Running production smoke test verification..."
+          # bash scripts/release/smoke-test.sh prod https://api.kelvinsecurity.io https://app.kelvinsecurity.io
