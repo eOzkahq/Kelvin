@@ -37,6 +37,7 @@ type findingStoreIface interface {
 	RecalculateFindingRisk(ctx context.Context, tenantID, findingID uuid.UUID, reason string, actorID *uuid.UUID) (*findings.RecalculateRiskResult, error)
 	GetEvidenceByFindingID(ctx context.Context, tenantID, findingID uuid.UUID) ([]*evidence.EvidenceItem, error)
 	GetEvidenceByID(ctx context.Context, tenantID, evidenceID uuid.UUID) (*evidence.EvidenceItem, error)
+	GetObservationsByAssessment(ctx context.Context, tenantID, assessmentID uuid.UUID) ([]*findings.FindingObservation, []string, error)
 }
 
 // UpsertTargetRiskContextRequest models the request payload for defining target risk attributes.
@@ -1674,4 +1675,67 @@ func (s *Server) handleGetFindingObservationsTimeline(w http.ResponseWriter, r *
 	}
 
 	WriteSuccess(w, r, http.StatusOK, timeline, meta)
+}
+
+
+// handleCompareAssessments handles GET /api/v1/assessments/{base_id}/compare/{target_id}.
+func (s *Server) handleCompareAssessments(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	baseIDStr := r.PathValue("base_id")
+	targetIDStr := r.PathValue("target_id")
+
+	baseID, err := uuid.Parse(baseIDStr)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "base_id",
+			Code:    "invalid_base_id",
+			Message: "base_id must be a valid UUID",
+		}}))
+		return
+	}
+
+	targetID, err := uuid.Parse(targetIDStr)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "target_id",
+			Code:    "invalid_target_id",
+			Message: "target_id must be a valid UUID",
+		}}))
+		return
+	}
+
+	baseObs, baseScanners, err := s.findingStore.GetObservationsByAssessment(r.Context(), tenantID, baseID)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewNotFound("base assessment not found"))
+		return
+	}
+
+	targetObs, targetScanners, err := s.findingStore.GetObservationsByAssessment(r.Context(), tenantID, targetID)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewNotFound("target assessment not found"))
+		return
+	}
+
+	comparison, err := findings.CompareAssessments(tenantID, baseID, targetID, baseObs, targetObs, baseScanners, targetScanners)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	WriteSuccess(w, r, http.StatusOK, comparison, nil)
 }
