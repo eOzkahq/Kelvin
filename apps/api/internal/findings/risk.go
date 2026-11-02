@@ -303,12 +303,16 @@ func CalculateRiskScore(input RiskAssessmentInput) (*RiskAssessmentResult, error
 			"criticality_multiplier": critMult,
 			"threat_signals":         threatSignals,
 			"exploitability_boost":   exploitBoost,
+			"model_version":         RiskModelVersion,
 		},
 		AssessedAt: time.Now().UTC(),
 	}, nil
 }
 
-const EngineVersion = "v1"
+const (
+	EngineVersion    = "v1"
+	RiskModelVersion = "kelvin.risk_engine.v1"
+)
 
 // RiskEngine computes deterministic risk scores and priority bands for findings.
 type RiskEngine struct {

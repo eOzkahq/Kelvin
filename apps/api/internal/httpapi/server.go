@@ -94,6 +94,8 @@ func (s *Server) routes() {
 
 	// Finding detail retrieval endpoint (P3-08)
 	s.mux.Handle("GET /api/v1/findings/{id}", s.protect(http.HandlerFunc(s.handleGetFinding)))
+	// Finding risk score explainability endpoint (P3-24)
+	s.mux.Handle("GET /api/v1/findings/{id}/risk-explanation", s.protect(http.HandlerFunc(s.handleGetRiskExplanation)))
 
 	// Finding status transition command endpoint (P3-10)
 	var transitionHandler http.Handler = http.HandlerFunc(s.handleTransitionFinding)

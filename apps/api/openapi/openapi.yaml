@@ -497,6 +497,33 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /findings/{id}/risk-explanation:
+    get:
+      tags: [findings]
+      operationId: getFindingRiskExplanation
+      summary: Retrieve detailed risk score explainability and factor breakdown.
+      description: Returns the mathematical and contextual factors explaining the finding risk score and priority band, distinguishing measured metrics from administrator context.
+      x-required-permission: finding:read
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Risk score explainability breakdown retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskExplanationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
   /findings/{id}/transition:
     post:
       tags: [findings]
@@ -715,6 +742,61 @@ components:
           $ref: "#/components/schemas/BusinessCriticality"
         source:
           type: string
+
+    RiskFactorItem:
+      type: object
+      additionalProperties: false
+      required: [name, category, raw_value, description]
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+          enum: [MEASURED, MANUAL_CONTEXT, HEURISTIC]
+        raw_value:
+          type: string
+        score_impact:
+          type: number
+          format: double
+        multiplier:
+          type: number
+          format: double
+        description:
+          type: string
+
+    RiskExplanation:
+      type: object
+      additionalProperties: false
+      required: [finding_id, model_version, risk_score, priority_band, summary, factors, assessed_at]
+      properties:
+        finding_id:
+          type: string
+          format: uuid
+        model_version:
+          type: string
+        risk_score:
+          type: number
+          format: double
+        priority_band:
+          type: string
+          enum: [CRITICAL, HIGH, MEDIUM, LOW, INFO]
+        summary:
+          type: string
+        factors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RiskFactorItem"
+        assessed_at:
+          type: string
+          format: date-time
+
+    RiskExplanationResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/RiskExplanation"
 
     TargetRiskContextResponse:
       type: object

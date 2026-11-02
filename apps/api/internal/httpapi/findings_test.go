@@ -362,6 +362,14 @@ func (m *mockFindingStore) GetTargetRiskContext(ctx context.Context, tenantID, p
 	return trc, nil
 }
 
+func (m *mockFindingStore) GetRiskExplanation(ctx context.Context, tenantID, findingID uuid.UUID) (*findings.RiskExplanation, error) {
+	f, exists := m.findings[findingID]
+	if !exists || f.TenantID != tenantID {
+		return nil, findings.ErrFindingNotFound
+	}
+	return findings.GenerateRiskExplanation(f)
+}
+
 func TestGetFindingSuccess(t *testing.T) {
 	tenantID := uuid.New()
 	findingID := uuid.New()
