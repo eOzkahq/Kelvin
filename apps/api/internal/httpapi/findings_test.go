@@ -95,6 +95,80 @@ func (m *mockFindingStore) SaveTriageDecision(ctx context.Context, decision *fin
 	return nil
 }
 
+func (m *mockFindingStore) MarkFindingFalsePositive(
+	ctx context.Context,
+	tenantID, findingID uuid.UUID,
+	actorID uuid.UUID,
+	justification, rebuttal string,
+	corrID uuid.UUID,
+) (*findings.FalsePositiveReview, error) {
+	f, exists := m.findings[findingID]
+	if !exists || f.TenantID != tenantID {
+		return nil, findings.ErrFindingNotFound
+	}
+	if findings.CanonicalStatus(f.Status) == findings.StatusFalsePositive {
+		return nil, findings.ErrAlreadyFalsePositive
+	}
+	review := &findings.FalsePositiveReview{
+		ID:               uuid.New(),
+		TenantID:         tenantID,
+		FindingID:        findingID,
+		ActorID:          &actorID,
+		Action:           findings.ActionMarkedFalsePositive,
+		Justification:    justification,
+		EvidenceRebuttal: rebuttal,
+		CreatedAt:        time.Now().UTC(),
+	}
+	if err := findings.ValidateFalsePositiveDecision(review); err != nil {
+		return nil, err
+	}
+	f.Status = findings.StatusFalsePositive
+	f.UpdatedAt = review.CreatedAt
+	return review, nil
+}
+
+func (m *mockFindingStore) ReverseFalsePositive(
+	ctx context.Context,
+	tenantID, findingID uuid.UUID,
+	actorID uuid.UUID,
+	targetStatus findings.FindingStatus,
+	justification string,
+	corrID uuid.UUID,
+) (*findings.FalsePositiveReview, error) {
+	f, exists := m.findings[findingID]
+	if !exists || f.TenantID != tenantID {
+		return nil, findings.ErrFindingNotFound
+	}
+	if findings.CanonicalStatus(f.Status) != findings.StatusFalsePositive {
+		return nil, findings.ErrNotFalsePositive
+	}
+	if err := findings.ValidateTransition(f.Status, targetStatus); err != nil {
+		return nil, err
+	}
+	review := &findings.FalsePositiveReview{
+		ID:            uuid.New(),
+		TenantID:      tenantID,
+		FindingID:     findingID,
+		ActorID:       &actorID,
+		Action:        findings.ActionReversed,
+		Justification: justification,
+		CreatedAt:     time.Now().UTC(),
+	}
+	if err := findings.ValidateFalsePositiveDecision(review); err != nil {
+		return nil, err
+	}
+	f.Status = targetStatus
+	f.UpdatedAt = review.CreatedAt
+	return review, nil
+}
+
+func (m *mockFindingStore) GetFalsePositiveReviewsByFinding(
+	ctx context.Context,
+	tenantID, findingID uuid.UUID,
+) ([]*findings.FalsePositiveReview, error) {
+	return nil, nil
+}
+
 func (m *mockFindingStore) UpdateFindingStatus(
 	ctx context.Context,
 	tenantID, findingID uuid.UUID,
