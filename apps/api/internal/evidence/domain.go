@@ -122,6 +122,10 @@ type EvidenceItem struct {
 	Status            EvidenceStatus     `json:"status" db:"status"`
 	RetentionDays     int                `json:"retention_days" db:"retention_days"`
 	ExpiresAt         time.Time          `json:"expires_at" db:"expires_at"`
+	IsLegalHold       bool               `json:"is_legal_hold" db:"is_legal_hold"`
+	LegalHoldReason   string             `json:"legal_hold_reason,omitempty" db:"legal_hold_reason"`
+	WipedAt           *time.Time         `json:"wiped_at,omitempty" db:"wiped_at"`
+	PurgeRetryCount   int                `json:"purge_retry_count" db:"purge_retry_count"`
 	CreatedAt         time.Time          `json:"created_at" db:"created_at"`
 	UpdatedAt         time.Time          `json:"updated_at" db:"updated_at"`
 }
@@ -176,7 +180,7 @@ func (e *EvidenceItem) Validate() error {
 		return errors.New("checksum_sha256 must be a 64-character hex string")
 	}
 
-	if e.InlineContent == "" && e.StorageRef == "" {
+	if e.Status != StatusPurged && e.InlineContent == "" && e.StorageRef == "" {
 		return errors.New("either inline_content or storage_ref must be provided")
 	}
 
