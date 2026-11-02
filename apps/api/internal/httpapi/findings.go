@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kelvin/kelvin/apps/api/internal/evidence"
 	"github.com/kelvin/kelvin/apps/api/internal/findings"
 	kelvinerrors "github.com/kelvin/kelvin/packages/common/errors"
 	"github.com/kelvin/kelvin/packages/common/logging"
@@ -34,6 +35,8 @@ type findingStoreIface interface {
 	ArchiveRiskHistory(ctx context.Context, entry *findings.FindingRiskHistoryEntry) error
 	GetRiskHistoryByFinding(ctx context.Context, tenantID, findingID uuid.UUID) ([]*findings.FindingRiskHistoryEntry, error)
 	RecalculateFindingRisk(ctx context.Context, tenantID, findingID uuid.UUID, reason string, actorID *uuid.UUID) (*findings.RecalculateRiskResult, error)
+	GetEvidenceByFindingID(ctx context.Context, tenantID, findingID uuid.UUID) ([]*evidence.EvidenceItem, error)
+	GetEvidenceByID(ctx context.Context, tenantID, evidenceID uuid.UUID) (*evidence.EvidenceItem, error)
 }
 
 // UpsertTargetRiskContextRequest models the request payload for defining target risk attributes.
@@ -1316,4 +1319,275 @@ func (s *Server) handleGetFindingRiskHistory(w http.ResponseWriter, r *http.Requ
 		"count": len(history),
 	}
 	WriteSuccess(w, r, http.StatusOK, history, meta)
+}
+
+
+// EvidenceSummaryResponse encapsulates metadata of an evidence item for list views.
+type EvidenceSummaryResponse struct {
+	ID              string                   `json:"id"`
+	FindingID       string                   `json:"finding_id"`
+	EvidenceType    evidence.EvidenceType    `json:"evidence_type"`
+	ContentType     string                   `json:"content_type"`
+	SizeBytes       int64                    `json:"size_bytes"`
+	ChecksumSHA256  string                   `json:"checksum_sha256"`
+	RedactionStatus evidence.RedactionStatus `json:"redaction_status"`
+	CreatedAt       time.Time                `json:"created_at"`
+}
+
+// EvidenceDownloadResponse returns short-lived pre-signed download metadata.
+type EvidenceDownloadResponse struct {
+	EvidenceID       string `json:"evidence_id"`
+	DownloadURL      string `json:"download_url"`
+	ExpiresInSeconds int    `json:"expires_in_seconds"`
+	ContentType      string `json:"content_type"`
+	SizeBytes        int64  `json:"size_bytes"`
+}
+
+// handleListFindingEvidence handles GET /api/v1/findings/{id}/evidence.
+func (s *Server) handleListFindingEvidence(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	idStr := r.PathValue("id")
+	if idStr == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "missing_finding_id",
+			Message: "finding id is required",
+		}}))
+		return
+	}
+
+	findingID, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "invalid_finding_id",
+			Message: "finding id must be a valid UUID",
+		}}))
+		return
+	}
+
+	// Authorize finding exists in tenant
+	_, err = s.findingStore.GetFindingByID(r.Context(), tenantID, findingID)
+	if err != nil {
+		if errors.Is(err, findings.ErrFindingNotFound) {
+			WriteProblem(w, r, kelvinerrors.NewNotFound("finding not found"))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	items, err := s.findingStore.GetEvidenceByFindingID(r.Context(), tenantID, findingID)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	summaries := make([]EvidenceSummaryResponse, 0, len(items))
+	for _, it := range items {
+		fID := findingID.String()
+		if it.FindingID != nil {
+			fID = *it.FindingID
+		}
+		summaries = append(summaries, EvidenceSummaryResponse{
+			ID:              it.ID,
+			FindingID:       fID,
+			EvidenceType:    it.EvidenceType,
+			ContentType:     it.ContentType,
+			SizeBytes:       it.SizeBytes,
+			ChecksumSHA256:  it.ChecksumSHA256,
+			RedactionStatus: it.RedactionStatus,
+			CreatedAt:       it.CreatedAt,
+		})
+	}
+
+	meta := map[string]any{
+		"count": len(summaries),
+	}
+	WriteSuccess(w, r, http.StatusOK, summaries, meta)
+}
+
+// handleGetFindingEvidenceDetail handles GET /api/v1/findings/{id}/evidence/{evidence_id}.
+func (s *Server) handleGetFindingEvidenceDetail(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	findingID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "invalid_finding_id",
+			Message: "finding id must be a valid UUID",
+		}}))
+		return
+	}
+
+	evidenceID, err := uuid.Parse(r.PathValue("evidence_id"))
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "evidence_id",
+			Code:    "invalid_evidence_id",
+			Message: "evidence id must be a valid UUID",
+		}}))
+		return
+	}
+
+	// 1. Authorize finding ownership
+	_, err = s.findingStore.GetFindingByID(r.Context(), tenantID, findingID)
+	if err != nil {
+		if errors.Is(err, findings.ErrFindingNotFound) {
+			WriteProblem(w, r, kelvinerrors.NewNotFound("finding not found"))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	// 2. Fetch evidence item
+	item, err := s.findingStore.GetEvidenceByID(r.Context(), tenantID, evidenceID)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewNotFound("evidence not found"))
+		return
+	}
+
+	// 3. Verify linkage to finding
+	if item.FindingID != nil && *item.FindingID != findingID.String() {
+		WriteProblem(w, r, kelvinerrors.NewNotFound("evidence not found for this finding"))
+		return
+	}
+
+	// 4. Transform into sanitized presentation envelope
+	sanitizer := evidence.NewSanitizerService()
+	envelope, err := sanitizer.PreparePresentationEnvelope(item, false, nil)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'")
+	WriteSuccess(w, r, http.StatusOK, envelope, nil)
+}
+
+// handleGetFindingEvidenceDownload handles GET /api/v1/findings/{id}/evidence/{evidence_id}/download.
+func (s *Server) handleGetFindingEvidenceDownload(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	findingID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "invalid_finding_id",
+			Message: "finding id must be a valid UUID",
+		}}))
+		return
+	}
+
+	evidenceID, err := uuid.Parse(r.PathValue("evidence_id"))
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "evidence_id",
+			Code:    "invalid_evidence_id",
+			Message: "evidence id must be a valid UUID",
+		}}))
+		return
+	}
+
+	// 1. Authorize finding ownership
+	_, err = s.findingStore.GetFindingByID(r.Context(), tenantID, findingID)
+	if err != nil {
+		if errors.Is(err, findings.ErrFindingNotFound) {
+			WriteProblem(w, r, kelvinerrors.NewNotFound("finding not found"))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	// 2. Fetch evidence item
+	item, err := s.findingStore.GetEvidenceByID(r.Context(), tenantID, evidenceID)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewNotFound("evidence not found"))
+		return
+	}
+
+	if item.FindingID != nil && *item.FindingID != findingID.String() {
+		WriteProblem(w, r, kelvinerrors.NewNotFound("evidence not found for this finding"))
+		return
+	}
+
+	// 3. Verify safe MIME type
+	if !evidence.IsSafeMimeType(item.ContentType) {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "content_type",
+			Code:    "disallowed_content_type",
+			Message: "evidence content type is not permitted for download",
+		}}))
+		return
+	}
+
+	// 4. Generate 5-minute pre-signed URL (300 seconds)
+	ttl := 300 * time.Second
+	baseURL := "/api/v1/evidence/" + evidenceID.String() + "/download"
+	signedURL, err := s.evidenceSigner.SignDownloadURL(evidenceID.String(), tenantID.String(), ttl, baseURL)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"evidence-" + evidenceID.String() + ".txt\"")
+
+	resp := EvidenceDownloadResponse{
+		EvidenceID:       evidenceID.String(),
+		DownloadURL:      signedURL,
+		ExpiresInSeconds: 300,
+		ContentType:      item.ContentType,
+		SizeBytes:        item.SizeBytes,
+	}
+
+	WriteSuccess(w, r, http.StatusOK, resp, nil)
 }
