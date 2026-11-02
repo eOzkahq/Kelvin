@@ -278,3 +278,50 @@ func CalculateRiskScore(input RiskAssessmentInput) (*RiskAssessmentResult, error
 		AssessedAt: time.Now().UTC(),
 	}, nil
 }
+
+const EngineVersion = "v1"
+
+// RiskEngine computes deterministic risk scores and priority bands for findings.
+type RiskEngine struct {
+	version string
+}
+
+// NewRiskEngine creates a new deterministic risk scoring engine instance.
+func NewRiskEngine() *RiskEngine {
+	return &RiskEngine{version: EngineVersion}
+}
+
+// Version returns the active scoring algorithm specification version.
+func (e *RiskEngine) Version() string {
+	return e.version
+}
+
+// Compute processes a persistent finding through the deterministic scoring model.
+func (e *RiskEngine) Compute(finding *PersistentFinding) (*RiskAssessmentResult, error) {
+	if finding == nil {
+		return nil, errors.New("findings: finding cannot be nil")
+	}
+	var exp TargetExposure = ExposureUnknown
+	var crit AssetCriticality = CriticalityUnknown
+	if finding.ScannerData != nil {
+		if expStr, ok := finding.ScannerData["exposure"].(string); ok {
+			exp = TargetExposure(expStr)
+		}
+		if critStr, ok := finding.ScannerData["criticality"].(string); ok {
+			crit = AssetCriticality(critStr)
+		}
+	}
+
+	return CalculateRiskScore(RiskAssessmentInput{
+		FindingID:       finding.ID,
+		ScannerSeverity: finding.Severity,
+		Confidence:      finding.Confidence,
+		Exposure:        exp,
+		Criticality:     crit,
+		Vulnerability: VulnerabilityMetadata{
+			CVSSBaseScore: finding.CVSSScore,
+			CWEID:         finding.CWEID,
+			CVEIDs:        finding.CVEIDs,
+		},
+	})
+}
