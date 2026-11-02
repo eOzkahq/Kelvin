@@ -246,6 +246,52 @@ func (m *mockFindingStore) GetSuppressionsByFinding(
 	}, nil
 }
 
+func (m *mockFindingStore) ExecuteBulkTriage(
+	ctx context.Context,
+	tenantID uuid.UUID,
+	req *findings.BulkTriageRequest,
+	corrID uuid.UUID,
+) (*findings.BulkTriageResult, error) {
+	if err := findings.ValidateBulkTriageRequest(req); err != nil {
+		return nil, err
+	}
+	res := &findings.BulkTriageResult{
+		BatchID:   uuid.New(),
+		Action:    req.Action,
+		Total:     len(req.FindingIDs),
+		Succeeded: make([]uuid.UUID, 0),
+		Failed:    make([]findings.BulkTriageItemFailure, 0),
+	}
+	for _, id := range req.FindingIDs {
+		f, exists := m.findings[id]
+		if !exists || f.TenantID != tenantID {
+			res.Failed = append(res.Failed, findings.BulkTriageItemFailure{
+				FindingID: id,
+				Code:      "not_found",
+				Message:   "finding not found",
+			})
+			res.FailedCount++
+			continue
+		}
+		if req.Action == findings.BulkActionTransition {
+			if err := findings.ValidateTransition(f.Status, req.TargetStatus); err != nil {
+				res.Failed = append(res.Failed, findings.BulkTriageItemFailure{
+					FindingID: id,
+					Code:      "illegal_transition",
+					Message:   err.Error(),
+				})
+				res.FailedCount++
+				continue
+			}
+			f.Status = req.TargetStatus
+			f.UpdatedAt = time.Now().UTC()
+		}
+		res.Succeeded = append(res.Succeeded, id)
+		res.SucceededCount++
+	}
+	return res, nil
+}
+
 func (m *mockFindingStore) UpdateFindingStatus(
 	ctx context.Context,
 	tenantID, findingID uuid.UUID,

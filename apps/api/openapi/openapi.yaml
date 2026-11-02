@@ -389,6 +389,40 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /findings/bulk-triage:
+    post:
+      tags: [findings]
+      operationId: bulkTriageFindings
+      summary: Perform batch triage operations across multiple findings.
+      description: Allows analysts to execute bounded batch status transitions or suppressions (up to 100 items), validating each item independently and returning detailed multi-status outcomes.
+      x-required-permission: finding:write
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkTriageRequest"
+      responses:
+        "200":
+          description: Multi-status batch execution completed with per-item success and failure outcomes.
+          headers:
+            X-Correlation-ID:
+              $ref: "#/components/headers/CorrelationID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
   /findings/{id}/transition:
     post:
       tags: [findings]
@@ -544,6 +578,74 @@ components:
           type: integer
           minimum: 0
           description: Emitted only where an exact count is cheap.
+    BulkTriageRequest:
+      type: object
+      additionalProperties: false
+      required: [finding_ids, action]
+      properties:
+        finding_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+          description: Bounded list of 1 to 100 finding UUIDs to process.
+        action:
+          type: string
+          enum: [TRANSITION, SUPPRESS]
+          description: Triage operation to execute across all selected findings.
+        target_status:
+          type: string
+          enum: [NEW, CONFIRMED, IN_PROGRESS, RESOLVED, REOPENED, FALSE_POSITIVE, ACCEPTED_RISK]
+          description: Target lifecycle status when action is TRANSITION.
+        reason:
+          type: string
+          description: Documented rationale for the operation. Mandatory for sensitive transitions (FALSE_POSITIVE, ACCEPTED_RISK) and SUPPRESS.
+        expires_at:
+          type: string
+          format: date-time
+          description: Required expiration timestamp when action is SUPPRESS.
+        actor_id:
+          type: string
+          format: uuid
+          description: Optional analyst identifier overriding context default.
+
+    BulkTriageResult:
+      type: object
+      additionalProperties: false
+      required: [batch_id, action, total, succeeded_count, failed_count, succeeded, failed]
+      properties:
+        batch_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        total:
+          type: integer
+        succeeded_count:
+          type: integer
+        failed_count:
+          type: integer
+        succeeded:
+          type: array
+          items:
+            type: string
+            format: uuid
+        failed:
+          type: array
+          items:
+            type: object
+            required: [finding_id, code, message]
+            properties:
+              finding_id:
+                type: string
+                format: uuid
+              code:
+                type: string
+              message:
+                type: string
+
     CreateSuppressionRequest:
       type: object
       additionalProperties: false

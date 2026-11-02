@@ -28,6 +28,7 @@ const (
 	TimelineEventSuppressionCreated = "SUPPRESSION_CREATED"
 	TimelineEventSuppressionRevoked = "SUPPRESSION_REVOKED"
 	TimelineEventSuppressionExpired = "SUPPRESSION_EXPIRED"
+	TimelineEventBulkTriageApplied = "BULK_TRIAGE_APPLIED"
 )
 
 var (
