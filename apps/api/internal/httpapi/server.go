@@ -133,6 +133,13 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /api/v1/findings/{id}/unsuppress", s.protect(unsuppressHandler))
 	s.mux.Handle("GET /api/v1/findings/{id}/suppressions", s.protect(http.HandlerFunc(s.handleGetSuppressions)))
 
+	// Bulk finding triage endpoint (P3-19)
+	var bulkTriageHandler http.Handler = http.HandlerFunc(s.handleBulkTriage)
+	if s.idempotencyStore != nil {
+		bulkTriageHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(bulkTriageHandler)
+	}
+	s.mux.Handle("POST /api/v1/findings/bulk-triage", s.protect(bulkTriageHandler))
+
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
 		s.mux.Handle(method+" /health/live", methodNotAllowed("GET"))

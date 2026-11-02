@@ -27,6 +27,7 @@ type findingStoreIface interface {
 	CreateSuppressionRule(ctx context.Context, tenantID, findingID uuid.UUID, actorID *uuid.UUID, reason string, expiresAt time.Time, corrID uuid.UUID) (*findings.SuppressionRule, error)
 	RevokeSuppressionRule(ctx context.Context, tenantID, findingID uuid.UUID, actorID *uuid.UUID, revocationReason string, corrID uuid.UUID) (*findings.SuppressionRule, error)
 	GetSuppressionsByFinding(ctx context.Context, tenantID, findingID uuid.UUID) ([]*findings.SuppressionRule, error)
+	ExecuteBulkTriage(ctx context.Context, tenantID uuid.UUID, req *findings.BulkTriageRequest, corrID uuid.UUID) (*findings.BulkTriageResult, error)
 }
 
 // FindingDetailResponse encapsulates the finding record and paginated observation history.
@@ -915,4 +916,58 @@ func (s *Server) handleGetSuppressions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	WriteSuccess(w, r, http.StatusOK, rules, meta)
+}
+
+// handleBulkTriage handles POST /api/v1/findings/bulk-triage.
+func (s *Server) handleBulkTriage(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	var req findings.BulkTriageRequest
+	if !DecodeJSON(w, r, &req) {
+		return
+	}
+
+	corrID := logging.CorrelationFromContext(r.Context())
+	var corrUUID uuid.UUID
+	if parsed, err := uuid.Parse(corrID); err == nil {
+		corrUUID = parsed
+	} else {
+		corrUUID = uuid.New()
+	}
+
+	result, err := s.findingStore.ExecuteBulkTriage(r.Context(), tenantID, &req, corrUUID)
+	if err != nil {
+		if errors.Is(err, findings.ErrBulkBatchEmpty) ||
+			errors.Is(err, findings.ErrBulkBatchLimitExceeded) ||
+			errors.Is(err, findings.ErrInvalidBulkAction) ||
+			errors.Is(err, findings.ErrTargetStatusRequired) ||
+			errors.Is(err, findings.ErrBulkReasonRequired) ||
+			errors.Is(err, findings.ErrSuppressionReasonRequired) ||
+			errors.Is(err, findings.ErrSuppressionExpiryRequired) {
+			WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+				Field:   "bulk_triage",
+				Code:    "validation_error",
+				Message: err.Error(),
+			}}))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	WriteSuccess(w, r, http.StatusOK, result, nil)
 }
