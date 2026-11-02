@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kelvin.security/schemas/org_settings.v1.json",
+  "title": "KelvinOrganizationSettings",
+  "description": "Defines enterprise organization settings schema and constraints (P4-07).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "security",
+    "retention",
+    "workflow"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "security": {
+      "type": "object",
+      "required": ["require_mfa", "session_max_duration_seconds", "allowed_scanners"],
+      "properties": {
+        "require_mfa": { "type": "boolean" },
+        "session_max_duration_seconds": {
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 86400
+        },
+        "allowed_scanners": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "ip_allowlist": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "retention": {
+      "type": "object",
+      "required": ["evidence_retention_days", "report_retention_days", "audit_log_retention_days"],
+      "properties": {
+        "evidence_retention_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "report_retention_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 730
+        },
+        "audit_log_retention_days": {
+          "type": "integer",
+          "minimum": 90,
+          "maximum": 2555
+        }
+      },
+      "additionalProperties": false
+    },
+    "workflow": {
+      "type": "object",
+      "required": ["default_scan_profile_id", "auto_approve_triage"],
+      "properties": {
+        "default_scan_profile_id": { "type": "string" },
+        "auto_approve_triage": { "type": "boolean" },
+        "notification_email": { "type": "string", "format": "email" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
