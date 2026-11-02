@@ -3,6 +3,7 @@ package findings
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,6 +43,8 @@ type IdentityResolutionResult struct {
 	Observation *FindingObservation
 	IsNew       bool
 	Event       *FindingEvent
+	IsAmbiguous bool
+	Algorithm   string
 }
 
 // IdentityResolver coordinates deduplication and identity binding for finding observations.
@@ -66,19 +69,24 @@ func (r *IdentityResolver) Resolve(
 	}
 
 	// Compute Algorithm v1 deterministic deduplication fingerprint
-	fingerprint, _, err := normalization.ComputeFingerprint(
-		input.TargetAsset,
-		input.TargetEndpoint,
-		input.TemplateID,
-		input.CVEIDs,
-		input.CWEID,
-		input.Title,
-	)
+	fpResult, err := normalization.GenerateFingerprint(normalization.FingerprintInput{
+		Asset:      input.TargetAsset,
+		Endpoint:   input.TargetEndpoint,
+		TemplateID: input.TemplateID,
+		CVEIDs:     input.CVEIDs,
+		CWEID:      input.CWEID,
+		Title:      input.Title,
+		Algorithm:  normalization.AlgorithmV1,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("identity: compute fingerprint failed: %w", err)
 	}
+	fingerprint := fpResult.Digest
 
 	var matchedFinding *PersistentFinding
+	var isAmbiguous bool
+	vulnKey := normalization.DeriveVulnerabilityKey(input.TemplateID, input.CVEIDs, input.CWEID, input.Title)
+
 	for _, f := range existingFindings {
 		if f.TenantID != tenantID {
 			continue // Strict tenant boundary isolation
@@ -89,6 +97,22 @@ func (r *IdentityResolver) Resolve(
 		if f.Fingerprint == fingerprint {
 			matchedFinding = f
 			break
+		}
+		// Ambiguity check: Same asset and vulnerability key, but different location.
+		// These are kept distinct and never merged automatically.
+		fAsset := f.AffectedEndpoint
+		if u, err := url.Parse(f.AffectedEndpoint); err == nil && u.Hostname() != "" {
+			fAsset = u.Hostname()
+		}
+		var existingTemplateID string
+		if f.ScannerData != nil {
+			if tID, ok := f.ScannerData["template_id"].(string); ok {
+				existingTemplateID = tID
+			}
+		}
+		existingVulnKey := normalization.DeriveVulnerabilityKey(existingTemplateID, f.CVEIDs, f.CWEID, f.Title)
+		if normalization.IsAmbiguousIdentity(fAsset, f.AffectedEndpoint, existingVulnKey, input.TargetAsset, input.TargetEndpoint, vulnKey) {
+			isAmbiguous = true
 		}
 	}
 
@@ -127,6 +151,8 @@ func (r *IdentityResolver) Resolve(
 			Observation: obs,
 			IsNew:       false,
 			Event:       event,
+			IsAmbiguous: false,
+			Algorithm:   fpResult.Algorithm,
 		}, nil
 	}
 
@@ -134,6 +160,19 @@ func (r *IdentityResolver) Resolve(
 	findingID, err := uuid.NewV7()
 	if err != nil {
 		findingID = uuid.New()
+	}
+
+	endpoint := input.AffectedEndpoint
+	if endpoint == "" {
+		endpoint = input.TargetEndpoint
+	}
+
+	scannerData := make(map[string]any)
+	for k, v := range input.ScannerData {
+		scannerData[k] = v
+	}
+	if input.TemplateID != "" {
+		scannerData["template_id"] = input.TemplateID
 	}
 
 	newFinding := &PersistentFinding{
@@ -150,8 +189,8 @@ func (r *IdentityResolver) Resolve(
 		CWEID:            input.CWEID,
 		CVEIDs:           input.CVEIDs,
 		Status:           StatusOpen,
-		AffectedEndpoint: input.AffectedEndpoint,
-		ScannerData:      input.ScannerData,
+		AffectedEndpoint: endpoint,
+		ScannerData:      scannerData,
 		Tags:             input.Tags,
 		FirstSeenAt:      now,
 		LastSeenAt:       now,
@@ -191,5 +230,7 @@ func (r *IdentityResolver) Resolve(
 		Observation: obs,
 		IsNew:       true,
 		Event:       event,
+		IsAmbiguous: isAmbiguous,
+		Algorithm:   fpResult.Algorithm,
 	}, nil
 }
