@@ -173,6 +173,9 @@ type PersistentFinding struct {
 	FirstJobID         uuid.UUID      `json:"first_job_id"`
 	LastJobID          *uuid.UUID     `json:"last_job_id,omitempty"`
 	OccurrenceCount    int64          `json:"occurrence_count"`
+	RiskScore          *float64       `json:"risk_score,omitempty"`
+	RiskPriorityBand   RiskPriorityBand `json:"risk_priority_band,omitempty"`
+	RiskFactors        map[string]any `json:"risk_factors,omitempty"`
 	CreatedAt          time.Time      `json:"created_at"`
 	UpdatedAt          time.Time      `json:"updated_at"`
 }

@@ -230,6 +230,15 @@ func (r *IdentityResolver) Resolve(
 			CreatedAt:    time.Now().UTC(),
 		}
 
+		if matchedFinding.RiskScore == nil {
+			riskEngine := NewRiskEngine()
+			if riskRes, err := riskEngine.Compute(matchedFinding); err == nil && riskRes != nil {
+				matchedFinding.RiskScore = &riskRes.RiskScore
+				matchedFinding.RiskPriorityBand = riskRes.PriorityBand
+				matchedFinding.RiskFactors = riskRes.InputFactors
+			}
+		}
+
 		event, err := IngestObservation(matchedFinding, *obs, correlationID)
 		if err != nil {
 			return nil, err
@@ -290,6 +299,13 @@ func (r *IdentityResolver) Resolve(
 		OccurrenceCount:  1,
 		CreatedAt:        time.Now().UTC(),
 		UpdatedAt:        time.Now().UTC(),
+	}
+
+	riskEngine := NewRiskEngine()
+	if riskRes, err := riskEngine.Compute(newFinding); err == nil && riskRes != nil {
+		newFinding.RiskScore = &riskRes.RiskScore
+		newFinding.RiskPriorityBand = riskRes.PriorityBand
+		newFinding.RiskFactors = riskRes.InputFactors
 	}
 
 	obs := &FindingObservation{
