@@ -48,6 +48,33 @@ func (m *mockFindingRepo) GetFindingsByProject(ctx context.Context, tenantID, pr
 	return res, nil
 }
 
+func (m *mockFindingRepo) GetFindingByID(ctx context.Context, tenantID, findingID uuid.UUID) (*PersistentFinding, error) {
+	f, exists := m.findings[findingID]
+	if !exists || f.TenantID != tenantID {
+		return nil, ErrFindingNotFound
+	}
+	return f, nil
+}
+
+func (m *mockFindingRepo) GetObservationsByFinding(ctx context.Context, tenantID, findingID uuid.UUID, limit, offset int) ([]*FindingObservation, error) {
+	var res []*FindingObservation
+	for _, obs := range m.observations {
+		if obs.TenantID == tenantID && obs.FindingID == findingID {
+			res = append(res, obs)
+		}
+	}
+	return res, nil
+}
+
+func (m *mockFindingRepo) ObservationExists(ctx context.Context, tenantID, assessmentID, findingID uuid.UUID) (bool, error) {
+	for _, obs := range m.observations {
+		if obs.TenantID == tenantID && obs.AssessmentID == assessmentID && obs.FindingID == findingID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (m *mockFindingRepo) SaveFinding(ctx context.Context, f *PersistentFinding) error {
 	m.findings[f.ID] = f
 	return nil
@@ -369,6 +396,151 @@ func TestIngestBatchRejectsCancelledOrFailedAssessments(t *testing.T) {
 	_, err = svc.IngestBatch(ctx, tenantID, asmtFailed, nil, uuid.New())
 	if err != ErrAssessmentFailed {
 		t.Errorf("expected ErrAssessmentFailed, got %v", err)
+	}
+}
+
+func TestIngestBatchIdempotencyOnRepeatedDelivery(t *testing.T) {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	projectID := uuid.New()
+	assessmentID := uuid.New()
+	jobID := uuid.New()
+	corrID := uuid.New()
+
+	validator := &mockAssessmentValidator{
+		assessments: map[uuid.UUID]*AssessmentContext{
+			assessmentID: {
+				TenantID:     tenantID,
+				ProjectID:    projectID,
+				AssessmentID: assessmentID,
+				JobID:        jobID,
+				Status:       "COMPLETED",
+			},
+		},
+	}
+	repo := newMockFindingRepo()
+	svc := NewIngestionService(validator, repo, nil)
+
+	canonicalFindings := []normalization.CanonicalFinding{
+		{
+			Title:      "Cross-Site Scripting",
+			Severity:   "HIGH",
+			Confidence: 0.9,
+			Target: normalization.Target{
+				Asset:    "app.example.com",
+				Endpoint: "https://app.example.com/comment",
+			},
+			Vulnerability: normalization.Vulnerability{
+				TemplateID: "xss-comment",
+				CWEID:      "CWE-79",
+			},
+			Scanner: normalization.ScannerInfo{
+				Name: "nuclei",
+			},
+		},
+	}
+
+	// First delivery
+	sum1, err := svc.IngestBatch(ctx, tenantID, assessmentID, canonicalFindings, corrID)
+	if err != nil {
+		t.Fatalf("first delivery failed: %v", err)
+	}
+	if sum1.NewFindings != 1 || sum1.Replayed != 0 {
+		t.Errorf("expected 1 new finding, 0 replayed; got %d new, %d replayed", sum1.NewFindings, sum1.Replayed)
+	}
+	if len(repo.observations) != 1 {
+		t.Errorf("expected 1 observation, got %d", len(repo.observations))
+	}
+
+	// Repeated delivery (queue retry / network redelivery of same assessment)
+	sum2, err := svc.IngestBatch(ctx, tenantID, assessmentID, canonicalFindings, corrID)
+	if err != nil {
+		t.Fatalf("second delivery failed: %v", err)
+	}
+	if sum2.NewFindings != 0 {
+		t.Errorf("expected 0 new findings on redelivery, got %d", sum2.NewFindings)
+	}
+	if sum2.Redetected != 0 {
+		t.Errorf("expected 0 redetected on redelivery of same assessment, got %d", sum2.Redetected)
+	}
+	if sum2.Replayed != 1 {
+		t.Errorf("expected 1 replayed finding, got %d", sum2.Replayed)
+	}
+	if len(repo.observations) != 1 {
+		t.Errorf("must NOT duplicate observations on redelivery, got %d", len(repo.observations))
+	}
+
+	// Finding occurrence count must remain 1
+	for _, f := range repo.findings {
+		if f.OccurrenceCount != 1 {
+			t.Errorf("expected occurrence count 1 after replay, got %d", f.OccurrenceCount)
+		}
+	}
+}
+
+func TestIngestBatchPreservesAnalystStatusOnRetry(t *testing.T) {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	projectID := uuid.New()
+	assessmentID := uuid.New()
+	jobID := uuid.New()
+	corrID := uuid.New()
+
+	validator := &mockAssessmentValidator{
+		assessments: map[uuid.UUID]*AssessmentContext{
+			assessmentID: {
+				TenantID:     tenantID,
+				ProjectID:    projectID,
+				AssessmentID: assessmentID,
+				JobID:        jobID,
+				Status:       "COMPLETED",
+			},
+		},
+	}
+	repo := newMockFindingRepo()
+	svc := NewIngestionService(validator, repo, nil)
+
+	findingPayload := normalization.CanonicalFinding{
+		Title:      "Informational Header Disclosure",
+		Severity:   "LOW",
+		Confidence: 0.9,
+		Target: normalization.Target{
+			Asset: "api.example.com",
+		},
+		Vulnerability: normalization.Vulnerability{
+			TemplateID: "server-header",
+		},
+		Scanner: normalization.ScannerInfo{
+			Name: "header-checker",
+		},
+	}
+
+	// 1. Ingest finding
+	_, err := svc.IngestBatch(ctx, tenantID, assessmentID, []normalization.CanonicalFinding{findingPayload}, corrID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Analyst marks as FALSE_POSITIVE
+	for _, f := range repo.findings {
+		f.Status = StatusFalsePositive
+	}
+
+	// 3. Retry of the same assessment payload occurs
+	sum, err := svc.IngestBatch(ctx, tenantID, assessmentID, []normalization.CanonicalFinding{findingPayload}, corrID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if sum.Replayed != 1 {
+		t.Errorf("expected replay count 1, got %d", sum.Replayed)
+	}
+
+	// 4. Verify status is still FALSE_POSITIVE
+	for _, f := range repo.findings {
+		if f.Status != StatusFalsePositive {
+			t.Errorf("analyst status overwritten on retry! Expected FALSE_POSITIVE, got %s", f.Status)
+		}
 	}
 }
 

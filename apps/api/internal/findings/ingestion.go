@@ -35,6 +35,7 @@ type IngestionSummary struct {
 	TotalProcessed int
 	NewFindings    int
 	Redetected     int
+	Replayed       int
 	AmbiguousCount int
 	Observations   []*FindingObservation
 	CreatedEvents  []*FindingEvent
@@ -48,6 +49,9 @@ type AssessmentValidator interface {
 // FindingRepository manages persistence for findings, observations, and audit events.
 type FindingRepository interface {
 	GetFindingsByProject(ctx context.Context, tenantID, projectID uuid.UUID) ([]*PersistentFinding, error)
+	GetFindingByID(ctx context.Context, tenantID, findingID uuid.UUID) (*PersistentFinding, error)
+	GetObservationsByFinding(ctx context.Context, tenantID, findingID uuid.UUID, limit, offset int) ([]*FindingObservation, error)
+	ObservationExists(ctx context.Context, tenantID, assessmentID, findingID uuid.UUID) (bool, error)
 	SaveFinding(ctx context.Context, finding *PersistentFinding) error
 	SaveObservation(ctx context.Context, obs *FindingObservation) error
 	SaveEvent(ctx context.Context, event *FindingEvent) error
@@ -196,6 +200,42 @@ func (s *IngestionService) IngestBatch(
 			Tags:             tags,
 			EvidenceRefs:     evidenceRefs,
 			ObservedAt:       observedAt,
+		}
+
+		// Idempotency Probe (P3-06): check if an observation for this finding in this assessment already exists
+		fpResult, err := normalization.GenerateFingerprint(normalization.FingerprintInput{
+			Asset:      f.Target.Asset,
+			Endpoint:   f.Target.Endpoint,
+			TemplateID: f.Vulnerability.TemplateID,
+			CVEIDs:     f.Vulnerability.CVEIDs,
+			CWEID:      f.Vulnerability.CWEID,
+			Title:      f.Title,
+			Algorithm:  normalization.AlgorithmV1,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("ingestion: fingerprint generation failed: %w", err)
+		}
+
+		var existingMatch *PersistentFinding
+		for _, ef := range currentFindings {
+			if ef.TenantID == tenantID && ef.ProjectID == asmtCtx.ProjectID && ef.Fingerprint == fpResult.Digest {
+				existingMatch = ef
+				break
+			}
+		}
+
+		if existingMatch != nil {
+			exists, err := s.repo.ObservationExists(ctx, tenantID, asmtCtx.AssessmentID, existingMatch.ID)
+			if err != nil {
+				return nil, fmt.Errorf("ingestion: check observation idempotency failed: %w", err)
+			}
+			if exists {
+				// Repeated delivery / retry of the same assessment result.
+				// Skip duplicate observation insert and do not mutate finding or occurrence count.
+				summary.Replayed++
+				summary.TotalProcessed++
+				continue
+			}
 		}
 
 		res, err := s.resolver.Resolve(tenantID, asmtCtx.ProjectID, input, currentFindings, correlationID)

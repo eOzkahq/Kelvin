@@ -231,7 +231,27 @@ func (r *PostgresFindingRepository) SaveFinding(ctx context.Context, f *Persiste
 	return nil
 }
 
-// SaveObservation inserts an immutable point-in-time observation record.
+// ObservationExists checks whether an observation has already been recorded for a finding in a specific assessment.
+func (r *PostgresFindingRepository) ObservationExists(
+	ctx context.Context,
+	tenantID, assessmentID, findingID uuid.UUID,
+) (bool, error) {
+	const query = `
+		SELECT EXISTS (
+			SELECT 1 FROM finding_observations
+			WHERE tenant_id = $1 AND assessment_id = $2 AND finding_id = $3
+		);
+	`
+
+	var exists bool
+	err := r.db.QueryRow(ctx, query, tenantID, assessmentID, findingID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("findings: check observation exists failed: %w", err)
+	}
+	return exists, nil
+}
+
+// SaveObservation inserts an immutable point-in-time observation record idempotently.
 func (r *PostgresFindingRepository) SaveObservation(ctx context.Context, obs *FindingObservation) error {
 	const query = `
 		INSERT INTO finding_observations (
@@ -239,7 +259,8 @@ func (r *PostgresFindingRepository) SaveObservation(ctx context.Context, obs *Fi
 			observed_at, evidence_refs, raw_metadata, created_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
-		);
+		)
+		ON CONFLICT (assessment_id, finding_id) DO NOTHING;
 	`
 
 	evidenceJSON, err := json.Marshal(obs.EvidenceRefs)

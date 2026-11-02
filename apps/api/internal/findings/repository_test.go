@@ -368,3 +368,30 @@ func TestPostgresFindingRepositorySaveObservationAndEvent(t *testing.T) {
 		t.Errorf("expected 2 executions, got %d", execCount)
 	}
 }
+
+func TestPostgresFindingRepositoryObservationExists(t *testing.T) {
+	ctx := context.Background()
+	tenantID := uuid.New()
+	asmtID := uuid.New()
+	findingID := uuid.New()
+
+	mock := &mockDBTX{
+		queryRowFn: func(ctx context.Context, sql string, args ...any) pgx.Row {
+			return &mockRow{
+				scanFn: func(dest ...any) error {
+					*dest[0].(*bool) = true
+					return nil
+				},
+			}
+		},
+	}
+
+	repo := NewPostgresFindingRepository(mock)
+	exists, err := repo.ObservationExists(ctx, tenantID, asmtID, findingID)
+	if err != nil {
+		t.Fatalf("ObservationExists failed: %v", err)
+	}
+	if !exists {
+		t.Errorf("expected exists = true")
+	}
+}
