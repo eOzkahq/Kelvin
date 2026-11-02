@@ -191,17 +191,6 @@ type FindingObservation struct {
 	CreatedAt    time.Time      `json:"created_at"`
 }
 
-// CorrelationGroup models a logical group of related findings across scanners or targets.
-type CorrelationGroup struct {
-	ID          uuid.UUID `json:"id"`
-	TenantID    uuid.UUID `json:"tenant_id"`
-	Name        string    `json:"name"`
-	RuleType    string    `json:"rule_type"`
-	Description string    `json:"description,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
 // FindingEvent records an immutable audit trail entry for a status or ownership change.
 type FindingEvent struct {
 	ID            uuid.UUID        `json:"id"`
