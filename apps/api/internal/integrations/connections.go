@@ -39,6 +39,7 @@ type ProviderType string
 const (
 	ProviderJira           ProviderType = "JIRA"
 	ProviderSlack          ProviderType = "SLACK"
+	ProviderMSTeams        ProviderType = "MSTEAMS"
 	ProviderGitHub         ProviderType = "GITHUB"
 	ProviderPagerDuty      ProviderType = "PAGERDUTY"
 	ProviderGenericWebhook ProviderType = "GENERIC_WEBHOOK"
