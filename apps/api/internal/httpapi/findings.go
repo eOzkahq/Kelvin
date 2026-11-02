@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kelvin/kelvin/apps/api/internal/findings"
@@ -19,6 +20,7 @@ type findingStoreIface interface {
 	GetObservationsByFinding(ctx context.Context, tenantID, findingID uuid.UUID, limit, offset int) ([]*findings.FindingObservation, error)
 	GetTimelineByFinding(ctx context.Context, tenantID, findingID uuid.UUID, limit, offset int) ([]*findings.TimelineEntry, error)
 	UpdateFindingStatus(ctx context.Context, tenantID, findingID uuid.UUID, newStatus findings.FindingStatus, actorUserID *uuid.UUID, note string, correlationID uuid.UUID) (*findings.PersistentFinding, *findings.FindingEvent, error)
+	SaveTriageDecision(ctx context.Context, decision *findings.TriageDecision) error
 }
 
 // FindingDetailResponse encapsulates the finding record and paginated observation history.
@@ -37,6 +39,16 @@ type TransitionFindingRequest struct {
 type TransitionFindingResponse struct {
 	Finding *findings.PersistentFinding `json:"finding"`
 	Event   *findings.FindingEvent      `json:"event"`
+}
+
+// TriageFindingRequest captures an analyst's triage disposition decision.
+type TriageFindingRequest struct {
+	Disposition        string     `json:"disposition"`
+	Scope              string     `json:"scope,omitempty"`
+	Justification      string     `json:"justification"`
+	ApproverID         *uuid.UUID `json:"approver_id,omitempty"`
+	ExpiresAt          *time.Time `json:"expires_at,omitempty"`
+	CanonicalFindingID *uuid.UUID `json:"canonical_finding_id,omitempty"`
 }
 
 // SetFindingStore assigns the finding store used by finding endpoints.
@@ -319,4 +331,91 @@ func (s *Server) handleGetFindingTimeline(w http.ResponseWriter, r *http.Request
 	}
 
 	WriteSuccess(w, r, http.StatusOK, timeline, meta)
+}
+
+// handleTriageFinding handles POST /api/v1/findings/{id}/triage.
+func (s *Server) handleTriageFinding(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	idStr := r.PathValue("id")
+	if idStr == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "missing_finding_id",
+			Message: "finding id is required",
+		}}))
+		return
+	}
+
+	findingID, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "invalid_finding_id",
+			Message: "finding id must be a valid UUID",
+		}}))
+		return
+	}
+
+	var req TriageFindingRequest
+	if !DecodeJSON(w, r, &req) {
+		return
+	}
+
+	decision := &findings.TriageDecision{
+		TenantID:           tenantID,
+		FindingID:          findingID,
+		Disposition:        findings.TriageDisposition(strings.ToUpper(strings.TrimSpace(req.Disposition))),
+		Scope:              findings.TriageScope(strings.ToUpper(strings.TrimSpace(req.Scope))),
+		Justification:      req.Justification,
+		ApproverID:         req.ApproverID,
+		ExpiresAt:          req.ExpiresAt,
+		CanonicalFindingID: req.CanonicalFindingID,
+	}
+
+	if err := s.findingStore.SaveTriageDecision(r.Context(), decision); err != nil {
+		if errors.Is(err, findings.ErrFindingNotFound) {
+			WriteProblem(w, r, kelvinerrors.NewNotFound("finding not found"))
+			return
+		}
+		if errors.Is(err, findings.ErrInvalidDisposition) ||
+			errors.Is(err, findings.ErrInvalidScope) ||
+			errors.Is(err, findings.ErrJustificationRequired) ||
+			errors.Is(err, findings.ErrExpiryRequired) ||
+			errors.Is(err, findings.ErrCanonicalIDRequired) ||
+			errors.Is(err, findings.ErrSelfReferentialDuplicate) {
+			WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+				Field:   "triage",
+				Code:    "validation_error",
+				Message: err.Error(),
+			}}))
+			return
+		}
+		if errors.Is(err, findings.ErrIllegalTransition) {
+			WriteProblem(w, r, kelvinerrors.NewConflict("illegal status transition for triage disposition: "+err.Error()))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"disposition": decision.Disposition,
+		"finding_id":  decision.FindingID,
+		"status":      "triage_applied",
+	}, nil)
 }

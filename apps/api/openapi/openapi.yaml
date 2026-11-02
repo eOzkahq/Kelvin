@@ -168,6 +168,45 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /findings/{id}/triage:
+    post:
+      tags: [findings]
+      operationId: triageFinding
+      summary: Record triage disposition for a finding.
+      description: Applies an analyst review disposition (CONFIRMED, INVESTIGATING, FALSE_POSITIVE, ACCEPTED_RISK, DUPLICATE), enforcing justification, risk exception expiry, and duplicate canonical links.
+      x-required-permission: finding:write
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TriageFindingRequest"
+      responses:
+        "200":
+          description: Triage disposition recorded and finding status updated.
+          headers:
+            X-Correlation-ID:
+              $ref: "#/components/headers/CorrelationID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
   /findings/{id}/transition:
     post:
       tags: [findings]
@@ -323,6 +362,34 @@ components:
           type: integer
           minimum: 0
           description: Emitted only where an exact count is cheap.
+    TriageFindingRequest:
+      type: object
+      additionalProperties: false
+      required: [disposition, justification]
+      properties:
+        disposition:
+          type: string
+          enum: [CONFIRMED, INVESTIGATING, FALSE_POSITIVE, ACCEPTED_RISK, DUPLICATE]
+          description: Standardized triage outcome.
+        scope:
+          type: string
+          enum: [PERSISTENT_FINDING, OBSERVATION, CORRELATION_GROUP]
+          description: Organizational level to which triage decision applies.
+        justification:
+          type: string
+          description: Analyst-provided rationale explaining the triage decision.
+        approver_id:
+          type: string
+          format: uuid
+          description: User ID of secondary approver for high-severity or accepted risk dispositions.
+        expires_at:
+          type: string
+          format: date-time
+          description: Expiration timestamp for temporary risk exceptions (required for ACCEPTED_RISK).
+        canonical_finding_id:
+          type: string
+          format: uuid
+          description: Target finding ID when disposition is DUPLICATE.
     TransitionFindingRequest:
       type: object
       additionalProperties: false
