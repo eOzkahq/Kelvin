@@ -64,6 +64,37 @@ func (m *mockFindingStore) GetTimelineByFinding(ctx context.Context, tenantID, f
 	return all[offset:end], nil
 }
 
+func (m *mockFindingStore) SaveTriageDecision(ctx context.Context, decision *findings.TriageDecision) error {
+	f, exists := m.findings[decision.FindingID]
+	if !exists || f.TenantID != decision.TenantID {
+		return findings.ErrFindingNotFound
+	}
+	if err := findings.ValidateTriageDecision(decision); err != nil {
+		return err
+	}
+	var targetStatus findings.FindingStatus
+	switch decision.Disposition {
+	case findings.DispositionConfirmed:
+		targetStatus = findings.StatusConfirmed
+	case findings.DispositionInvestigating:
+		targetStatus = findings.StatusInProgress
+	case findings.DispositionFalsePositive:
+		targetStatus = findings.StatusFalsePositive
+	case findings.DispositionAcceptedRisk:
+		targetStatus = findings.StatusAcceptedRisk
+	case findings.DispositionDuplicate:
+		targetStatus = findings.StatusResolved
+	}
+	if findings.CanonicalStatus(f.Status) != findings.CanonicalStatus(targetStatus) {
+		if err := findings.ValidateTransition(f.Status, targetStatus); err != nil {
+			return err
+		}
+		f.Status = targetStatus
+		f.UpdatedAt = time.Now().UTC()
+	}
+	return nil
+}
+
 func (m *mockFindingStore) UpdateFindingStatus(
 	ctx context.Context,
 	tenantID, findingID uuid.UUID,

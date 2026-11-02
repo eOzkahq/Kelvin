@@ -105,6 +105,13 @@ func (s *Server) routes() {
 	// Finding activity timeline endpoint (P3-11)
 	s.mux.Handle("GET /api/v1/findings/{id}/timeline", s.protect(http.HandlerFunc(s.handleGetFindingTimeline)))
 
+	// Finding triage decision endpoint (P3-16)
+	var triageHandler http.Handler = http.HandlerFunc(s.handleTriageFinding)
+	if s.idempotencyStore != nil {
+		triageHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(triageHandler)
+	}
+	s.mux.Handle("POST /api/v1/findings/{id}/triage", s.protect(triageHandler))
+
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
 		s.mux.Handle(method+" /health/live", methodNotAllowed("GET"))
