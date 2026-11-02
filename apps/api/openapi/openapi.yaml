@@ -33,6 +33,8 @@ tags:
     description: Liveness and contract introspection.
   - name: assessments
     description: Assessment cancellation; create, list, and inspect handlers remain planned.
+  - name: findings
+    description: Finding and observation management.
 
 security:
   - bearerAuth: []
@@ -85,6 +87,45 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /findings/{id}:
+    get:
+      tags: [findings]
+      operationId: getFindingDetail
+      summary: Retrieve finding detail and observation history.
+      description: Returns the finding record, aggregated assessment context, and paginated observation history for an authorized tenant.
+      x-required-permission: finding:read
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - $ref: "#/components/parameters/Limit"
+        - name: offset
+          in: query
+          required: false
+          description: Observation offset index.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Finding detail successfully retrieved.
+          headers:
+            X-Correlation-ID:
+              $ref: "#/components/headers/CorrelationID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
