@@ -162,3 +162,57 @@ func TestIdentityResolverStrictTenantAndProjectIsolation(t *testing.T) {
 		t.Errorf("cross-project finding merge detected! Findings must be project-isolated")
 	}
 }
+
+func TestIdentityResolverAmbiguousLocationHandledAsDistinct(t *testing.T) {
+	resolver := NewIdentityResolver()
+	tenantID := uuid.New()
+	projectID := uuid.New()
+	corrID := uuid.New()
+
+	input1 := ObservationInput{
+		AssessmentID:   uuid.New(),
+		JobID:          uuid.New(),
+		ScannerID:      "zap",
+		TargetAsset:    "api.example.com",
+		TargetEndpoint: "https://api.example.com/v1/users",
+		TemplateID:     "sqli-rule",
+		Title:          "SQL Injection",
+		Severity:       "HIGH",
+	}
+
+	res1, err := resolver.Resolve(tenantID, projectID, input1, nil, corrID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Same asset and template, but distinct endpoint (/v2/orders)
+	input2 := ObservationInput{
+		AssessmentID:   uuid.New(),
+		JobID:          uuid.New(),
+		ScannerID:      "nuclei",
+		TargetAsset:    "api.example.com",
+		TargetEndpoint: "https://api.example.com/v2/orders",
+		TemplateID:     "sqli-rule",
+		Title:          "SQL Injection",
+		Severity:       "HIGH",
+	}
+
+	res2, err := resolver.Resolve(tenantID, projectID, input2, []*PersistentFinding{res1.Finding}, corrID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Must NOT be merged into res1. Must be a distinct new finding.
+	if res2.Finding.ID == res1.Finding.ID {
+		t.Errorf("ambiguous identity should not merge into existing finding")
+	}
+	if !res2.IsNew {
+		t.Errorf("res2 should be marked IsNew")
+	}
+	if !res2.IsAmbiguous {
+		t.Errorf("res2 should be marked IsAmbiguous due to overlapping asset/rule but differing endpoint")
+	}
+	if res2.Algorithm != "v1" {
+		t.Errorf("expected algorithm v1, got %s", res2.Algorithm)
+	}
+}
