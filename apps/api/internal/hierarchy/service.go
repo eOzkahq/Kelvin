@@ -13,6 +13,7 @@ import (
 type HierarchyRepository interface {
 	CreateOrganization(ctx context.Context, org *Organization) error
 	GetOrganization(ctx context.Context, id uuid.UUID) (*Organization, error)
+	UpdateOrganization(ctx context.Context, org *Organization) error
 	CreateWorkspace(ctx context.Context, ws *Workspace) error
 	GetWorkspace(ctx context.Context, id uuid.UUID) (*Workspace, error)
 	GetWorkspaceByTenantID(ctx context.Context, tenantID uuid.UUID) (*Workspace, error)
@@ -70,6 +71,16 @@ func (m *MemoryHierarchyRepository) GetOrganization(ctx context.Context, id uuid
 		return nil, ErrOrganizationNotFound
 	}
 	return org, nil
+}
+
+func (m *MemoryHierarchyRepository) UpdateOrganization(ctx context.Context, org *Organization) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, ok := m.orgs[org.ID]; !ok {
+		return ErrOrganizationNotFound
+	}
+	m.orgs[org.ID] = org
+	return nil
 }
 
 func (m *MemoryHierarchyRepository) CreateWorkspace(ctx context.Context, ws *Workspace) error {
@@ -201,11 +212,17 @@ func (m *MemoryHierarchyRepository) GetTeamWorkspaceGrant(ctx context.Context, w
 
 // HierarchyService coordinates enterprise organizations, workspaces, and access validation.
 type HierarchyService struct {
-	repo HierarchyRepository
+	repo  HierarchyRepository
+	audit *HierarchyAuditRecorder
 }
 
 func NewHierarchyService(repo HierarchyRepository) *HierarchyService {
 	return &HierarchyService{repo: repo}
+}
+
+func (s *HierarchyService) WithAuditRecorder(audit *HierarchyAuditRecorder) *HierarchyService {
+	s.audit = audit
+	return s
 }
 
 // CreateOrganization registers a new enterprise organization and assigns the initial creator as OWNER.
@@ -216,7 +233,7 @@ func (s *HierarchyService) CreateOrganization(ctx context.Context, name, slug st
 		Name:        name,
 		Slug:        slug,
 		BillingTier: "ENTERPRISE",
-		Status:      "ACTIVE",
+		Status:      OrgStateActive,
 		Settings:    make(map[string]interface{}),
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -237,14 +254,197 @@ func (s *HierarchyService) CreateOrganization(ctx context.Context, name, slug st
 		return nil, err
 	}
 
+	if s.audit != nil {
+		_ = s.audit.RecordOrgLifecycleEvent(ctx, ActionOrgCreated, org, creatorUserID, map[string]interface{}{
+			"action": "created",
+		})
+	}
+
 	return org, nil
+}
+
+// SuspendOrganization transitions an organization to SUSPENDED.
+// Prohibits new assessments and modifications across all workspaces.
+func (s *HierarchyService) SuspendOrganization(ctx context.Context, orgID uuid.UUID, actorUserID string, reason string) error {
+	// Authorization: only OWNER or ADMIN can suspend
+	if err := s.authorizeOrgAdmin(ctx, orgID, actorUserID); err != nil {
+		return err
+	}
+
+	org, err := s.repo.GetOrganization(ctx, orgID)
+	if err != nil {
+		return err
+	}
+
+	// Validate transition
+	if err := ValidateOrgStateTransition(org.Status, OrgStateSuspended); err != nil {
+		return err
+	}
+
+	// Idempotent
+	if org.Status == OrgStateSuspended {
+		return nil
+	}
+
+	now := time.Now().UTC()
+	org.Status = OrgStateSuspended
+	org.SuspendedAt = &now
+	org.SuspensionReason = reason
+	org.UpdatedAt = now
+
+	if err := s.repo.UpdateOrganization(ctx, org); err != nil {
+		return err
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordOrgLifecycleEvent(ctx, ActionOrgSuspended, org, actorUserID, map[string]interface{}{
+			"reason": reason,
+		})
+	}
+
+	return nil
+}
+
+// ReactivateOrganization restores an organization from SUSPENDED or PENDING_DELETION to ACTIVE.
+func (s *HierarchyService) ReactivateOrganization(ctx context.Context, orgID uuid.UUID, actorUserID string) error {
+	if err := s.authorizeOrgAdmin(ctx, orgID, actorUserID); err != nil {
+		return err
+	}
+
+	org, err := s.repo.GetOrganization(ctx, orgID)
+	if err != nil {
+		return err
+	}
+
+	if err := ValidateOrgStateTransition(org.Status, OrgStateActive); err != nil {
+		return err
+	}
+
+	if org.Status == OrgStateActive {
+		return nil
+	}
+
+	now := time.Now().UTC()
+	org.Status = OrgStateActive
+	org.SuspendedAt = nil
+	org.SuspensionReason = ""
+	org.DeletionRequestedAt = nil
+	org.PurgeAfter = nil
+	org.UpdatedAt = now
+
+	if err := s.repo.UpdateOrganization(ctx, org); err != nil {
+		return err
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordOrgLifecycleEvent(ctx, ActionOrgReactivated, org, actorUserID, map[string]interface{}{
+			"action": "reactivated",
+		})
+	}
+
+	return nil
+}
+
+// RequestOrganizationDeletion places an organization in PENDING_DELETION with a retention grace period.
+func (s *HierarchyService) RequestOrganizationDeletion(ctx context.Context, orgID uuid.UUID, actorUserID string, gracePeriod time.Duration) error {
+	// Only Org OWNER can request deletion
+	mem, err := s.repo.GetOrgMembership(ctx, orgID, actorUserID)
+	if err != nil {
+		return err
+	}
+	if mem.Role != OrgRoleOwner {
+		return ErrUnauthorized
+	}
+
+	org, err := s.repo.GetOrganization(ctx, orgID)
+	if err != nil {
+		return err
+	}
+
+	if err := ValidateOrgStateTransition(org.Status, OrgStatePendingDeletion); err != nil {
+		return err
+	}
+
+	if org.Status == OrgStatePendingDeletion {
+		return nil
+	}
+
+	now := time.Now().UTC()
+	if gracePeriod <= 0 {
+		gracePeriod = 30 * 24 * time.Hour // Default 30 days
+	}
+	purgeAt := now.Add(gracePeriod)
+
+	org.Status = OrgStatePendingDeletion
+	org.DeletionRequestedAt = &now
+	org.PurgeAfter = &purgeAt
+	org.UpdatedAt = now
+
+	if err := s.repo.UpdateOrganization(ctx, org); err != nil {
+		return err
+	}
+
+	if s.audit != nil {
+		_ = s.audit.RecordOrgLifecycleEvent(ctx, ActionOrgDeletionRequested, org, actorUserID, map[string]interface{}{
+			"purge_after": purgeAt.Format(time.RFC3339),
+		})
+	}
+
+	return nil
+}
+
+// CancelOrganizationDeletion cancels a pending deletion request and restores ACTIVE status.
+func (s *HierarchyService) CancelOrganizationDeletion(ctx context.Context, orgID uuid.UUID, actorUserID string) error {
+	return s.ReactivateOrganization(ctx, orgID, actorUserID)
+}
+
+// EnsureWorkspaceOperational verifies that the workspace's parent organization is ACTIVE.
+// If the organization is SUSPENDED, PENDING_DELETION, or PURGED, operational execution is blocked.
+func (s *HierarchyService) EnsureWorkspaceOperational(ctx context.Context, workspaceID uuid.UUID) error {
+	ws, err := s.repo.GetWorkspace(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+
+	org, err := s.repo.GetOrganization(ctx, ws.OrganizationID)
+	if err != nil {
+		return err
+	}
+
+	switch org.Status {
+	case OrgStateActive:
+		return nil
+	case OrgStateSuspended:
+		return ErrOrgSuspended
+	case OrgStatePendingDeletion:
+		return ErrOrgPendingDeletion
+	case OrgStatePurged:
+		return ErrOrgPurged
+	default:
+		return ErrOrgSuspended
+	}
+}
+
+func (s *HierarchyService) authorizeOrgAdmin(ctx context.Context, orgID uuid.UUID, userID string) error {
+	mem, err := s.repo.GetOrgMembership(ctx, orgID, userID)
+	if err != nil {
+		return err
+	}
+	if mem.Role != OrgRoleOwner && mem.Role != OrgRoleAdmin {
+		return ErrUnauthorized
+	}
+	return nil
 }
 
 // CreateWorkspace registers an operational workspace mapped directly to an isolated tenant.
 func (s *HierarchyService) CreateWorkspace(ctx context.Context, orgID uuid.UUID, tenantID uuid.UUID, name, slug, environment string) (*Workspace, error) {
-	// Verify organization exists
-	if _, err := s.repo.GetOrganization(ctx, orgID); err != nil {
+	// Verify organization exists and is active
+	org, err := s.repo.GetOrganization(ctx, orgID)
+	if err != nil {
 		return nil, err
+	}
+	if org.Status != OrgStateActive {
+		return nil, ErrOrgSuspended
 	}
 
 	now := time.Now().UTC()

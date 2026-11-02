@@ -2,9 +2,21 @@ package hierarchy
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+// OrgState represents the lifecycle status of an Enterprise Organization.
+type OrgState string
+
+const (
+	OrgStateProvisioning    OrgState = "PROVISIONING"
+	OrgStateActive          OrgState = "ACTIVE"
+	OrgStateSuspended       OrgState = "SUSPENDED"
+	OrgStatePendingDeletion OrgState = "PENDING_DELETION"
+	OrgStatePurged          OrgState = "PURGED"
 )
 
 // OrgRole represents global roles within an Enterprise Organization.
@@ -44,14 +56,18 @@ const (
 
 // Organization represents the top-level legal, billing, and enterprise governance boundary.
 type Organization struct {
-	ID          uuid.UUID              `json:"id"`
-	Name        string                 `json:"name"`
-	Slug        string                 `json:"slug"`
-	BillingTier string                 `json:"billing_tier"`
-	Status      string                 `json:"status"`
-	Settings    map[string]interface{} `json:"settings"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
+	ID                  uuid.UUID              `json:"id"`
+	Name                string                 `json:"name"`
+	Slug                string                 `json:"slug"`
+	BillingTier         string                 `json:"billing_tier"`
+	Status              OrgState               `json:"status"` // PROVISIONING, ACTIVE, SUSPENDED, PENDING_DELETION, PURGED
+	Settings            map[string]interface{} `json:"settings"`
+	SuspendedAt         *time.Time             `json:"suspended_at,omitempty"`
+	SuspensionReason    string                 `json:"suspension_reason,omitempty"`
+	DeletionRequestedAt *time.Time             `json:"deletion_requested_at,omitempty"`
+	PurgeAfter          *time.Time             `json:"purge_after,omitempty"`
+	CreatedAt           time.Time              `json:"created_at"`
+	UpdatedAt           time.Time              `json:"updated_at"`
 }
 
 // Workspace represents an operational security boundary mapped 1:1 to an underlying Tenant.
@@ -117,14 +133,46 @@ type WorkspaceTeamGrant struct {
 }
 
 var (
-	ErrOrganizationNotFound   = errors.New("organization not found")
-	ErrWorkspaceNotFound      = errors.New("workspace not found")
-	ErrTeamNotFound           = errors.New("team not found")
-	ErrUnauthorized           = errors.New("unauthorized: insufficient hierarchy permissions")
-	ErrTenantMismatch         = errors.New("workspace tenant isolation mismatch")
-	ErrUnknownResource        = errors.New("unknown resource type for scope classification")
-	ErrImplicitAccessForbidden = errors.New("implicit cross-workspace access is forbidden")
+	ErrOrganizationNotFound        = errors.New("organization not found")
+	ErrWorkspaceNotFound           = errors.New("workspace not found")
+	ErrTeamNotFound                = errors.New("team not found")
+	ErrUnauthorized                = errors.New("unauthorized: insufficient hierarchy permissions")
+	ErrTenantMismatch              = errors.New("workspace tenant isolation mismatch")
+	ErrUnknownResource             = errors.New("unknown resource type for scope classification")
+	ErrImplicitAccessForbidden      = errors.New("implicit cross-workspace access is forbidden")
+	ErrInvalidOrgStateTransition   = errors.New("invalid organization lifecycle transition")
+	ErrOrgSuspended                = errors.New("organization is suspended: operational modifications prohibited")
+	ErrOrgPendingDeletion          = errors.New("organization is pending deletion: operational modifications prohibited")
+	ErrOrgPurged                   = errors.New("organization has been purged and cannot be accessed")
 )
+
+// ValidateOrgStateTransition checks whether a transition between two organization states is permitted.
+func ValidateOrgStateTransition(current, target OrgState) error {
+	if current == target {
+		return nil // Idempotent no-op
+	}
+
+	validTransitions := map[OrgState][]OrgState{
+		OrgStateProvisioning:    {OrgStateActive, OrgStateSuspended},
+		OrgStateActive:          {OrgStateSuspended, OrgStatePendingDeletion},
+		OrgStateSuspended:       {OrgStateActive, OrgStatePendingDeletion},
+		OrgStatePendingDeletion: {OrgStateActive, OrgStatePurged},
+		OrgStatePurged:          {}, // Terminal state
+	}
+
+	allowed, ok := validTransitions[current]
+	if !ok {
+		return fmt.Errorf("%w: unknown current state %q", ErrInvalidOrgStateTransition, current)
+	}
+
+	for _, s := range allowed {
+		if s == target {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%w: cannot transition from %s to %s", ErrInvalidOrgStateTransition, current, target)
+}
 
 // ClassifyResourceScope determines whether a security platform resource is Organization-wide or Workspace-isolated.
 func ClassifyResourceScope(resourceType string) (ResourceScope, error) {

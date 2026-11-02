@@ -1,0 +1,75 @@
+package hierarchy
+
+import (
+	"context"
+	"encoding/json"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/kelvin/kelvin/apps/api/internal/audit"
+)
+
+const (
+	ActionOrgCreated           = "org.created"
+	ActionOrgSuspended         = "org.suspended"
+	ActionOrgReactivated       = "org.reactivated"
+	ActionOrgDeletionRequested = "org.deletion_requested"
+	ActionOrgDeletionCancelled = "org.deletion_cancelled"
+	ActionOrgPurged            = "org.purged"
+)
+
+// HierarchyAuditRecorder records organization and workspace lifecycle audit events.
+type HierarchyAuditRecorder struct {
+	recorder audit.Recorder
+}
+
+func NewHierarchyAuditRecorder(recorder audit.Recorder) *HierarchyAuditRecorder {
+	return &HierarchyAuditRecorder{recorder: recorder}
+}
+
+func (r *HierarchyAuditRecorder) RecordOrgLifecycleEvent(ctx context.Context, action string, org *Organization, actorUserID string, details map[string]interface{}) error {
+	if r == nil || r.recorder == nil {
+		return nil
+	}
+
+	payloadMap := map[string]interface{}{
+		"org_id":     org.ID.String(),
+		"org_name":   org.Name,
+		"org_slug":   org.Slug,
+		"org_status": string(org.Status),
+		"details":    details,
+	}
+	payloadBytes, _ := json.Marshal(payloadMap)
+
+	var actorUUID *uuid.UUID
+	if u, err := uuid.Parse(actorUserID); err == nil {
+		actorUUID = &u
+	}
+
+	evt := audit.Event{
+		ID:          uuid.New(),
+		ActorUserID: actorUUID,
+		ActorType:   audit.ActorUser,
+		Action:      action,
+		EntityType:  "organization",
+		EntityID:    &org.ID,
+		Payload:     payloadBytes,
+		CreatedAt:   time.Now().UTC(),
+	}
+
+	return r.recorder.Record(ctx, evt)
+}
+
+// MemoryAuditRecorder captures audit events for testing.
+type MemoryAuditRecorder struct {
+	Events []audit.Event
+}
+
+func NewMemoryAuditRecorder() *MemoryAuditRecorder {
+	return &MemoryAuditRecorder{Events: make([]audit.Event, 0)}
+}
+
+func (m *MemoryAuditRecorder) Record(ctx context.Context, evt audit.Event) error {
+	m.Events = append(m.Events, evt)
+	return nil
+}
