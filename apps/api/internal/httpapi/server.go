@@ -105,6 +105,8 @@ func (s *Server) routes() {
 
 	// Finding detail retrieval endpoint (P3-08)
 	s.mux.Handle("GET /api/v1/findings/{id}", s.protect(http.HandlerFunc(s.handleGetFinding)))
+	// Finding observation timeline & assessment history (P3-34)
+	s.mux.Handle("GET /api/v1/findings/{id}/observations", s.protect(http.HandlerFunc(s.handleGetFindingObservationsTimeline)))
 	// Finding risk score explainability endpoint (P3-24)
 	s.mux.Handle("GET /api/v1/findings/{id}/risk-explanation", s.protect(http.HandlerFunc(s.handleGetRiskExplanation)))
 
