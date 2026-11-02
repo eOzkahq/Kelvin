@@ -8,3 +8,4 @@ resources:
   - worker-deployment.yaml
   - frontend-deployment.yaml
   - scanner-sandbox-spec.yaml
+  - ingress.yaml
