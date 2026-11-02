@@ -169,6 +169,83 @@ func (m *mockFindingStore) GetFalsePositiveReviewsByFinding(
 	return nil, nil
 }
 
+func (m *mockFindingStore) CreateSuppressionRule(
+	ctx context.Context,
+	tenantID, findingID uuid.UUID,
+	actorID *uuid.UUID,
+	reason string,
+	expiresAt time.Time,
+	corrID uuid.UUID,
+) (*findings.SuppressionRule, error) {
+	f, exists := m.findings[findingID]
+	if !exists || f.TenantID != tenantID {
+		return nil, findings.ErrFindingNotFound
+	}
+	now := time.Now().UTC()
+	rule := &findings.SuppressionRule{
+		ID:        uuid.New(),
+		TenantID:  tenantID,
+		FindingID: findingID,
+		ActorID:   actorID,
+		Reason:    reason,
+		Status:    findings.SuppressionActive,
+		ExpiresAt: expiresAt,
+		CreatedAt: now,
+	}
+	if err := findings.ValidateSuppressionRule(rule, now); err != nil {
+		return nil, err
+	}
+	return rule, nil
+}
+
+func (m *mockFindingStore) RevokeSuppressionRule(
+	ctx context.Context,
+	tenantID, findingID uuid.UUID,
+	actorID *uuid.UUID,
+	revocationReason string,
+	corrID uuid.UUID,
+) (*findings.SuppressionRule, error) {
+	f, exists := m.findings[findingID]
+	if !exists || f.TenantID != tenantID {
+		return nil, findings.ErrFindingNotFound
+	}
+	if revocationReason == "" {
+		return nil, findings.ErrRevocationReasonRequired
+	}
+	now := time.Now().UTC()
+	return &findings.SuppressionRule{
+		ID:               uuid.New(),
+		TenantID:         tenantID,
+		FindingID:        findingID,
+		Status:           findings.SuppressionRevoked,
+		RevokedAt:        &now,
+		RevokedBy:        actorID,
+		RevocationReason: revocationReason,
+		CreatedAt:        now.Add(-time.Hour),
+	}, nil
+}
+
+func (m *mockFindingStore) GetSuppressionsByFinding(
+	ctx context.Context,
+	tenantID, findingID uuid.UUID,
+) ([]*findings.SuppressionRule, error) {
+	f, exists := m.findings[findingID]
+	if !exists || f.TenantID != tenantID {
+		return nil, findings.ErrFindingNotFound
+	}
+	return []*findings.SuppressionRule{
+		{
+			ID:        uuid.New(),
+			TenantID:  tenantID,
+			FindingID: findingID,
+			Reason:    "Exclusion",
+			Status:    findings.SuppressionActive,
+			ExpiresAt: time.Now().Add(24 * time.Hour),
+			CreatedAt: time.Now().UTC(),
+		},
+	}, nil
+}
+
 func (m *mockFindingStore) UpdateFindingStatus(
 	ctx context.Context,
 	tenantID, findingID uuid.UUID,

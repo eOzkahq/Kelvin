@@ -24,6 +24,9 @@ type findingStoreIface interface {
 	MarkFindingFalsePositive(ctx context.Context, tenantID, findingID uuid.UUID, actorID uuid.UUID, justification, rebuttal string, corrID uuid.UUID) (*findings.FalsePositiveReview, error)
 	ReverseFalsePositive(ctx context.Context, tenantID, findingID uuid.UUID, actorID uuid.UUID, targetStatus findings.FindingStatus, justification string, corrID uuid.UUID) (*findings.FalsePositiveReview, error)
 	GetFalsePositiveReviewsByFinding(ctx context.Context, tenantID, findingID uuid.UUID) ([]*findings.FalsePositiveReview, error)
+	CreateSuppressionRule(ctx context.Context, tenantID, findingID uuid.UUID, actorID *uuid.UUID, reason string, expiresAt time.Time, corrID uuid.UUID) (*findings.SuppressionRule, error)
+	RevokeSuppressionRule(ctx context.Context, tenantID, findingID uuid.UUID, actorID *uuid.UUID, revocationReason string, corrID uuid.UUID) (*findings.SuppressionRule, error)
+	GetSuppressionsByFinding(ctx context.Context, tenantID, findingID uuid.UUID) ([]*findings.SuppressionRule, error)
 }
 
 // FindingDetailResponse encapsulates the finding record and paginated observation history.
@@ -42,6 +45,19 @@ type TransitionFindingRequest struct {
 type TransitionFindingResponse struct {
 	Finding *findings.PersistentFinding `json:"finding"`
 	Event   *findings.FindingEvent      `json:"event"`
+}
+
+// CreateSuppressionRequest models input to temporarily suppress a finding.
+type CreateSuppressionRequest struct {
+	Reason    string     `json:"reason"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	ActorID   *uuid.UUID `json:"actor_id,omitempty"`
+}
+
+// RevokeSuppressionRequest models input to revoke a suppression rule.
+type RevokeSuppressionRequest struct {
+	Reason  string     `json:"reason"`
+	ActorID *uuid.UUID `json:"actor_id,omitempty"`
 }
 
 // MarkFalsePositiveRequest captures the analyst review input for classifying a finding as false positive.
@@ -653,4 +669,250 @@ func (s *Server) handleReverseFalsePositive(w http.ResponseWriter, r *http.Reque
 	}
 
 	WriteSuccess(w, r, http.StatusOK, review, nil)
+}
+
+// handleCreateSuppression handles POST /api/v1/findings/{id}/suppress.
+func (s *Server) handleCreateSuppression(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	idStr := r.PathValue("id")
+	if idStr == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "missing_finding_id",
+			Message: "finding id is required",
+		}}))
+		return
+	}
+
+	findingID, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "invalid_finding_id",
+			Message: "finding id must be a valid UUID",
+		}}))
+		return
+	}
+
+	var req CreateSuppressionRequest
+	if !DecodeJSON(w, r, &req) {
+		return
+	}
+
+	if strings.TrimSpace(req.Reason) == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "reason",
+			Code:    "reason_required",
+			Message: "documented reason is required for suppression",
+		}}))
+		return
+	}
+
+	if req.ExpiresAt.IsZero() || !req.ExpiresAt.After(time.Now().UTC()) {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "expires_at",
+			Code:    "expiry_must_be_future",
+			Message: "suppression expiry timestamp must be in the future",
+		}}))
+		return
+	}
+
+	corrID := logging.CorrelationFromContext(r.Context())
+	var corrUUID uuid.UUID
+	if parsed, err := uuid.Parse(corrID); err == nil {
+		corrUUID = parsed
+	} else {
+		corrUUID = uuid.New()
+	}
+
+	rule, err := s.findingStore.CreateSuppressionRule(
+		r.Context(),
+		tenantID,
+		findingID,
+		req.ActorID,
+		req.Reason,
+		req.ExpiresAt,
+		corrUUID,
+	)
+	if err != nil {
+		if errors.Is(err, findings.ErrFindingNotFound) {
+			WriteProblem(w, r, kelvinerrors.NewNotFound("finding not found"))
+			return
+		}
+		if errors.Is(err, findings.ErrSuppressionAlreadyActive) {
+			WriteProblem(w, r, kelvinerrors.NewConflict("finding is already under an active suppression rule"))
+			return
+		}
+		if errors.Is(err, findings.ErrSuppressionReasonRequired) || errors.Is(err, findings.ErrSuppressionExpiryRequired) {
+			WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+				Field:   "suppression",
+				Code:    "validation_error",
+				Message: err.Error(),
+			}}))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	WriteSuccess(w, r, http.StatusCreated, rule, nil)
+}
+
+// handleRevokeSuppression handles POST /api/v1/findings/{id}/unsuppress.
+func (s *Server) handleRevokeSuppression(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	idStr := r.PathValue("id")
+	if idStr == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "missing_finding_id",
+			Message: "finding id is required",
+		}}))
+		return
+	}
+
+	findingID, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "invalid_finding_id",
+			Message: "finding id must be a valid UUID",
+		}}))
+		return
+	}
+
+	var req RevokeSuppressionRequest
+	if !DecodeJSON(w, r, &req) {
+		return
+	}
+
+	if strings.TrimSpace(req.Reason) == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "reason",
+			Code:    "reason_required",
+			Message: "reason is required to revoke suppression",
+		}}))
+		return
+	}
+
+	corrID := logging.CorrelationFromContext(r.Context())
+	var corrUUID uuid.UUID
+	if parsed, err := uuid.Parse(corrID); err == nil {
+		corrUUID = parsed
+	} else {
+		corrUUID = uuid.New()
+	}
+
+	rule, err := s.findingStore.RevokeSuppressionRule(
+		r.Context(),
+		tenantID,
+		findingID,
+		req.ActorID,
+		req.Reason,
+		corrUUID,
+	)
+	if err != nil {
+		if errors.Is(err, findings.ErrFindingNotFound) || errors.Is(err, findings.ErrSuppressionNotFound) {
+			WriteProblem(w, r, kelvinerrors.NewNotFound("active suppression rule not found"))
+			return
+		}
+		if errors.Is(err, findings.ErrRevocationReasonRequired) {
+			WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+				Field:   "reason",
+				Code:    "validation_error",
+				Message: err.Error(),
+			}}))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	WriteSuccess(w, r, http.StatusOK, rule, nil)
+}
+
+// handleGetSuppressions handles GET /api/v1/findings/{id}/suppressions.
+func (s *Server) handleGetSuppressions(w http.ResponseWriter, r *http.Request) {
+	if s.findingStore == nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Service Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "finding store not configured",
+		})
+		return
+	}
+
+	tenantID, err := tenant.ID(r.Context())
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewUnauthenticated("valid tenant context required"))
+		return
+	}
+
+	idStr := r.PathValue("id")
+	if idStr == "" {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "missing_finding_id",
+			Message: "finding id is required",
+		}}))
+		return
+	}
+
+	findingID, err := uuid.Parse(idStr)
+	if err != nil {
+		WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+			Field:   "id",
+			Code:    "invalid_finding_id",
+			Message: "finding id must be a valid UUID",
+		}}))
+		return
+	}
+
+	rules, err := s.findingStore.GetSuppressionsByFinding(r.Context(), tenantID, findingID)
+	if err != nil {
+		if errors.Is(err, findings.ErrFindingNotFound) {
+			WriteProblem(w, r, kelvinerrors.NewNotFound("finding not found"))
+			return
+		}
+		WriteProblem(w, r, kelvinerrors.NewInternal(err))
+		return
+	}
+
+	meta := map[string]any{
+		"count": len(rules),
+		"total": len(rules),
+	}
+
+	WriteSuccess(w, r, http.StatusOK, rules, meta)
 }

@@ -122,6 +122,17 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /api/v1/findings/{id}/false-positive", s.protect(fpMarkHandler))
 	s.mux.Handle("POST /api/v1/findings/{id}/false-positive/reverse", s.protect(fpReverseHandler))
 
+	// Finding suppression endpoints (P3-18)
+	var suppressHandler http.Handler = http.HandlerFunc(s.handleCreateSuppression)
+	var unsuppressHandler http.Handler = http.HandlerFunc(s.handleRevokeSuppression)
+	if s.idempotencyStore != nil {
+		suppressHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(suppressHandler)
+		unsuppressHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(unsuppressHandler)
+	}
+	s.mux.Handle("POST /api/v1/findings/{id}/suppress", s.protect(suppressHandler))
+	s.mux.Handle("POST /api/v1/findings/{id}/unsuppress", s.protect(unsuppressHandler))
+	s.mux.Handle("GET /api/v1/findings/{id}/suppressions", s.protect(http.HandlerFunc(s.handleGetSuppressions)))
+
 	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions} {
 		s.mux.Handle(method+" /api/v1/health", methodNotAllowed("GET"))
 		s.mux.Handle(method+" /health/live", methodNotAllowed("GET"))

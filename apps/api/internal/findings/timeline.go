@@ -25,6 +25,9 @@ const (
 	TimelineEventEvidenceRemoved     = "EVIDENCE_REMOVED"
 	TimelineEventFalsePositiveReopened = "FALSE_POSITIVE_REOPENED"
 	TimelineEventFalsePositiveReviewFlagged = "FALSE_POSITIVE_REVIEW_FLAGGED"
+	TimelineEventSuppressionCreated = "SUPPRESSION_CREATED"
+	TimelineEventSuppressionRevoked = "SUPPRESSION_REVOKED"
+	TimelineEventSuppressionExpired = "SUPPRESSION_EXPIRED"
 )
 
 var (

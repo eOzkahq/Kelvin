@@ -168,6 +168,110 @@ paths:
         "503":
           $ref: "#/components/responses/ServiceUnavailable"
 
+  /findings/{id}/suppress:
+    post:
+      tags: [findings]
+      operationId: createFindingSuppression
+      summary: Temporarily suppress finding review alerts.
+      description: Applies a bounded, time-limited exclusion rule to a persistent finding without destroying the underlying records or observations.
+      x-required-permission: finding:write
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSuppressionRequest"
+      responses:
+        "201":
+          description: Suppression rule successfully created.
+          headers:
+            X-Correlation-ID:
+              $ref: "#/components/headers/CorrelationID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /findings/{id}/unsuppress:
+    post:
+      tags: [findings]
+      operationId: revokeFindingSuppression
+      summary: Revoke active suppression rule.
+      description: Explicitly cancels an active suppression rule, immediately returning the finding to standard review and alerting views.
+      x-required-permission: finding:write
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeSuppressionRequest"
+      responses:
+        "200":
+          description: Suppression rule revoked.
+          headers:
+            X-Correlation-ID:
+              $ref: "#/components/headers/CorrelationID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
+  /findings/{id}/suppressions:
+    get:
+      tags: [findings]
+      operationId: getFindingSuppressions
+      summary: List suppression rules for a finding.
+      description: Returns all active and historical suppression rules applied to the specified finding within tenant boundaries.
+      x-required-permission: finding:read
+      parameters:
+        - $ref: "#/components/parameters/ResourceID"
+      responses:
+        "200":
+          description: Paginated suppression rules.
+          headers:
+            X-Correlation-ID:
+              $ref: "#/components/headers/CorrelationID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+
   /findings/{id}/false-positive:
     post:
       tags: [findings]
@@ -440,6 +544,36 @@ components:
           type: integer
           minimum: 0
           description: Emitted only where an exact count is cheap.
+    CreateSuppressionRequest:
+      type: object
+      additionalProperties: false
+      required: [reason, expires_at]
+      properties:
+        reason:
+          type: string
+          description: Mandatory documented rationale explaining why the finding is temporarily suppressed.
+        expires_at:
+          type: string
+          format: date-time
+          description: Expiration timestamp after which the rule automatically lapses and the finding reappears in active review.
+        actor_id:
+          type: string
+          format: uuid
+          description: Optional analyst identifier overriding context default.
+
+    RevokeSuppressionRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: Mandatory rationale explaining why the suppression is being cancelled early.
+        actor_id:
+          type: string
+          format: uuid
+          description: Optional analyst identifier overriding context default.
+
     MarkFalsePositiveRequest:
       type: object
       additionalProperties: false
