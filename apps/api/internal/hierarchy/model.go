@@ -135,6 +135,33 @@ type WorkspaceTeamGrant struct {
 	CreatedAt   time.Time     `json:"created_at"`
 }
 
+// InvitationStatus represents the lifecycle of an organization invitation.
+type InvitationStatus string
+
+const (
+	InvitationStatusPending  InvitationStatus = "PENDING"
+	InvitationStatusAccepted InvitationStatus = "ACCEPTED"
+	InvitationStatusExpired  InvitationStatus = "EXPIRED"
+	InvitationStatusRevoked  InvitationStatus = "REVOKED"
+	InvitationStatusDeclined InvitationStatus = "DECLINED"
+)
+
+// OrganizationInvitation represents a single-use cryptographically signed invitation to an organization.
+type OrganizationInvitation struct {
+	ID             uuid.UUID        `json:"id"`
+	OrganizationID uuid.UUID        `json:"organization_id"`
+	InviterUserID  string           `json:"inviter_user_id"`
+	InviteeEmail   string           `json:"invitee_email"`
+	Role           OrgRole          `json:"role"`
+	TeamID         *uuid.UUID       `json:"team_id,omitempty"`
+	TokenHash      string           `json:"token_hash"`
+	Status         InvitationStatus `json:"status"`
+	ExpiresAt      time.Time        `json:"expires_at"`
+	AcceptedAt     *time.Time       `json:"accepted_at,omitempty"`
+	RevokedAt      *time.Time       `json:"revoked_at,omitempty"`
+	CreatedAt      time.Time        `json:"created_at"`
+}
+
 var (
 	ErrOrganizationNotFound        = errors.New("organization not found")
 	ErrWorkspaceNotFound           = errors.New("workspace not found")
@@ -149,6 +176,10 @@ var (
 	ErrOrgPurged                   = errors.New("organization has been purged and cannot be accessed")
 	ErrUserNotInOrganization       = errors.New("user does not belong to the organization")
 	ErrTeamArchived                = errors.New("team is archived: modifications prohibited")
+	ErrInvitationNotFound          = errors.New("invitation not found")
+	ErrInvitationExpired           = errors.New("invitation token has expired")
+	ErrInvitationAlreadyUsed       = errors.New("invitation token has already been accepted or revoked")
+	ErrInvalidInvitationToken      = errors.New("invalid invitation token")
 )
 
 // ValidateOrgStateTransition checks whether a transition between two organization states is permitted.
