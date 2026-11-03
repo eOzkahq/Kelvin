@@ -4,6 +4,7 @@ import { Breadcrumbs } from "./Breadcrumbs";
 import { TenantSwitcher } from "./TenantSwitcher";
 import { UserMenu } from "./UserMenu";
 import { CommandPalette } from "../navigation/CommandPalette";
+import { SkipToContent, LiveAnnouncer } from "../ui";
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -35,6 +36,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans">
+      {/* Skip to Main Content Link for Screen Readers & Keyboard Nav */}
+      <SkipToContent />
+
+      {/* ARIA Live Region for Screen Reader Announcements */}
+      <LiveAnnouncer />
+
       {/* Desktop Sidebar (hidden on screens < 768px) */}
       <div className="hidden md:flex flex-shrink-0">
         <Sidebar
@@ -125,7 +132,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4">
           <Breadcrumbs />
-          <main className="mt-2">{children}</main>
+          <main id="main-content" tabIndex={-1} className="mt-2 focus:outline-none">
+            {children}
+          </main>
         </div>
       </div>
 
