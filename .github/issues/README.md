@@ -12,6 +12,7 @@ This directory contains the foundational master issues, evolutionary roadmaps, p
 | **Phase 3 — Findings Intelligence, Evidence & Reporting** | Q2 2027 (2027-06-30) | 45 Issues | IN PROGRESS | [**MILESTONE_PHASE_3.md**](MILESTONE_PHASE_3.md) |
 | **Phase 4 — Enterprise Platform, Security & Scalability** | Q3 2027 (2027-09-30) | 45 Issues | IN PROGRESS | [**MILESTONE_PHASE_4.md**](MILESTONE_PHASE_4.md) |
 | **Pre-Phase 5 — Final Audit & Phase Transition** | October 2027 (2027-10-15) | 1 Quality Gate | READY | [**MILESTONE_PRE_PHASE_5.md**](MILESTONE_PRE_PHASE_5.md) |
+| **Frontend Development & Product Experience** | Q4 2027 (`2027-12-31`) | 25 Issues | `READY` | [**MILESTONE_FRONTEND.md**](MILESTONE_FRONTEND.md) |
 
 ---
 
