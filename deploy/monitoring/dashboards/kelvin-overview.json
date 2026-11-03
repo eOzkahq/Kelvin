@@ -1,0 +1,81 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "API Availability & Error Budget (SLO: 99.9%)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "1 - (sum(rate(kelvin_http_requests_total{status_code=~\"5..\"}[5m])) / sum(rate(kelvin_http_requests_total[5m])))",
+          "legendFormat": "Current Availability"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "title": "API Request Latency (p50, p95, p99)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(kelvin_http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95 Latency"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(kelvin_http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50 Latency"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "title": "Assessment Queue Depth & Active Scans",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "kelvin_queue_depth",
+          "legendFormat": "Pending Queue Depth"
+        },
+        {
+          "expr": "kelvin_active_assessments",
+          "legendFormat": "Active Scans Running"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "title": "Database Connection Pool Allocation (PgBouncer)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "kelvin_db_pool_active",
+          "legendFormat": "Active Connections"
+        },
+        {
+          "expr": "kelvin_db_pool_idle",
+          "legendFormat": "Idle Connections"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["kelvin", "production", "slo"],
+  "time": { "from": "now-6h", "to": "now" },
+  "title": "KELVIN Production SLO & Reliability Dashboard",
+  "uid": "kelvin-prod-overview",
+  "version": 1
+}

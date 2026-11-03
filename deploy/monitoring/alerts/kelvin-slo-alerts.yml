@@ -1,0 +1,90 @@
+# KELVIN Production Prometheus Alerting Rules & SLO Policies
+groups:
+  - name: kelvin-slo-alerts
+    rules:
+      # 1. API Availability SLO (99.9% availability, alert on fast burn rate)
+      - alert: APIHighErrorRate
+        expr: |
+          (
+            sum(rate(kelvin_http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(kelvin_http_requests_total[5m]))
+          ) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          tier: control-plane
+          slo: api-availability
+        annotations:
+          summary: "KELVIN API Error Rate > 1% (Rapid Error Budget Burn)"
+          description: "API 5xx error rate has exceeded 1% over the last 5 minutes. Active Error Budget is burning at 14.4x rate."
+          runbook_url: "https://docs.kelvinsecurity.io/ops/runbooks/api-high-error-rate"
+
+      # 2. API Latency SLO (p95 < 250ms)
+      - alert: APIHighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(kelvin_http_request_duration_seconds_bucket[5m])) by (le)) > 0.25
+        for: 5m
+        labels:
+          severity: warning
+          tier: control-plane
+          slo: api-latency
+        annotations:
+          summary: "KELVIN API p95 Latency > 250ms"
+          description: "p95 API response time is above 250ms for 5 consecutive minutes."
+          runbook_url: "https://docs.kelvinsecurity.io/ops/runbooks/api-high-latency"
+
+      # 3. Assessment Queue Saturation (Queue delay SLO)
+      - alert: QueueSaturation
+        expr: kelvin_queue_depth > 50
+        for: 5m
+        labels:
+          severity: critical
+          tier: async-worker
+          slo: queue-delay
+        annotations:
+          summary: "Assessment Task Queue Depth Saturation"
+          description: "Pending queue depth has exceeded 50 tasks for > 5 minutes. Tasks are waiting longer than the 60s SLO."
+          runbook_url: "https://docs.kelvinsecurity.io/ops/runbooks/queue-saturation"
+
+      # 4. Database Connection Pool Starvation
+      - alert: DatabasePoolStarvation
+        expr: (kelvin_db_pool_active / (kelvin_db_pool_active + kelvin_db_pool_idle)) > 0.90
+        for: 3m
+        labels:
+          severity: critical
+          tier: data-persistence
+          slo: database-availability
+        annotations:
+          summary: "PostgreSQL PgBouncer Pool Allocation > 90%"
+          description: "Active database connections exceed 90% of maximum pool capacity. Approaching connection exhaustion."
+          runbook_url: "https://docs.kelvinsecurity.io/ops/runbooks/db-pool-starvation"
+
+      # 5. Worker Fleet Unhealthy
+      - alert: WorkerFleetUnhealthy
+        expr: sum(kelvin_active_workers) < 2
+        for: 2m
+        labels:
+          severity: critical
+          tier: async-worker
+          slo: worker-availability
+        annotations:
+          summary: "Insufficient Active Workers in Fleet"
+          description: "Active worker runners have dropped below minimum high-availability quorum (< 2 nodes)."
+          runbook_url: "https://docs.kelvinsecurity.io/ops/runbooks/worker-fleet-down"
+
+      # 6. Platform Scanner Internal Failure (Distinguished from target-side timeouts)
+      - alert: ScannerInternalFailureSpike
+        expr: |
+          sum(rate(kelvin_scanner_executions_total{status="internal_error"}[5m]))
+          /
+          sum(rate(kelvin_scanner_executions_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          tier: scanner-sandbox
+          slo: assessment-completion
+        annotations:
+          summary: "Internal Scanner Crash / Runtime Failure Spike > 5%"
+          description: "Scanner containers are failing with internal sandbox faults (excluding target unreachable/timeout failures)."
+          runbook_url: "https://docs.kelvinsecurity.io/ops/runbooks/scanner-internal-failure"
