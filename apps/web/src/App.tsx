@@ -9,6 +9,8 @@ const FindingsWorkspacePage = lazy(() => import("./pages/FindingsWorkspacePage")
 const FindingDetailPage = lazy(() => import("./pages/FindingDetailPage"));
 const RemediationWorkspacePage = lazy(() => import("./pages/RemediationWorkspacePage"));
 const TargetsManagementPage = lazy(() => import("./pages/TargetsManagementPage"));
+const OrgAdminPage = lazy(() => import("./pages/OrgAdminPage"));
+const TeamMembersPage = lazy(() => import("./pages/TeamMembersPage"));
 const AssessmentComparePage = lazy(() => import("./pages/AssessmentComparePage"));
 const ReportCenterPage = lazy(() => import("./pages/ReportCenterPage"));
 const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage"));
@@ -41,6 +43,8 @@ export default function App() {
                 <Route path="/findings/:id" element={<FindingDetailPage />} />
                 <Route path="/remediation" element={<RemediationWorkspacePage />} />
                 <Route path="/targets" element={<TargetsManagementPage />} />
+                <Route path="/admin/org" element={<OrgAdminPage />} />
+                <Route path="/admin/team" element={<TeamMembersPage />} />
                 <Route path="/compare" element={<AssessmentComparePage />} />
                 <Route path="/reports" element={<ReportCenterPage />} />
                 <Route path="/profile" element={<AccountProfilePage />} />
