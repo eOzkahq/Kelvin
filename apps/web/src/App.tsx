@@ -9,6 +9,8 @@ const FindingsWorkspacePage = lazy(() => import("./pages/FindingsWorkspacePage")
 const AssessmentComparePage = lazy(() => import("./pages/AssessmentComparePage"));
 const ReportCenterPage = lazy(() => import("./pages/ReportCenterPage"));
 const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage"));
+const AssessmentListPage = lazy(() => import("./pages/AssessmentListPage"));
+const AssessmentWizardPage = lazy(() => import("./pages/AssessmentWizardPage"));
 
 export default function App() {
   return (
@@ -28,6 +30,8 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/assessments" element={<AssessmentListPage />} />
+                <Route path="/assessments/new" element={<AssessmentWizardPage />} />
                 <Route path="/findings" element={<FindingsWorkspacePage />} />
                 <Route path="/compare" element={<AssessmentComparePage />} />
                 <Route path="/reports" element={<ReportCenterPage />} />
