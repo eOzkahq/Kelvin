@@ -1,18 +1,34 @@
 import { QueryClient } from "@tanstack/react-query";
 import { ApiError } from "./api";
 
+export const QUERY_PROFILES = {
+  STATIC: {
+    staleTime: 5 * 60_000,
+    gcTime: 15 * 60_000,
+    refetchOnWindowFocus: false,
+  },
+  STANDARD: {
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+  },
+  REALTIME: {
+    staleTime: 5_000,
+    gcTime: 60_000,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
+  },
+} as const;
+
 export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        // Data is considered fresh for 30 seconds
-        staleTime: 30_000,
-        // Inactive cache garbage collected after 5 minutes
-        gcTime: 5 * 60_000,
-        // Avoid automatic background refetches that might leak data or cause unintended server load
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: true,
-        // Smart retry: do not retry authentication errors or client not-found errors
+        staleTime: QUERY_PROFILES.STANDARD.staleTime,
+        gcTime: QUERY_PROFILES.STANDARD.gcTime,
+        refetchOnWindowFocus: QUERY_PROFILES.STANDARD.refetchOnWindowFocus,
+        refetchOnReconnect: QUERY_PROFILES.STANDARD.refetchOnReconnect,
         retry: (failureCount, error) => {
           if (error instanceof ApiError) {
             if (error.status === 401 || error.status === 403 || error.status === 404) {

@@ -11,3 +11,4 @@ export * from "./LiveAnnouncer";
 export * from "./SkipToContent";
 export * from "./ErrorBoundary";
 export * from "./ExternalLink";
+export * from "./VirtualList";
