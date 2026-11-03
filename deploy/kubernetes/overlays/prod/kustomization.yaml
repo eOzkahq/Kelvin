@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kelvin-prod
+
+bases:
+  - ../../base
+
+namePrefix: prod-
+
+commonLabels:
+  environment: prod
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 6
+    target:
+      kind: Deployment
+      name: kelvin-api
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 8
+    target:
+      kind: Deployment
+      name: kelvin-worker
