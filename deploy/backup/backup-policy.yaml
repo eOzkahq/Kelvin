@@ -1,0 +1,49 @@
+# KELVIN Production Automated Backup & Retention Policies
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kelvin-backup-policy
+  namespace: kelvin-prod
+data:
+  backup-policy.json: |
+    {
+      "version": "1.0",
+      "policies": {
+        "database": {
+          "engine": "PostgreSQL 16 Multi-AZ",
+          "continuous_wal_archiving": true,
+          "rpo_target_minutes": 5,
+          "rto_target_minutes": 30,
+          "schedule": {
+            "daily_snapshot_cron": "0 2 * * *",
+            "weekly_full_cron": "0 3 * * 0"
+          },
+          "retention": {
+            "daily_snapshots_days": 35,
+            "weekly_full_days": 90,
+            "monthly_compliance_days": 365
+          },
+          "encryption": {
+            "kms_key_alias": "alias/kelvin-prod-backup-kms",
+            "algorithm": "AES-256"
+          },
+          "access_isolation": {
+            "backup_operator_role": "arn:aws:iam::123456789012:role/kelvin-backup-operator-role",
+            "app_role_mutation_denied": true
+          }
+        },
+        "object_storage": {
+          "targets": ["kelvin-prod-evidence", "kelvin-prod-reports"],
+          "versioning": true,
+          "object_lock_worm": {
+            "mode": "COMPLIANCE",
+            "retention_period_days": 365
+          },
+          "cross_region_replication": {
+            "enabled": true,
+            "destination_region": "us-west-2",
+            "destination_bucket": "kelvin-prod-dr-replica"
+          }
+        }
+      }
+    }
