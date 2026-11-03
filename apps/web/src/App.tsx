@@ -7,6 +7,7 @@ import { AppShell } from "./components/layout";
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const FindingsWorkspacePage = lazy(() => import("./pages/FindingsWorkspacePage"));
 const FindingDetailPage = lazy(() => import("./pages/FindingDetailPage"));
+const RemediationWorkspacePage = lazy(() => import("./pages/RemediationWorkspacePage"));
 const AssessmentComparePage = lazy(() => import("./pages/AssessmentComparePage"));
 const ReportCenterPage = lazy(() => import("./pages/ReportCenterPage"));
 const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage"));
@@ -37,6 +38,7 @@ export default function App() {
                 <Route path="/assessments/:id" element={<AssessmentDetailPage />} />
                 <Route path="/findings" element={<FindingsWorkspacePage />} />
                 <Route path="/findings/:id" element={<FindingDetailPage />} />
+                <Route path="/remediation" element={<RemediationWorkspacePage />} />
                 <Route path="/compare" element={<AssessmentComparePage />} />
                 <Route path="/reports" element={<ReportCenterPage />} />
                 <Route path="/profile" element={<AccountProfilePage />} />
