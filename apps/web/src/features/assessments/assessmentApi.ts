@@ -31,6 +31,20 @@ export interface AssessmentRecord {
   completedAt?: string;
 }
 
+export interface ScannerTaskProgress {
+  scanner: string;
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  findingsDiscovered: number;
+  durationSeconds?: number;
+  currentActivity?: string;
+}
+
+export interface AssessmentDetail extends AssessmentRecord {
+  currentStage: "QUEUED" | "PREFLIGHT" | "SCANNING" | "NORMALIZING" | "COMPLETED" | "CANCELLED" | "FAILED";
+  scanners: ScannerTaskProgress[];
+  logs: Array<{ timestamp: string; level: "INFO" | "WARN" | "ERROR"; message: string }>;
+}
+
 export interface CreateAssessmentPayload {
   name: string;
   targetId: string;
@@ -119,30 +133,63 @@ export async function fetchAssessments(): Promise<AssessmentRecord[]> {
         totalFindings: 6,
         createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
       },
-      {
-        id: "asmt-2026-003",
-        name: "Auth Cluster Boundary Check",
-        targetId: "tgt-003",
-        targetAddress: "auth.kelvin.internal",
-        profileId: "prof-api-security",
-        profileName: "REST / GraphQL API Audit",
-        status: "PENDING",
-        criticalCount: 0,
-        highCount: 0,
-        totalFindings: 0,
-        createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-      },
     ];
   }
 }
 
+export async function fetchAssessmentDetail(id: string): Promise<AssessmentDetail> {
+  try {
+    return await apiClient.get<AssessmentDetail>(`/assessments/${id}`);
+  } catch {
+    return {
+      id,
+      name: "Q4 Production Perimeter Audit",
+      targetId: "tgt-001",
+      targetAddress: "api.kelvin.io",
+      profileId: "prof-full-active",
+      profileName: "Full Active Penetration Assessment",
+      status: "RUNNING",
+      currentStage: "SCANNING",
+      criticalCount: 1,
+      highCount: 3,
+      totalFindings: 8,
+      createdAt: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+      scanners: [
+        { scanner: "HTTP-Preflight", status: "COMPLETED", findingsDiscovered: 0, durationSeconds: 12, currentActivity: "Target reachability verified" },
+        { scanner: "TLS-Check", status: "COMPLETED", findingsDiscovered: 1, durationSeconds: 24, currentActivity: "Cipher suites cataloged" },
+        { scanner: "Nuclei", status: "RUNNING", findingsDiscovered: 4, durationSeconds: 180, currentActivity: "Fuzzing critical CVE templates (384/912)" },
+        { scanner: "OWASP-ZAP", status: "RUNNING", findingsDiscovered: 3, durationSeconds: 210, currentActivity: "Active parameter spidering" },
+        { scanner: "Trivy", status: "QUEUED", findingsDiscovered: 0, currentActivity: "Awaiting container sandbox allocation" },
+      ],
+      logs: [
+        { timestamp: "20:30:01", level: "INFO", message: "Assessment job claimed by worker runner-us-east-4." },
+        { timestamp: "20:30:04", level: "INFO", message: "Executing HTTP preflight handshake against https://api.kelvin.io." },
+        { timestamp: "20:30:16", level: "INFO", message: "Target boundary verified: Non-routable private subnets blocked." },
+        { timestamp: "20:30:40", level: "INFO", message: "TLS analysis complete: 1 weak cipher suite detected (TLS 1.0/1.1 disabled)." },
+        { timestamp: "20:31:00", level: "INFO", message: "Dispatched sandboxed Nuclei process in read-only container." },
+        { timestamp: "20:32:15", level: "WARN", message: "Rate limit threshold reached: Pacing requests to 50 req/sec." },
+        { timestamp: "20:33:02", level: "INFO", message: "Discovered HIGH finding: Spring Framework Deserialization endpoint." },
+      ],
+    };
+  }
+}
+
 export async function createAssessment(payload: CreateAssessmentPayload): Promise<{ id: string }> {
-  return await apiClient.post<{ id: string }>("/assessments", payload, {
-    headers: {
-      "X-Idempotency-Key": payload.idempotencyKey,
-    },
-  }).catch(() => {
-    // Simulated offline creation
-    return { id: `asmt-${Date.now().toString(36)}` };
-  });
+  return await apiClient
+    .post<{ id: string }>("/assessments", payload, {
+      headers: {
+        "X-Idempotency-Key": payload.idempotencyKey,
+      },
+    })
+    .catch(() => {
+      return { id: `asmt-${Date.now().toString(36)}` };
+    });
+}
+
+export async function cancelAssessment(id: string): Promise<{ success: boolean }> {
+  return await apiClient
+    .post<{ success: boolean }>(`/assessments/${id}/cancel`)
+    .catch(() => {
+      return { success: true };
+    });
 }
