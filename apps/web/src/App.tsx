@@ -14,6 +14,7 @@ const TeamMembersPage = lazy(() => import("./pages/TeamMembersPage"));
 const RolesPermissionsSsoPage = lazy(() => import("./pages/RolesPermissionsSsoPage"));
 const IntegrationsNotificationPage = lazy(() => import("./pages/IntegrationsNotificationPage"));
 const AuditLogsPage = lazy(() => import("./pages/AuditLogsPage"));
+const PlatformSettingsPage = lazy(() => import("./pages/PlatformSettingsPage"));
 const AssessmentComparePage = lazy(() => import("./pages/AssessmentComparePage"));
 const ReportCenterPage = lazy(() => import("./pages/ReportCenterPage"));
 const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage"));
@@ -50,6 +51,7 @@ export default function App() {
                 <Route path="/admin/team" element={<TeamMembersPage />} />
                 <Route path="/admin/roles" element={<RolesPermissionsSsoPage />} />
                 <Route path="/admin/integrations" element={<IntegrationsNotificationPage />} />
+                <Route path="/admin/settings" element={<PlatformSettingsPage />} />
                 <Route path="/audit" element={<AuditLogsPage />} />
                 <Route path="/compare" element={<AssessmentComparePage />} />
                 <Route path="/reports" element={<ReportCenterPage />} />
