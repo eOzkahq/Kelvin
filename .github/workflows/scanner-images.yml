@@ -27,8 +27,14 @@ on:
 permissions:
   contents: read
 
+# CI Workflow Toggle: Set ENABLE_CI to 'true' (or repo var ENABLE_CI) to enable runs.
+# Currently set to 'false' (OFF) so no scanner workflow runs trigger automatically.
+env:
+  ENABLE_CI: 'false'
+
 jobs:
   build-scan:
+    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true'
     name: Build and verify pinned scanner runtimes
     runs-on: ubuntu-latest
     steps:
