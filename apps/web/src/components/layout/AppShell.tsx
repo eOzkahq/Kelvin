@@ -3,7 +3,6 @@ import { Sidebar } from "./Sidebar";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { TenantSwitcher } from "./TenantSwitcher";
 import { UserMenu } from "./UserMenu";
-import { CommandPalette } from "../navigation/CommandPalette";
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -15,23 +14,10 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
     return localStorage.getItem("kelvin_sidebar_collapsed") === "true";
   });
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("kelvin_sidebar_collapsed", String(isCollapsed));
   }, [isCollapsed]);
-
-  // Global Ctrl+K / Cmd+K listener
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setIsSearchOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans">
@@ -97,7 +83,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
             {/* Quick Omnibar search trigger */}
             <button
               type="button"
-              onClick={() => setIsSearchOpen(true)}
               className="hidden sm:flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-700 hover:text-zinc-200 transition-colors"
               aria-label="Search assets, findings, and documentation (Ctrl+K)"
             >
@@ -128,9 +113,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
           <main className="mt-2">{children}</main>
         </div>
       </div>
-
-      {/* Global Command Palette */}
-      <CommandPalette isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </div>
   );
 };
