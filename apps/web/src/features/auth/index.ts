@@ -1,3 +1,2 @@
+// Auth feature module boundary
 export * from "./types";
-export * from "./AuthContext";
-export * from "./ProtectedRoute";
