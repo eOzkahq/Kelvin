@@ -7,6 +7,7 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const FindingsWorkspacePage = lazy(() => import("./pages/FindingsWorkspacePage"));
 const AssessmentComparePage = lazy(() => import("./pages/AssessmentComparePage"));
 const ReportCenterPage = lazy(() => import("./pages/ReportCenterPage"));
+const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage"));
 
 export default function App() {
   return (
