@@ -5,6 +5,7 @@ import { AppShell } from "./components/layout";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const FindingsWorkspacePage = lazy(() => import("./pages/FindingsWorkspacePage"));
+const FindingDetailPage = lazy(() => import("./pages/FindingDetailPage"));
 const AssessmentComparePage = lazy(() => import("./pages/AssessmentComparePage"));
 const ReportCenterPage = lazy(() => import("./pages/ReportCenterPage"));
 const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage"));
