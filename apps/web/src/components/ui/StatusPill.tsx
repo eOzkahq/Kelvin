@@ -1,24 +1,13 @@
 import React from "react";
 
-export type ExecutionStatus =
-  | "PENDING"
-  | "RUNNING"
-  | "COMPLETED"
-  | "FAILED"
-  | "CANCELLED"
-  | "OPEN"
-  | "CONFIRMED"
-  | "IN_PROGRESS"
-  | "RESOLVED"
-  | "FALSE_POSITIVE"
-  | "ACCEPTED_RISK";
+export type ExecutionStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
 
 export interface StatusPillProps {
   status: ExecutionStatus | string;
 }
 
 const statusConfig: Record<
-  string,
+  ExecutionStatus,
   { label: string; bg: string; text: string; border: string; animate?: boolean }
 > = {
   PENDING: {
@@ -51,44 +40,6 @@ const statusConfig: Record<
     bg: "bg-zinc-900",
     text: "text-zinc-500",
     border: "border-zinc-800",
-  },
-  // Findings Lifecycle Statuses
-  OPEN: {
-    label: "Open",
-    bg: "bg-red-950/40",
-    text: "text-red-400",
-    border: "border-red-800/60",
-  },
-  CONFIRMED: {
-    label: "Confirmed",
-    bg: "bg-amber-950/40",
-    text: "text-amber-300",
-    border: "border-amber-800/60",
-  },
-  IN_PROGRESS: {
-    label: "In Progress",
-    bg: "bg-cyan-950/40",
-    text: "text-cyan-300",
-    border: "border-cyan-800/60",
-    animate: true,
-  },
-  RESOLVED: {
-    label: "Resolved",
-    bg: "bg-emerald-950/50",
-    text: "text-emerald-300",
-    border: "border-emerald-800/60",
-  },
-  FALSE_POSITIVE: {
-    label: "False Positive",
-    bg: "bg-zinc-900/80",
-    text: "text-zinc-400",
-    border: "border-zinc-700/60",
-  },
-  ACCEPTED_RISK: {
-    label: "Risk Accepted",
-    bg: "bg-purple-950/40",
-    text: "text-purple-300",
-    border: "border-purple-800/60",
   },
 };
 
