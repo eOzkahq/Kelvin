@@ -47,9 +47,26 @@ type AuthConfig struct {
 
 // RedisConfig holds typed Redis task broker parameters (ADR-0003).
 type RedisConfig struct {
-	Addr     string `mapstructure:"addr"`
-	Password string `mapstructure:"password"` // Sensitive - redacted in logs
-	DB       int    `mapstructure:"db"`
+	URL        string `mapstructure:"url"`
+	Addr       string `mapstructure:"addr"`
+	Password   string `mapstructure:"password"` // Sensitive - redacted in logs
+	DB         int    `mapstructure:"db"`
+	TLSEnabled bool   `mapstructure:"tls_enabled"`
+}
+
+// SupabaseConfig holds managed cloud settings for Supabase PostgreSQL and Storage (INFRA-01).
+type SupabaseConfig struct {
+	URL            string `mapstructure:"url"`
+	AnonKey        string `mapstructure:"anon_key"`
+	ServiceRoleKey string `mapstructure:"service_role_key"` // Sensitive - redacted in logs
+	DBHost         string `mapstructure:"db_host"`
+	DBPort         int    `mapstructure:"db_port"`
+	DBName         string `mapstructure:"db_name"`
+	DBUser         string `mapstructure:"db_user"`
+	DBPassword     string `mapstructure:"db_password"` // Sensitive - redacted in logs
+	DBSSLMode      string `mapstructure:"db_sslmode"`
+	ReportsBucket  string `mapstructure:"storage_bucket_reports"`
+	EvidenceBucket string `mapstructure:"storage_bucket_evidence"`
 }
 
 // StorageConfig holds MinIO / S3 object store parameters.
@@ -92,6 +109,7 @@ type Config struct {
 	Database         DatabaseConfig    `mapstructure:"database"`
 	Auth             AuthConfig        `mapstructure:"auth"`
 	Redis            RedisConfig       `mapstructure:"redis"`
+	Supabase         SupabaseConfig    `mapstructure:"supabase"`
 	Storage          StorageConfig     `mapstructure:"storage"`
 	Idempotency      IdempotencyConfig `mapstructure:"idempotency"`
 	Evidence         EvidenceConfig    `mapstructure:"evidence"`
@@ -148,8 +166,24 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "database.database", "POSTGRES_DB")
 	bindEnvWithFallback(v, "auth.jwt_secret", "KELVIN_JWT_SECRET")
 
+	bindEnvWithFallback(v, "redis.url", "REDIS_URL")
 	bindEnvWithFallback(v, "redis.addr", "KELVIN_REDIS_ADDR")
 	bindEnvWithFallback(v, "redis.password", "KELVIN_REDIS_PASSWORD")
+	bindEnvWithFallback(v, "redis.password", "REDIS_PASSWORD")
+	bindEnvWithFallback(v, "redis.db", "REDIS_DB")
+	bindEnvWithFallback(v, "redis.tls_enabled", "REDIS_TLS_ENABLED")
+
+	bindEnvWithFallback(v, "supabase.url", "SUPABASE_URL")
+	bindEnvWithFallback(v, "supabase.anon_key", "SUPABASE_ANON_KEY")
+	bindEnvWithFallback(v, "supabase.service_role_key", "SUPABASE_SERVICE_ROLE_KEY")
+	bindEnvWithFallback(v, "supabase.db_host", "SUPABASE_DB_HOST")
+	bindEnvWithFallback(v, "supabase.db_port", "SUPABASE_DB_PORT")
+	bindEnvWithFallback(v, "supabase.db_name", "SUPABASE_DB_NAME")
+	bindEnvWithFallback(v, "supabase.db_user", "SUPABASE_DB_USER")
+	bindEnvWithFallback(v, "supabase.db_password", "SUPABASE_DB_PASSWORD")
+	bindEnvWithFallback(v, "supabase.db_sslmode", "SUPABASE_DB_SSLMODE")
+	bindEnvWithFallback(v, "supabase.storage_bucket_reports", "SUPABASE_STORAGE_BUCKET_REPORTS")
+	bindEnvWithFallback(v, "supabase.storage_bucket_evidence", "SUPABASE_STORAGE_BUCKET_EVIDENCE")
 
 	bindEnvWithFallback(v, "storage.endpoint", "MINIO_ENDPOINT")
 	bindEnvWithFallback(v, "storage.access_key", "MINIO_ROOT_USER")
@@ -182,6 +216,38 @@ func Load() (Config, error) {
 	}
 
 	dbURL := v.GetString("database.url")
+	supabaseHost := v.GetString("supabase.db_host")
+	if dbURL == "" && supabaseHost != "" {
+		port := v.GetInt("supabase.db_port")
+		if port <= 0 {
+			port = 5432
+		}
+		user := v.GetString("supabase.db_user")
+		if user == "" {
+			user = "postgres"
+		}
+		name := v.GetString("supabase.db_name")
+		if name == "" {
+			name = "postgres"
+		}
+		sslMode := v.GetString("supabase.db_sslmode")
+		if sslMode == "" {
+			sslMode = "verify-full"
+		}
+		userInfo := url.User(user)
+		if pw := v.GetString("supabase.db_password"); pw != "" {
+			userInfo = url.UserPassword(user, pw)
+		}
+		u := url.URL{
+			Scheme:   "postgresql",
+			User:     userInfo,
+			Host:     fmt.Sprintf("%s:%d", supabaseHost, port),
+			Path:     "/" + name,
+			RawQuery: "sslmode=" + sslMode,
+		}
+		dbURL = u.String()
+	}
+
 	if dbURL != "" {
 		if !strings.HasPrefix(dbURL, "postgres://") && !strings.HasPrefix(dbURL, "postgresql://") {
 			return Config{}, fmt.Errorf("invalid KELVIN_DATABASE_URL: %q (must start with postgres:// or postgresql://)", dbURL)
@@ -190,11 +256,21 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("invalid KELVIN_DATABASE_URL: %w", err)
 		}
 	} else if env == EnvStaging || env == EnvProduction {
-		return Config{}, errors.New("KELVIN_DATABASE_URL is required in staging and production environments")
+		return Config{}, errors.New("KELVIN_DATABASE_URL or SUPABASE_DB_HOST is required in staging and production environments")
 	}
+
 	redisAddr := v.GetString("redis.addr")
-	if (env == EnvStaging || env == EnvProduction) && redisAddr == "" {
-		return Config{}, errors.New("KELVIN_REDIS_ADDR is required in staging and production environments")
+	redisURL := v.GetString("redis.url")
+	if redisAddr == "" && redisURL != "" {
+		if u, err := url.Parse(redisURL); err == nil && u.Host != "" {
+			redisAddr = u.Host
+			if p, ok := u.User.Password(); ok && v.GetString("redis.password") == "" {
+				v.Set("redis.password", p)
+			}
+		}
+	}
+	if (env == EnvStaging || env == EnvProduction) && redisAddr == "" && redisURL == "" {
+		return Config{}, errors.New("KELVIN_REDIS_ADDR or REDIS_URL is required in staging and production environments")
 	}
 	jwtSecret := v.GetString("auth.jwt_secret")
 	if env == EnvStaging || env == EnvProduction {
@@ -224,9 +300,24 @@ func Load() (Config, error) {
 		},
 		Auth: AuthConfig{JWTSecret: jwtSecret},
 		Redis: RedisConfig{
-			Addr:     redisAddr,
-			Password: v.GetString("redis.password"),
-			DB:       v.GetInt("redis.db"),
+			URL:        redisURL,
+			Addr:       redisAddr,
+			Password:   v.GetString("redis.password"),
+			DB:         v.GetInt("redis.db"),
+			TLSEnabled: v.GetBool("redis.tls_enabled") || strings.HasPrefix(redisURL, "rediss://"),
+		},
+		Supabase: SupabaseConfig{
+			URL:            v.GetString("supabase.url"),
+			AnonKey:        v.GetString("supabase.anon_key"),
+			ServiceRoleKey: v.GetString("supabase.service_role_key"),
+			DBHost:         v.GetString("supabase.db_host"),
+			DBPort:         v.GetInt("supabase.db_port"),
+			DBName:         v.GetString("supabase.db_name"),
+			DBUser:         v.GetString("supabase.db_user"),
+			DBPassword:     v.GetString("supabase.db_password"),
+			DBSSLMode:      v.GetString("supabase.db_sslmode"),
+			ReportsBucket:  v.GetString("supabase.storage_bucket_reports"),
+			EvidenceBucket: v.GetString("supabase.storage_bucket_evidence"),
 		},
 		Storage: StorageConfig{
 			Endpoint:       v.GetString("storage.endpoint"),

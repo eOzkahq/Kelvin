@@ -153,13 +153,17 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "limits.hard_execution_deadline_seconds", "KELVIN_LIMITS_HARD_EXECUTION_DEADLINE_SECONDS")
 
 	bindEnvWithFallback(v, "database.url", "KELVIN_DATABASE_URL")
+	bindEnvWithFallback(v, "database.url", "SUPABASE_DB_URL")
+	bindEnvWithFallback(v, "redis.url", "REDIS_URL")
 	bindEnvWithFallback(v, "redis.addr", "KELVIN_REDIS_ADDR")
 	bindEnvWithFallback(v, "redis.password", "KELVIN_REDIS_PASSWORD")
+	bindEnvWithFallback(v, "redis.password", "REDIS_PASSWORD")
 	bindEnvWithFallback(v, "redis.worker_token_secret", "KELVIN_WORKER_TOKEN_SECRET")
 	bindEnvWithFallback(v, "storage.endpoint", "MINIO_ENDPOINT")
 	bindEnvWithFallback(v, "storage.access_key", "MINIO_ROOT_USER")
 	bindEnvWithFallback(v, "storage.secret_key", "MINIO_ROOT_PASSWORD")
 	bindEnvWithFallback(v, "storage.evidence_bucket", "MINIO_BUCKET_EVIDENCE")
+	bindEnvWithFallback(v, "storage.evidence_bucket", "SUPABASE_STORAGE_BUCKET_EVIDENCE")
 
 	envStr := v.GetString("env")
 	env := Environment(strings.ToLower(envStr))
@@ -200,6 +204,17 @@ func Load() (Config, error) {
 		}
 	}
 
+	redisAddr := v.GetString("redis.addr")
+	redisURL := v.GetString("redis.url")
+	if redisAddr == "" && redisURL != "" {
+		if u, err := url.Parse(redisURL); err == nil && u.Host != "" {
+			redisAddr = u.Host
+			if p, ok := u.User.Password(); ok && v.GetString("redis.password") == "" {
+				v.Set("redis.password", p)
+			}
+		}
+	}
+
 	cfg := Config{
 		Env:          env,
 		LogLevel:     logLevel,
@@ -210,7 +225,7 @@ func Load() (Config, error) {
 			URL: dbURL,
 		},
 		Redis: RedisConfig{
-			Addr:              v.GetString("redis.addr"),
+			Addr:              redisAddr,
 			Password:          v.GetString("redis.password"),
 			DB:                v.GetInt("redis.db"),
 			WorkerTokenSecret: workerTokenSecret,
