@@ -88,3 +88,57 @@ func (s *Server) handleHealthReady(w http.ResponseWriter, r *http.Request) {
 		Timestamp: now,
 	}, nil)
 }
+
+// handleHealthDB handles GET /health/db (Dedicated database connectivity probe).
+func (s *Server) handleHealthDB(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), DefaultProbeTimeout)
+	defer cancel()
+
+	if s.readyCheckers.DB == nil {
+		WriteSuccess(w, r, http.StatusOK, map[string]string{
+			"status": "NOT_CONFIGURED",
+		}, nil)
+		return
+	}
+
+	if err := s.readyCheckers.DB.Ping(ctx); err != nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Database Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "database health probe failed",
+		})
+		return
+	}
+
+	WriteSuccess(w, r, http.StatusOK, map[string]string{
+		"status": "UP",
+	}, nil)
+}
+
+// handleHealthRedis handles GET /health/redis (Dedicated Redis broker connectivity probe).
+func (s *Server) handleHealthRedis(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), DefaultProbeTimeout)
+	defer cancel()
+
+	if s.readyCheckers.Redis == nil {
+		WriteSuccess(w, r, http.StatusOK, map[string]string{
+			"status": "NOT_CONFIGURED",
+		}, nil)
+		return
+	}
+
+	if err := s.readyCheckers.Redis.Ping(ctx); err != nil {
+		WriteProblem(w, r, &kelvinerrors.API{
+			Type:   kelvinerrors.ProblemServiceUnavailable,
+			Title:  "Redis Broker Unavailable",
+			Status: http.StatusServiceUnavailable,
+			Detail: "redis broker health probe failed",
+		})
+		return
+	}
+
+	WriteSuccess(w, r, http.StatusOK, map[string]string{
+		"status": "UP",
+	}, nil)
+}

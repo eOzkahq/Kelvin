@@ -92,6 +92,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/health", s.handleHealth)
 	s.mux.HandleFunc("GET /health/live", s.handleHealthLive)
 	s.mux.HandleFunc("GET /health/ready", s.handleHealthReady)
+	s.mux.HandleFunc("GET /health/db", s.handleHealthDB)
+	s.mux.HandleFunc("GET /health/redis", s.handleHealthRedis)
 	s.mux.HandleFunc("GET /metrics", metrics.Default().Handler())
 
 	// State-mutating endpoints are wrapped with idempotency middleware when a

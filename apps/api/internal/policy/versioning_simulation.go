@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kelvin/kelvin/apps/api/internal/audit"
 )
 
 var (
@@ -188,6 +189,12 @@ func (s *PolicyVersioningService) UpdateDraft(
 	return draft, nil
 }
 
+type simulationAuditRecorder struct{}
+
+func (s *simulationAuditRecorder) Record(_ context.Context, _ audit.Event) error {
+	return nil
+}
+
 // SimulatePolicy dry-runs the policy version against test evaluation contexts without executing any scans.
 func (s *PolicyVersioningService) SimulatePolicy(
 	ctx context.Context,
@@ -204,7 +211,7 @@ func (s *PolicyVersioningService) SimulatePolicy(
 	}
 
 	// Spin up isolated temporary simulation engine
-	simEngine := NewPolicyEngine(&mockAuditRecorder{})
+	simEngine := NewPolicyEngine(&simulationAuditRecorder{})
 	for _, r := range ver.Rules {
 		simEngine.RegisterRule(r)
 	}
