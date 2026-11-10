@@ -367,16 +367,6 @@ export async function batchUpdateFindings(
     // Apply updates directly to client mock store
   }
 
-  const validIds = new Set(mockFindingsStore.map((f: Finding) => f.id));
-  const errors: { id: string; error: string }[] = [];
-  let updatedCount = 0;
-
-  for (const id of payload.findingIds) {
-    if (!validIds.has(id)) {
-      errors.push({ id, error: `Finding ${id} not found` });
-    }
-  }
-
   mockFindingsStore = mockFindingsStore.map((f: Finding) => {
     if (payload.findingIds.includes(f.id)) {
       updatedCount++;
@@ -446,15 +436,6 @@ export async function exportFindings(
   ]);
 
   return [headers.join(","), ...rows.map((r: string[]) => r.join(","))].join("\n");
-}
-
-export async function exportFindingsBlob(
-  format: "csv" | "json",
-  params?: FindingsFilterParams
-): Promise<Blob> {
-  const content = await exportFindings(format, params);
-  const mimeType = format === "json" ? "application/json" : "text/csv;charset=utf-8;";
-  return new Blob([content], { type: mimeType });
 }
 
 export function resetMockFindings(): void {
