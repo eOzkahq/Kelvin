@@ -1,12 +1,12 @@
 ---
 title: "FE-27 — Findings Integration"
-labels: ["phase/frontend", "area/findings", "kind/bug", "priority/critical", "status/ready-for-dev"]
+labels: ["phase/frontend", "area/findings", "kind/bug", "priority/critical", "status/completed"]
 milestone: "Frontend Development & Product Experience"
 parent_issue: "FE-EPIC-02_KELVIN_FRONTEND_REPAIR_AND_INTEGRATION.md"
 workstream: "Frontend Repair"
 issue_id: "FE-27"
 priority: "critical"
-status: "ready-for-dev"
+status: "completed"
 ---
 
 # FE-27 — Findings Integration
@@ -15,7 +15,7 @@ status: "ready-for-dev"
 **Milestone:** [Frontend Development & Product Experience](../MILESTONE_FRONTEND.md)  
 **Issue ID:** `FE-27`  
 **Priority:** `P0 — Critical` (Release-blocking)  
-**Status:** `ready-for-dev`  
+**Status:** `completed`  
 **Target Pull Request:** `fix(web): complete findings workspace integration`  
 
 ---
@@ -86,12 +86,12 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [ ] List and detail data models accurately represent data returned by the Go findings controllers.
-- [ ] Bulk status transitions handle partial batch failures gracefully without reporting all records updated.
-- [ ] Direct navigation to /findings/:id renders finding overview, risk breakdown, and historical observations.
-- [ ] Untrusted scanner evidence is sanitized with DOMPurify and sensitive tokens/passwords are visibly redacted.
-- [ ] Status transitions enforce mandatory justification notes where required by backend business rules.
-- [ ] CSV and JSON export operations reflect active filters and handle download stream failures.
+- [x] List and detail data models accurately represent data returned by the Go findings controllers.
+- [x] Bulk status transitions handle partial batch failures gracefully without reporting all records updated.
+- [x] Direct navigation to /findings/:id renders finding overview, risk breakdown, and historical observations.
+- [x] Untrusted scanner evidence is sanitized with DOMPurify and sensitive tokens/passwords are visibly redacted.
+- [x] Status transitions enforce mandatory justification notes where required by backend business rules.
+- [x] CSV and JSON export operations reflect active filters and handle download stream failures.
 
 ---
 
