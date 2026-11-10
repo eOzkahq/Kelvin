@@ -34,25 +34,27 @@ func TestHealthLive(t *testing.T) {
 	srv := New(cfg, zap.NewNop())
 	handler := srv.Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/health/live", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	for _, path := range []string{"/health/live", "/healthz"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK for /health/live, got %d", rec.Code)
-	}
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK for %s, got %d", path, rec.Code)
+		}
 
-	var res struct {
-		Data struct {
-			Status string `json:"status"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
+		var res struct {
+			Data struct {
+				Status string `json:"status"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+			t.Fatalf("failed to decode response for %s: %v", path, err)
+		}
 
-	if res.Data.Status != "LIVE" {
-		t.Errorf("expected status 'LIVE', got %q", res.Data.Status)
+		if res.Data.Status != "LIVE" {
+			t.Errorf("expected status 'LIVE' for %s, got %q", path, res.Data.Status)
+		}
 	}
 }
 
@@ -65,27 +67,29 @@ func TestHealthReady_AllHealthy(t *testing.T) {
 	})
 	handler := srv.Handler()
 
-	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	for _, path := range []string{"/health/ready", "/readyz"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK for healthy /health/ready, got %d", rec.Code)
-	}
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK for healthy %s, got %d", path, rec.Code)
+		}
 
-	var res struct {
-		Data struct {
-			Status   string `json:"status"`
-			Database string `json:"database"`
-			Broker   string `json:"broker"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
+		var res struct {
+			Data struct {
+				Status   string `json:"status"`
+				Database string `json:"database"`
+				Broker   string `json:"broker"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+			t.Fatalf("failed to decode response for %s: %v", path, err)
+		}
 
-	if res.Data.Status != "READY" || res.Data.Database != "UP" || res.Data.Broker != "UP" {
-		t.Errorf("unexpected readiness payload: %+v", res.Data)
+		if res.Data.Status != "READY" || res.Data.Database != "UP" || res.Data.Broker != "UP" {
+			t.Errorf("unexpected readiness payload for %s: %+v", path, res.Data)
+		}
 	}
 }
 
