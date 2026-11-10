@@ -1,12 +1,12 @@
 ---
 title: "FE-30 — Build, Test and Release Acceptance"
-labels: ["phase/frontend", "area/web", "kind/quality-gate", "priority/critical", "status/ready-for-dev"]
+labels: ["phase/frontend", "area/web", "kind/quality-gate", "priority/critical", "status/completed"]
 milestone: "Frontend Development & Product Experience"
 parent_issue: "FE-EPIC-02_KELVIN_FRONTEND_REPAIR_AND_INTEGRATION.md"
 workstream: "Frontend Repair"
 issue_id: "FE-30"
 priority: "critical"
-status: "ready-for-dev"
+status: "completed"
 ---
 
 # FE-30 — Build, Test and Release Acceptance
@@ -15,7 +15,7 @@ status: "ready-for-dev"
 **Milestone:** [Frontend Development & Product Experience](../MILESTONE_FRONTEND.md)  
 **Issue ID:** `FE-30`  
 **Priority:** `P0 — Critical` (Release-blocking)  
-**Status:** `ready-for-dev`  
+**Status:** `completed`  
 **Target Pull Request:** `fix(web): complete production build and release verification`  
 
 ---
@@ -85,12 +85,12 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [ ] npm run typecheck (app) and npm run typecheck:test pass with zero TypeScript errors under strict mode.
-- [ ] Vitest and Playwright test suites execute cleanly and pass 100% of tests.
-- [ ] Vite production build succeeds without warnings or bundle size budget violations.
-- [ ] Docker image compiles cleanly on linux/arm64 and passes container health checks on port 8088.
-- [ ] Deep linking and browser refresh on /services/kelvin/findings/123 load correctly without 404 errors.
-- [ ] No P0 or P1 defects remain open; QA audit report is published with reproducible evidence and signed off.
+- [x] npm run typecheck (app) and npm run typecheck:test pass with zero TypeScript errors under strict mode.
+- [x] Vitest and Playwright test suites execute cleanly and pass 100% of tests.
+- [x] Vite production build succeeds without warnings or bundle size budget violations.
+- [x] Docker image compiles cleanly on linux/arm64 and passes container health checks on port 8088.
+- [x] Deep linking and browser refresh on /services/kelvin/findings/123 load correctly without 404 errors.
+- [x] No P0 or P1 defects remain open; QA audit report is published with reproducible evidence and signed off.
 
 ---
 
