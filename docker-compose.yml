@@ -1,6 +1,73 @@
 services:
   # ----------------------------------------------------------------------------
+  # KELVIN Control Plane API (Go REST API Gateway)
+  # ----------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: kelvin-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      KELVIN_ENV: production
+      KELVIN_API_ADDR: ":8080"
+      KELVIN_DATABASE_URL: postgres://${POSTGRES_USER:-kelvin}:${POSTGRES_PASSWORD:-kelvin_secret_dev_pass}@postgres:5432/${POSTGRES_DB:-kelvin_dev}?sslmode=disable
+      KELVIN_REDIS_ADDR: redis:6379
+      KELVIN_REDIS_PASSWORD: ${REDIS_PASSWORD:-kelvin_redis_dev_secret}
+      KELVIN_JWT_SECRET: ${KELVIN_JWT_SECRET:-production-super-secret-jwt-key-32-bytes!}
+      KELVIN_EVIDENCE_SIGNING_KEY: ${KELVIN_EVIDENCE_SIGNING_KEY:-production-evidence-hmac-key-32-bytes!}
+      KELVIN_API_ALLOWED_ORIGINS: "https://eozka.com"
+      KELVIN_API_SHUTDOWN_TIMEOUT_S: 30
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - kelvin-net
+
+  # ----------------------------------------------------------------------------
+  # KELVIN Worker Execution Runner (Asynq Priority Queue & OCI Runners)
+  # ----------------------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    container_name: kelvin-worker
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      KELVIN_ENV: production
+      KELVIN_REDIS_ADDR: redis:6379
+      KELVIN_REDIS_PASSWORD: ${REDIS_PASSWORD:-kelvin_redis_dev_secret}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - kelvin-net
+
+  # ----------------------------------------------------------------------------
   # PostgreSQL 15+ (Core Persistent Store - ADR-0002)
+  # Unmapped from host to isolate inside private bridge network
   # ----------------------------------------------------------------------------
   postgres:
     image: postgres:15-alpine
@@ -10,8 +77,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-kelvin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kelvin_secret_dev_pass}
       POSTGRES_DB: ${POSTGRES_DB:-kelvin_dev}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,6 +87,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     networks:
       - kelvin-net
 
@@ -38,12 +110,17 @@ services:
       - -path=/migrations
       - -database=postgres://${POSTGRES_USER:-kelvin}:${POSTGRES_PASSWORD:-kelvin_secret_dev_pass}@postgres:5432/${POSTGRES_DB:-kelvin_dev}?sslmode=disable
       - up
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     networks:
       - kelvin-net
 
   # ----------------------------------------------------------------------------
   # Redis 7+ (Task Broker & Queue State - ADR-0003)
-  # AOF enabled, noeviction memory policy
+  # AOF enabled, noeviction memory policy, unmapped from host
   # ----------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -56,8 +133,8 @@ services:
       --maxmemory 512mb
       --maxmemory-policy noeviction
       --requirepass ${REDIS_PASSWORD:-kelvin_redis_dev_secret}
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -66,6 +143,11 @@ services:
       timeout: 3s
       retries: 5
       start_period: 3s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     networks:
       - kelvin-net
 
@@ -80,9 +162,9 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-kelvin_minio_admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-kelvin_minio_secret_key}
-    ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    expose:
+      - "9000"
+      - "9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -91,6 +173,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     networks:
       - kelvin-net
 
@@ -108,6 +195,11 @@ services:
       /usr/bin/mc mb --ignore-existing myminio/${MINIO_BUCKET_REPORTS:-kelvin-reports};
       exit 0;
       "
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     networks:
       - kelvin-net
 
@@ -120,14 +212,19 @@ services:
       dockerfile: Dockerfile
     container_name: kelvin-mock-target
     restart: unless-stopped
-    ports:
-      - "${MOCK_TARGET_PORT:-8081}:8080"
+    expose:
+      - "8080"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
       interval: 5s
       timeout: 3s
       retries: 5
       start_period: 3s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
     networks:
       - kelvin-net
 
@@ -143,4 +240,3 @@ networks:
   kelvin-net:
     name: kelvin-local-network
     driver: bridge
-

@@ -6,7 +6,7 @@ parent_issue: "PRE-DEPLOY-EPIC_KELVIN_PRE_DEPLOYMENT_ENGINEERING_HARDENING.md"
 workstream: "Pre-Deployment Hardening"
 issue_id: "PRE-07"
 priority: "critical"
-status: "ready-for-dev"
+status: "completed"
 ---
 
 # PRE-07 — Frontend Release Readiness and API Integration
@@ -15,7 +15,7 @@ status: "ready-for-dev"
 **Milestone:** [Pre-Deployment Production Hardening](../MILESTONE_PRE_DEPLOYMENT.md)  
 **Issue ID:** `PRE-07`  
 **Priority:** `critical` (Deployment-blocking)  
-**Status:** `ready-for-dev`  
+**Status:** `completed`  
 **Target Pull Request:** `fix(web): resolve typescript build error and configure production api url`  
 
 ---
@@ -74,10 +74,10 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [ ] npm run build executes cleanly with zero TypeScript errors and produces optimized bundles.
-- [ ] No localhost URLs or development endpoints exist in production bundles.
-- [ ] Frontend successfully authenticates and issues authorized API calls to the production Go backend.
-- [ ] Vercel deployment succeeds and serves all routes under https://eozka.com.
+- [x] npm run build executes cleanly with zero TypeScript errors and produces optimized bundles.
+- [x] No localhost URLs or development endpoints exist in production bundles.
+- [x] Frontend successfully authenticates and issues authorized API calls to the production Go backend.
+- [x] Vercel deployment succeeds and serves all routes under https://eozka.com.
 
 ---
 
