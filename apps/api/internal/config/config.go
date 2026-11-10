@@ -39,6 +39,8 @@ type DatabaseConfig struct {
 	Password string `mapstructure:"password"` // Sensitive - redacted in logs
 	Database string `mapstructure:"database"`
 	SSLMode  string `mapstructure:"sslmode"`
+	MaxConns int32  `mapstructure:"max_conns"`
+	MinConns int32  `mapstructure:"min_conns"`
 }
 
 type AuthConfig struct {
@@ -47,11 +49,13 @@ type AuthConfig struct {
 
 // RedisConfig holds typed Redis task broker parameters (ADR-0003).
 type RedisConfig struct {
-	URL        string `mapstructure:"url"`
-	Addr       string `mapstructure:"addr"`
-	Password   string `mapstructure:"password"` // Sensitive - redacted in logs
-	DB         int    `mapstructure:"db"`
-	TLSEnabled bool   `mapstructure:"tls_enabled"`
+	URL          string `mapstructure:"url"`
+	Addr         string `mapstructure:"addr"`
+	Password     string `mapstructure:"password"` // Sensitive - redacted in logs
+	DB           int    `mapstructure:"db"`
+	TLSEnabled   bool   `mapstructure:"tls_enabled"`
+	PoolSize     int    `mapstructure:"pool_size"`
+	MinIdleConns int    `mapstructure:"min_idle_conns"`
 }
 
 // SupabaseConfig holds managed cloud settings for Supabase PostgreSQL and Storage (INFRA-01).
@@ -106,6 +110,7 @@ type Config struct {
 	BodyLimitBytes   int64             `mapstructure:"body_limit_bytes"`
 	ShutdownTimeoutS int               `mapstructure:"shutdown_timeout_s"`
 	Development      bool              `mapstructure:"development"`
+	AllowedOrigins   []string          `mapstructure:"allowed_origins"`
 	Database         DatabaseConfig    `mapstructure:"database"`
 	Auth             AuthConfig        `mapstructure:"auth"`
 	Redis            RedisConfig       `mapstructure:"redis"`
@@ -131,7 +136,14 @@ func Load() (Config, error) {
 	v.SetDefault("api.addr", ":8080")
 	v.SetDefault("api.version", "1.0.0-alpha")
 	v.SetDefault("api.body_limit_bytes", int64(1<<20)) // 1 MiB
-	v.SetDefault("api.shutdown_timeout_s", 10)
+	v.SetDefault("api.shutdown_timeout_s", 30)         // 30s graceful shutdown drain window
+	v.SetDefault("api.allowed_origins", []string{"https://eozka.com"})
+
+	// Database and Redis pool defaults (1 OCPU / bounded production)
+	v.SetDefault("database.max_conns", int32(25))
+	v.SetDefault("database.min_conns", int32(5))
+	v.SetDefault("redis.pool_size", 5)
+	v.SetDefault("redis.min_idle_conns", 2)
 
 	// Idempotency record TTL (default 24 hours = 86400 seconds).
 	v.SetDefault("idempotency.ttl_seconds", int64(86400))
@@ -154,6 +166,8 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "api.addr", "KELVIN_API_ADDR")
 	bindEnvWithFallback(v, "api.version", "KELVIN_API_VERSION")
 	bindEnvWithFallback(v, "api.body_limit_bytes", "KELVIN_API_BODY_LIMIT_BYTES")
+	bindEnvWithFallback(v, "api.shutdown_timeout_s", "KELVIN_API_SHUTDOWN_TIMEOUT_S")
+	bindEnvWithFallback(v, "api.allowed_origins", "KELVIN_API_ALLOWED_ORIGINS", "KELVIN_CORS_ALLOWED_ORIGINS")
 
 	bindEnvWithFallback(v, "idempotency.ttl_seconds", "KELVIN_IDEMPOTENCY_TTL_SECONDS")
 	bindEnvWithFallback(v, "evidence.signing_key", "KELVIN_EVIDENCE_SIGNING_KEY")
@@ -168,6 +182,8 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "database.user", "POSTGRES_USER")
 	bindEnvWithFallback(v, "database.password", "POSTGRES_PASSWORD")
 	bindEnvWithFallback(v, "database.database", "POSTGRES_DB")
+	bindEnvWithFallback(v, "database.max_conns", "KELVIN_DATABASE_MAX_CONNS")
+	bindEnvWithFallback(v, "database.min_conns", "KELVIN_DATABASE_MIN_CONNS")
 	bindEnvWithFallback(v, "auth.jwt_secret", "KELVIN_JWT_SECRET")
 
 	bindEnvWithFallback(v, "redis.url", "REDIS_URL")
@@ -176,6 +192,8 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "redis.password", "REDIS_PASSWORD")
 	bindEnvWithFallback(v, "redis.db", "REDIS_DB")
 	bindEnvWithFallback(v, "redis.tls_enabled", "REDIS_TLS_ENABLED")
+	bindEnvWithFallback(v, "redis.pool_size", "KELVIN_REDIS_POOL_SIZE")
+	bindEnvWithFallback(v, "redis.min_idle_conns", "KELVIN_REDIS_MIN_IDLE_CONNS")
 
 	bindEnvWithFallback(v, "supabase.url", "SUPABASE_URL")
 	bindEnvWithFallback(v, "supabase.anon_key", "SUPABASE_ANON_KEY")
@@ -256,8 +274,15 @@ func Load() (Config, error) {
 		if !strings.HasPrefix(dbURL, "postgres://") && !strings.HasPrefix(dbURL, "postgresql://") {
 			return Config{}, fmt.Errorf("invalid KELVIN_DATABASE_URL: %q (must start with postgres:// or postgresql://)", dbURL)
 		}
-		if _, err := url.Parse(dbURL); err != nil {
+		u, err := url.Parse(dbURL)
+		if err != nil {
 			return Config{}, fmt.Errorf("invalid KELVIN_DATABASE_URL: %w", err)
+		}
+		sslMode := strings.ToLower(u.Query().Get("sslmode"))
+		if env == EnvProduction {
+			if sslMode == "disable" || sslMode == "allow" || sslMode == "prefer" || sslMode == "" {
+				return Config{}, errors.New("verified database TLS (sslmode=verify-full) is required in production; sslmode=disable is prohibited")
+			}
 		}
 	} else if env == EnvStaging || env == EnvProduction {
 		return Config{}, errors.New("KELVIN_DATABASE_URL or SUPABASE_DB_HOST is required in staging and production environments")
@@ -294,6 +319,29 @@ func Load() (Config, error) {
 		return Config{}, errors.New("KELVIN_EVIDENCE_SIGNING_KEY must be at least 32 bytes and cannot use default fallback key")
 	}
 
+	rawOrigins := v.GetStringSlice("api.allowed_origins")
+	if len(rawOrigins) == 0 {
+		if raw := v.GetString("api.allowed_origins"); raw != "" {
+			rawOrigins = append(rawOrigins, raw)
+		}
+	}
+	var origins []string
+	for _, item := range rawOrigins {
+		for _, part := range strings.Split(item, ",") {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				origins = append(origins, trimmed)
+			}
+		}
+	}
+	if len(origins) == 0 {
+		origins = []string{"https://eozka.com"}
+	}
+	for _, orig := range origins {
+		if orig == "*" {
+			return Config{}, errors.New("wildcard '*' CORS origin is prohibited; explicit trusted frontend origins required")
+		}
+	}
+
 	cfg := Config{
 		Env:              env,
 		LogLevel:         logLevel,
@@ -302,6 +350,7 @@ func Load() (Config, error) {
 		BodyLimitBytes:   bodyLimit,
 		ShutdownTimeoutS: v.GetInt("api.shutdown_timeout_s"),
 		Development:      env == EnvDevelopment || env == EnvTesting,
+		AllowedOrigins:   origins,
 		Database: DatabaseConfig{
 			URL:      dbURL,
 			Host:     v.GetString("database.host"),
@@ -309,15 +358,19 @@ func Load() (Config, error) {
 			User:     v.GetString("database.user"),
 			Password: v.GetString("database.password"),
 			Database: v.GetString("database.database"),
-			SSLMode:  "disable",
+			SSLMode:  v.GetString("database.sslmode"),
+			MaxConns: int32(v.GetInt("database.max_conns")),
+			MinConns: int32(v.GetInt("database.min_conns")),
 		},
 		Auth: AuthConfig{JWTSecret: jwtSecret},
 		Redis: RedisConfig{
-			URL:        redisURL,
-			Addr:       redisAddr,
-			Password:   v.GetString("redis.password"),
-			DB:         v.GetInt("redis.db"),
-			TLSEnabled: v.GetBool("redis.tls_enabled") || strings.HasPrefix(redisURL, "rediss://"),
+			URL:          redisURL,
+			Addr:         redisAddr,
+			Password:     v.GetString("redis.password"),
+			DB:           v.GetInt("redis.db"),
+			TLSEnabled:   v.GetBool("redis.tls_enabled") || strings.HasPrefix(redisURL, "rediss://"),
+			PoolSize:     v.GetInt("redis.pool_size"),
+			MinIdleConns: v.GetInt("redis.min_idle_conns"),
 		},
 		Supabase: SupabaseConfig{
 			URL:            v.GetString("supabase.url"),
@@ -357,9 +410,12 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-func bindEnvWithFallback(v *viper.Viper, viperKey, envKey string) {
-	if val := os.Getenv(envKey); val != "" {
-		v.Set(viperKey, val)
+func bindEnvWithFallback(v *viper.Viper, viperKey string, envKeys ...string) {
+	for _, envKey := range envKeys {
+		if val := os.Getenv(envKey); val != "" {
+			v.Set(viperKey, val)
+			return
+		}
 	}
 }
 

@@ -47,7 +47,14 @@ func main() {
 
 	// 1. PostgreSQL connection & repositories
 	if cfg.Database.URL != "" {
-		pool, err := database.NewPool(context.Background(), cfg.Database.URL, database.DefaultPoolConfig(), log)
+		poolCfg := database.DefaultPoolConfig()
+		if cfg.Database.MaxConns > 0 {
+			poolCfg.MaxConns = cfg.Database.MaxConns
+		}
+		if cfg.Database.MinConns > 0 {
+			poolCfg.MinConns = cfg.Database.MinConns
+		}
+		pool, err := database.NewPool(context.Background(), cfg.Database.URL, poolCfg, log)
 		if err != nil {
 			log.Fatal("database connection failed", zap.Error(err))
 		}
@@ -64,14 +71,22 @@ func main() {
 
 	// 2. Redis connection & Idempotency Store
 	if cfg.Redis.URL != "" || cfg.Redis.Addr != "" {
+		redisPoolSize := cfg.Redis.PoolSize
+		if redisPoolSize <= 0 {
+			redisPoolSize = commonredis.APIPoolSize
+		}
+		redisMinIdle := cfg.Redis.MinIdleConns
+		if redisMinIdle <= 0 {
+			redisMinIdle = commonredis.APIMinIdleConns
+		}
 		redisCfg := commonredis.Config{
 			URL:          cfg.Redis.URL,
 			Addr:         cfg.Redis.Addr,
 			Password:     cfg.Redis.Password,
 			DB:           cfg.Redis.DB,
 			TLSEnabled:   cfg.Redis.TLSEnabled || strings.HasPrefix(cfg.Redis.URL, "rediss://") || isProduction,
-			PoolSize:     commonredis.APIPoolSize,
-			MinIdleConns: commonredis.APIMinIdleConns,
+			PoolSize:     redisPoolSize,
+			MinIdleConns: redisMinIdle,
 			DialTimeout:  commonredis.DefaultDialTimeout,
 			ReadTimeout:  commonredis.DefaultReadTimeout,
 			WriteTimeout: commonredis.DefaultWriteTimeout,
@@ -137,8 +152,10 @@ func main() {
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           server.Handler(),
+		ReadTimeout:       10 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 		ErrorLog:          nil,
 	}
 

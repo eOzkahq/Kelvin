@@ -111,6 +111,7 @@ func (s *Server) SetReadyCheckers(checkers ReadyCheckers) {
 func (s *Server) Handler() http.Handler {
 	var h http.Handler = s.mux
 	h = middleware.BodyLimit(s.cfg.BodyLimitBytes)(h)
+	h = middleware.CORS(s.cfg.AllowedOrigins)(h)
 	h = Recover()(h)
 	h = middleware.AccessLog()(h)
 	h = middleware.Correlation(h)
@@ -119,6 +120,8 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/health", s.handleHealth)
+	s.mux.HandleFunc("GET /healthz", s.handleHealthLive)
+	s.mux.HandleFunc("GET /readyz", s.handleHealthReady)
 	s.mux.HandleFunc("GET /health/live", s.handleHealthLive)
 	s.mux.HandleFunc("GET /health/ready", s.handleHealthReady)
 	s.mux.HandleFunc("GET /health/db", s.handleHealthDB)
