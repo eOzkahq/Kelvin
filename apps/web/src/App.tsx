@@ -24,8 +24,10 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/findings" element={<FindingsWorkspacePage />} />
+          <Route path="/findings/:id" element={<FindingDetailPage />} />
           <Route path="/compare" element={<AssessmentComparePage />} />
           <Route path="/reports" element={<ReportCenterPage />} />
+          <Route path="/account" element={<AccountProfilePage />} />
           <Route path="*" element={<HomePage />} />
         </Routes>
       </Suspense>
