@@ -73,7 +73,7 @@ export interface RequestOptions extends RequestInit {
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export function getApiBaseUrl(): string {
-  return import.meta.env?.VITE_API_BASE ?? "/api/v1";
+  return import.meta.env?.VITE_API_BASE_URL ?? import.meta.env?.VITE_API_BASE ?? "/api/v1";
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {

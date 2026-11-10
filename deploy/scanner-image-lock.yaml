@@ -1,0 +1,61 @@
+schema_version: "1.0"
+generated_at: "2026-11-10T21:49:00Z"
+target_platform: "linux/arm64,linux/amd64"
+status: "locked"
+
+scanners:
+  zap:
+    id: "zap"
+    version: "2.15.0"
+    adapter_version: "1.0.0"
+    image_reference: "ghcr.io/zaproxy/zaproxy:2.15.0"
+    image_digest: "sha256:d9b23b169527be63660fb1e57c6b9eb97cf1e2c9ef806dc5e7e3e7f53cfc0919"
+    executable: "/zap/zap-baseline.py"
+    user: "10001:10001"
+    security_options:
+      - "no-new-privileges:true"
+    capabilities_dropped:
+      - "ALL"
+    read_only_rootfs: true
+    resource_limits:
+      memory: "1.5g"
+      cpus: "1.0"
+      pids: 256
+
+  nuclei:
+    id: "nuclei"
+    version: "3.3.7"
+    adapter_version: "1.0.0"
+    image_reference: "projectdiscovery/nuclei:v3.3.7"
+    image_digest: "sha256:bb1a9829910d9faef8dcf16ad8dc94c50be4ce9356ef30ef834c2b9fae068b55"
+    template_catalog_version: "kelvin.safe.web.v1"
+    template_catalog_digest: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    executable: "/nuclei"
+    user: "10001:10001"
+    security_options:
+      - "no-new-privileges:true"
+    capabilities_dropped:
+      - "ALL"
+    read_only_rootfs: true
+    resource_limits:
+      memory: "1.5g"
+      cpus: "1.0"
+      pids: 256
+
+  http_preflight:
+    id: "http_preflight"
+    version: "1.0.0"
+    adapter_version: "1.0.0"
+    internal_builtin: true
+
+  http_security_headers:
+    id: "http_security_headers"
+    version: "1.0.0"
+    adapter_version: "1.0.0"
+    internal_builtin: true
+
+  tls_assessor:
+    id: "tls_assessor"
+    version: "1.0.0"
+    adapter_version: "1.0.0"
+    internal_builtin: true
