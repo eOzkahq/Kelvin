@@ -1,4 +1,4 @@
-import { request } from "../../services/api";
+import { request, ApiError } from "../../services/api";
 import type {
   RemediationFilterParams,
   RemediationNote,
@@ -180,6 +180,18 @@ const INITIAL_TASKS: RemediationTask[] = [
 
 let mockTasksStore: RemediationTask[] = JSON.parse(JSON.stringify(INITIAL_TASKS));
 
+export function calculateSlaStatus(
+  dueDateStr: string,
+  now: Date = new Date()
+): { slaHoursRemaining: number; isOverdue: boolean } {
+  const due = new Date(dueDateStr).getTime();
+  const diffHours = Math.round((due - now.getTime()) / (1000 * 60 * 60));
+  return {
+    slaHoursRemaining: diffHours,
+    isOverdue: diffHours < 0,
+  };
+}
+
 export async function fetchRemediationTasks(
   filters?: RemediationFilterParams
 ): Promise<RemediationTask[]> {
@@ -189,12 +201,15 @@ export async function fetchRemediationTasks(
       q.set("status", Array.isArray(filters.status) ? filters.status.join(",") : filters.status);
     }
     if (filters?.assignee) q.set("assignee", filters.assignee);
+    if (filters?.target) q.set("target", filters.target);
     if (filters?.search) q.set("q", filters.search);
     const queryStr = q.toString() ? `?${q.toString()}` : "";
     const res = await request<RemediationTask[]>(`/remediation/tasks${queryStr}`);
     if (res && Array.isArray(res)) return res;
-  } catch {
-    // Fall back to client-side fixture store
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw new Error(`Failed to fetch remediation tasks: ${err.message}`);
+    }
   }
 
   let tasks = [...mockTasksStore];
@@ -210,6 +225,10 @@ export async function fetchRemediationTasks(
 
   if (filters?.assignee) {
     tasks = tasks.filter((t) => t.assignee === filters.assignee);
+  }
+
+  if (filters?.target) {
+    tasks = tasks.filter((t) => t.target.toLowerCase().includes(filters.target!.toLowerCase()));
   }
 
   if (filters?.search) {
@@ -244,8 +263,10 @@ export async function updateTaskStatus(
       body: JSON.stringify({ status: newStatus, note }),
     });
     if (res && res.id) return res;
-  } catch {
-    // Local fallback update
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw new Error(`Failed to update task status: ${err.message}`);
+    }
   }
 
   const taskIndex = mockTasksStore.findIndex((t) => t.id === taskId);
@@ -276,8 +297,10 @@ export async function triggerVerificationScan(
       { method: "POST" }
     );
     if (res && res.verificationJobId) return res;
-  } catch {
-    // Local fallback simulation
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw new Error(`Failed to trigger verification scan: ${err.message}`);
+    }
   }
 
   const taskIndex = mockTasksStore.findIndex((t) => t.id === taskId);
@@ -301,6 +324,18 @@ export async function addRemediationNote(
   author: string,
   content: string
 ): Promise<RemediationNote> {
+  try {
+    const res = await request<RemediationNote>(`/remediation/tasks/${taskId}/notes`, {
+      method: "POST",
+      body: JSON.stringify({ author, content }),
+    });
+    if (res && res.id) return res;
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw new Error(`Failed to add note: ${err.message}`);
+    }
+  }
+
   const newNote: RemediationNote = {
     id: `not-${Date.now()}`,
     author,

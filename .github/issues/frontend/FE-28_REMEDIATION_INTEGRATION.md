@@ -1,12 +1,12 @@
 ---
 title: "FE-28 — Remediation Integration"
-labels: ["phase/frontend", "area/remediation", "kind/bug", "priority/critical", "status/ready-for-dev"]
+labels: ["phase/frontend", "area/remediation", "kind/bug", "priority/critical", "status/completed"]
 milestone: "Frontend Development & Product Experience"
 parent_issue: "FE-EPIC-02_KELVIN_FRONTEND_REPAIR_AND_INTEGRATION.md"
 workstream: "Frontend Repair"
 issue_id: "FE-28"
 priority: "critical"
-status: "ready-for-dev"
+status: "completed"
 ---
 
 # FE-28 — Remediation Integration
@@ -15,7 +15,7 @@ status: "ready-for-dev"
 **Milestone:** [Frontend Development & Product Experience](../MILESTONE_FRONTEND.md)  
 **Issue ID:** `FE-28`  
 **Priority:** `P0 — Critical` (Release-blocking)  
-**Status:** `ready-for-dev`  
+**Status:** `completed`  
 **Target Pull Request:** `fix(web): complete remediation workflow integration`  
 
 ---
@@ -75,11 +75,11 @@ stateDiagram-v2
 
 ## ✅ Acceptance Criteria
 
-- [ ] All remediation statuses conform strictly to the backend domain model (ADR-FE-05).
-- [ ] Notes persist through the backend API and attribute the real authenticated user (no hardcoded analyst emails).
-- [ ] Verification scan action triggers a real follow-up assessment job with verifiable backend job ID.
-- [ ] Failed status mutations revert Kanban card or list row back to previous state and display actionable error message.
-- [ ] SLA hours remaining and overdue flags are derived from verified backend dates or documented algorithms.
+- [x] All remediation statuses conform strictly to the backend domain model (ADR-FE-05).
+- [x] Notes persist through the backend API and attribute the real authenticated user (no hardcoded analyst emails).
+- [x] Verification scan action triggers a real follow-up assessment job with verifiable backend job ID.
+- [x] Failed status mutations revert Kanban card or list row back to previous state and display actionable error message.
+- [x] SLA hours remaining and overdue flags are derived from verified backend dates or documented algorithms.
 
 ---
 
