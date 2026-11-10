@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { setDemoModeOverride } from "../../config/env";
 import { fetchAssessmentDetail, cancelAssessment } from "./assessmentApi";
 import type { AssessmentDetail, AssessmentStatus } from "./types";
 
@@ -39,6 +40,7 @@ describe("FE-26: Assessment Integration Lifecycle Suite", () => {
   });
 
   it("propagates API rejection when backend fails cancellation", async () => {
+    setDemoModeOverride(false);
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 409,
@@ -53,6 +55,7 @@ describe("FE-26: Assessment Integration Lifecycle Suite", () => {
     } catch (err: unknown) {
       expect((err as Error).message).toContain("Failed to cancel assessment");
     } finally {
+      setDemoModeOverride(null);
       vi.unstubAllGlobals();
     }
   });

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,11 +18,12 @@ import (
 	"github.com/kelvin/kelvin/apps/api/internal/storage"
 	"github.com/kelvin/kelvin/apps/api/pkg/job"
 	"github.com/kelvin/kelvin/packages/common/logging"
+	commonredis "github.com/kelvin/kelvin/packages/common/redis"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
-type redisPinger struct{ client *redis.Client }
+type redisPinger struct{ client redis.UniversalClient }
 
 func (p redisPinger) Ping(ctx context.Context) error { return p.client.Ping(ctx).Err() }
 
@@ -45,7 +47,14 @@ func main() {
 
 	// 1. PostgreSQL connection & repositories
 	if cfg.Database.URL != "" {
-		pool, err := database.NewPool(context.Background(), cfg.Database.URL, database.DefaultPoolConfig(), log)
+		poolCfg := database.DefaultPoolConfig()
+		if cfg.Database.MaxConns > 0 {
+			poolCfg.MaxConns = cfg.Database.MaxConns
+		}
+		if cfg.Database.MinConns > 0 {
+			poolCfg.MinConns = cfg.Database.MinConns
+		}
+		pool, err := database.NewPool(context.Background(), cfg.Database.URL, poolCfg, log)
 		if err != nil {
 			log.Fatal("database connection failed", zap.Error(err))
 		}
@@ -61,20 +70,43 @@ func main() {
 	}
 
 	// 2. Redis connection & Idempotency Store
-	if cfg.Redis.Addr != "" {
-		redisClient := redis.NewClient(&redis.Options{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
-		if err := redisClient.Ping(context.Background()).Err(); err != nil {
+	if cfg.Redis.URL != "" || cfg.Redis.Addr != "" {
+		redisPoolSize := cfg.Redis.PoolSize
+		if redisPoolSize <= 0 {
+			redisPoolSize = commonredis.APIPoolSize
+		}
+		redisMinIdle := cfg.Redis.MinIdleConns
+		if redisMinIdle <= 0 {
+			redisMinIdle = commonredis.APIMinIdleConns
+		}
+		redisCfg := commonredis.Config{
+			URL:          cfg.Redis.URL,
+			Addr:         cfg.Redis.Addr,
+			Password:     cfg.Redis.Password,
+			DB:           cfg.Redis.DB,
+			TLSEnabled:   cfg.Redis.TLSEnabled || strings.HasPrefix(cfg.Redis.URL, "rediss://") || isProduction,
+			PoolSize:     redisPoolSize,
+			MinIdleConns: redisMinIdle,
+			DialTimeout:  commonredis.DefaultDialTimeout,
+			ReadTimeout:  commonredis.DefaultReadTimeout,
+			WriteTimeout: commonredis.DefaultWriteTimeout,
+		}
+		redisClient, err := commonredis.NewClient(redisCfg)
+		if err != nil {
+			log.Fatal("redis initialization failed", zap.Error(err))
+		}
+		if err := redisClient.Ping(context.Background()); err != nil {
 			log.Fatal("redis connection failed", zap.Error(err))
 		}
 		defer func() { _ = redisClient.Close() }()
-		ready.Redis = redisPinger{client: redisClient}
+		ready.Redis = redisPinger{client: redisClient.UniversalClient()}
 
 		// Composition Root: Wire Redis Idempotency Store
 		idempTTL := time.Duration(cfg.Idempotency.TTLSeconds) * time.Second
 		if idempTTL <= 0 {
 			idempTTL = 24 * time.Hour
 		}
-		server.SetIdempotencyStore(idempotency.NewRedisStore(redisClient, idempTTL))
+		server.SetIdempotencyStore(idempotency.NewRedisStore(redisClient.UniversalClient(), idempTTL))
 	} else if isProduction {
 		log.Fatal("redis broker is required in production")
 	}
@@ -83,16 +115,17 @@ func main() {
 
 	// 3. Supabase Storage Provider
 	if cfg.Supabase.URL != "" && cfg.Supabase.ServiceRoleKey != "" {
-		_, err := storage.NewSupabaseStorageProvider(storage.Config{
+		storageProvider, err := storage.NewSupabaseStorageProvider(storage.Config{
 			URL:             cfg.Supabase.URL,
 			ServiceRoleKey:  cfg.Supabase.ServiceRoleKey,
 			ReportsBucket:   cfg.Supabase.ReportsBucket,
 			EvidenceBucket:  cfg.Supabase.EvidenceBucket,
-			SignedURLExpiry: 300 * time.Second,
+			SignedURLExpiry: time.Duration(cfg.Evidence.SignedURLTTLSeconds) * time.Second,
 		})
 		if err != nil {
 			log.Fatal("supabase storage provider initialization failed", zap.Error(err))
 		}
+		server.SetStorageProvider(storageProvider)
 	} else if isProduction {
 		log.Warn("supabase storage not fully configured; check cloud environment settings")
 	}
@@ -119,8 +152,10 @@ func main() {
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           server.Handler(),
+		ReadTimeout:       10 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 		ErrorLog:          nil,
 	}
 

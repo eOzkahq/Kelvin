@@ -39,9 +39,11 @@ type DatabaseConfig struct {
 
 // RedisConfig holds Redis task broker connection settings for worker queue polling.
 type RedisConfig struct {
+	URL               string `mapstructure:"url"`
 	Addr              string `mapstructure:"addr"`
 	Password          string `mapstructure:"password"` // Sensitive - redacted in logs
 	DB                int    `mapstructure:"db"`
+	TLSEnabled        bool   `mapstructure:"tls_enabled"`
 	WorkerTokenSecret string `mapstructure:"worker_token_secret"` // Sensitive; at least 32 bytes when enabled
 }
 
@@ -158,6 +160,7 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "redis.addr", "KELVIN_REDIS_ADDR")
 	bindEnvWithFallback(v, "redis.password", "KELVIN_REDIS_PASSWORD")
 	bindEnvWithFallback(v, "redis.password", "REDIS_PASSWORD")
+	bindEnvWithFallback(v, "redis.tls_enabled", "REDIS_TLS_ENABLED")
 	bindEnvWithFallback(v, "redis.worker_token_secret", "KELVIN_WORKER_TOKEN_SECRET")
 	bindEnvWithFallback(v, "storage.endpoint", "MINIO_ENDPOINT")
 	bindEnvWithFallback(v, "storage.access_key", "MINIO_ROOT_USER")

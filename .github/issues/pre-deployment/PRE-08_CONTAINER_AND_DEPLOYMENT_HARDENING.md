@@ -6,7 +6,7 @@ parent_issue: "PRE-DEPLOY-EPIC_KELVIN_PRE_DEPLOYMENT_ENGINEERING_HARDENING.md"
 workstream: "Pre-Deployment Hardening"
 issue_id: "PRE-08"
 priority: "high"
-status: "ready-for-dev"
+status: "completed"
 ---
 
 # PRE-08 — Container and Deployment Hardening
@@ -15,7 +15,7 @@ status: "ready-for-dev"
 **Milestone:** [Pre-Deployment Production Hardening](../MILESTONE_PRE_DEPLOYMENT.md)  
 **Issue ID:** `PRE-08`  
 **Priority:** `high` (Deployment-blocking)  
-**Status:** `ready-for-dev`  
+**Status:** `completed`  
 **Target Pull Request:** `fix(infra): harden arm64 docker images and compose network`  
 
 ---
@@ -76,10 +76,10 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [ ] Docker images build successfully for linux/arm64 architecture.
-- [ ] Containers execute under non-root user and drop unnecessary Linux capabilities.
-- [ ] Database and Redis ports are unmapped from the public host network.
-- [ ] Container health checks pass and log rotation prevents uncontrolled disk growth.
+- [x] Docker images build successfully for linux/arm64 architecture.
+- [x] Containers execute under non-root user and drop unnecessary Linux capabilities.
+- [x] Database and Redis ports are unmapped from the public host network.
+- [x] Container health checks pass and log rotation prevents uncontrolled disk growth.
 
 ---
 

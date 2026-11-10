@@ -39,9 +39,18 @@ export default function App() {
           <Route path="/assessments/:id" element={<AssessmentDetailPage />} />
           <Route path="/findings" element={<FindingsWorkspacePage />} />
           <Route path="/findings/:id" element={<FindingDetailPage />} />
+          <Route path="/remediation" element={<RemediationWorkspacePage />} />
+          <Route path="/targets" element={<TargetsManagementPage />} />
           <Route path="/compare" element={<AssessmentComparePage />} />
           <Route path="/reports" element={<ReportCenterPage />} />
+          <Route path="/audit" element={<AuditLogsPage />} />
           <Route path="/account" element={<AccountProfilePage />} />
+          <Route path="/profile" element={<AccountProfilePage />} />
+          <Route path="/admin" element={<OrgAdminPage />} />
+          <Route path="/team" element={<TeamMembersPage />} />
+          <Route path="/roles" element={<RolesPermissionsSsoPage />} />
+          <Route path="/integrations" element={<IntegrationsNotificationPage />} />
+          <Route path="/settings" element={<PlatformSettingsPage />} />
           <Route path="*" element={<HomePage />} />
         </Routes>
       </Suspense>
