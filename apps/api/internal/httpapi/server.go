@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"github.com/kelvin/kelvin/apps/api/internal/config"
 	"github.com/kelvin/kelvin/apps/api/internal/evidence"
+	"github.com/kelvin/kelvin/apps/api/internal/findings"
 	"github.com/kelvin/kelvin/apps/api/internal/idempotency"
 	"github.com/kelvin/kelvin/apps/api/internal/metrics"
 	"github.com/kelvin/kelvin/apps/api/internal/middleware"
@@ -31,6 +32,30 @@ type Server struct {
 	findingStore     findingStoreIface // nil means finding endpoints return 503
 	evidenceSigner   *evidence.Signer
 	protectedRoute   func(http.Handler) http.Handler
+}
+
+// Compile-time check ensuring PostgresFindingRepository satisfies findingStoreIface.
+var _ findingStoreIface = (*findings.PostgresFindingRepository)(nil)
+
+// ValidateDependencies checks that all required stores are wired. In production mode,
+// missing stores return an error.
+func (s *Server) ValidateDependencies(isProduction bool) error {
+	if !isProduction {
+		return nil
+	}
+	if s.jobStore == nil {
+		return errors.New("server: job store is required in production")
+	}
+	if s.findingStore == nil {
+		return errors.New("server: finding store is required in production")
+	}
+	if s.idempotencyStore == nil {
+		return errors.New("server: idempotency store is required in production")
+	}
+	if s.evidenceSigner == nil {
+		return errors.New("server: evidence signer is required in production")
+	}
+	return nil
 }
 
 // New builds the server with all registered routes.

@@ -11,7 +11,11 @@ import (
 	"github.com/kelvin/kelvin/apps/api/internal/auth"
 	"github.com/kelvin/kelvin/apps/api/internal/config"
 	"github.com/kelvin/kelvin/apps/api/internal/database"
+	"github.com/kelvin/kelvin/apps/api/internal/findings"
 	"github.com/kelvin/kelvin/apps/api/internal/httpapi"
+	"github.com/kelvin/kelvin/apps/api/internal/idempotency"
+	"github.com/kelvin/kelvin/apps/api/internal/storage"
+	"github.com/kelvin/kelvin/apps/api/pkg/job"
 	"github.com/kelvin/kelvin/packages/common/logging"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -36,6 +40,10 @@ func main() {
 
 	server := httpapi.New(cfg, log)
 	ready := httpapi.ReadyCheckers{}
+
+	isProduction := cfg.Env == config.EnvProduction || (!cfg.Development && cfg.Env != config.EnvTesting)
+
+	// 1. PostgreSQL connection & repositories
 	if cfg.Database.URL != "" {
 		pool, err := database.NewPool(context.Background(), cfg.Database.URL, database.DefaultPoolConfig(), log)
 		if err != nil {
@@ -43,7 +51,16 @@ func main() {
 		}
 		defer pool.Close()
 		ready.DB = pool
+
+		// Composition Root: Wire Job Store and Findings Repository
+		server.SetJobStore(job.Store{DB: pool})
+		findingRepo := findings.NewPostgresFindingRepository(pool)
+		server.SetFindingStore(findingRepo)
+	} else if isProduction {
+		log.Fatal("database connection is required in production")
 	}
+
+	// 2. Redis connection & Idempotency Store
 	if cfg.Redis.Addr != "" {
 		redisClient := redis.NewClient(&redis.Options{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
 		if err := redisClient.Ping(context.Background()).Err(); err != nil {
@@ -51,8 +68,36 @@ func main() {
 		}
 		defer func() { _ = redisClient.Close() }()
 		ready.Redis = redisPinger{client: redisClient}
+
+		// Composition Root: Wire Redis Idempotency Store
+		idempTTL := time.Duration(cfg.Idempotency.TTLSeconds) * time.Second
+		if idempTTL <= 0 {
+			idempTTL = 24 * time.Hour
+		}
+		server.SetIdempotencyStore(idempotency.NewRedisStore(redisClient, idempTTL))
+	} else if isProduction {
+		log.Fatal("redis broker is required in production")
 	}
+
 	server.SetReadyCheckers(ready)
+
+	// 3. Supabase Storage Provider
+	if cfg.Supabase.URL != "" && cfg.Supabase.ServiceRoleKey != "" {
+		_, err := storage.NewSupabaseStorageProvider(storage.Config{
+			URL:             cfg.Supabase.URL,
+			ServiceRoleKey:  cfg.Supabase.ServiceRoleKey,
+			ReportsBucket:   cfg.Supabase.ReportsBucket,
+			EvidenceBucket:  cfg.Supabase.EvidenceBucket,
+			SignedURLExpiry: 300 * time.Second,
+		})
+		if err != nil {
+			log.Fatal("supabase storage provider initialization failed", zap.Error(err))
+		}
+	} else if isProduction {
+		log.Warn("supabase storage not fully configured; check cloud environment settings")
+	}
+
+	// 4. Authentication Middleware
 	if cfg.Auth.JWTSecret != "" {
 		tokenService, err := auth.NewTokenService(cfg.Auth.JWTSecret)
 		if err != nil {
@@ -62,7 +107,15 @@ func main() {
 			roles := auth.RequireRole(auth.RoleTenantAdmin, auth.RoleSecurityAnalyst)(next)
 			return auth.Middleware(tokenService)(roles)
 		})
+	} else if isProduction {
+		log.Fatal("JWT secret is required in production")
 	}
+
+	// 5. Fail-fast validation of required dependencies in production
+	if err := server.ValidateDependencies(isProduction); err != nil {
+		log.Fatal("production dependency validation failed", zap.Error(err))
+	}
+
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           server.Handler(),
@@ -80,6 +133,7 @@ func main() {
 			zap.String("addr", cfg.Addr),
 			zap.String("api_version", cfg.APIVersion),
 			zap.Bool("development", cfg.Development),
+			zap.String("env", string(cfg.Env)),
 		)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
