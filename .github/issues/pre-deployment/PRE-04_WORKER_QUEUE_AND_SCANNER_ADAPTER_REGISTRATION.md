@@ -1,12 +1,12 @@
 ---
 title: "PRE-04 — Worker Queue and Scanner Adapter Registration"
-labels: ["area/worker", "kind/feature", "priority/critical", "status/ready-for-dev", "production-readiness"]
+labels: ["area/worker", "kind/feature", "priority/critical", "status/completed", "production-readiness"]
 milestone: "Pre-Deployment Production Hardening"
 parent_issue: "PRE-DEPLOY-EPIC_KELVIN_PRE_DEPLOYMENT_ENGINEERING_HARDENING.md"
 workstream: "Pre-Deployment Hardening"
 issue_id: "PRE-04"
 priority: "critical"
-status: "ready-for-dev"
+status: "completed"
 ---
 
 # PRE-04 — Worker Queue and Scanner Adapter Registration
@@ -15,7 +15,7 @@ status: "ready-for-dev"
 **Milestone:** [Pre-Deployment Production Hardening](../MILESTONE_PRE_DEPLOYMENT.md)  
 **Issue ID:** `PRE-04`  
 **Priority:** `critical` (Deployment-blocking)  
-**Status:** `ready-for-dev`  
+**Status:** `completed`  
 **Target Pull Request:** `fix(worker): register scanner adapters and wire redis queue`  
 
 ---
@@ -80,10 +80,10 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [ ] Worker boots with real adapters registered and begins polling Redis queue.
-- [ ] Worker claims queued assessment, executes scanners inside isolated OCI sandboxes, and updates job state.
-- [ ] Scanners cannot elevate privileges or access local cloud metadata endpoints.
-- [ ] Worker gracefully drains active jobs on SIGTERM without leaving orphaned containers.
+- [x] Worker boots with real adapters registered and begins polling Redis queue.
+- [x] Worker claims queued assessment, executes scanners inside isolated OCI sandboxes, and updates job state.
+- [x] Scanners cannot elevate privileges or access local cloud metadata endpoints.
+- [x] Worker gracefully drains active jobs on SIGTERM without leaving orphaned containers.
 
 ---
 
