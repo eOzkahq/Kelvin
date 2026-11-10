@@ -6,7 +6,7 @@ parent_issue: "PRE-DEPLOY-EPIC_KELVIN_PRE_DEPLOYMENT_ENGINEERING_HARDENING.md"
 workstream: "Pre-Deployment Hardening"
 issue_id: "PRE-06"
 priority: "critical"
-status: "completed"
+status: "ready-for-dev"
 ---
 
 # PRE-06 — Production Configuration, CORS and Observability
@@ -15,7 +15,7 @@ status: "completed"
 **Milestone:** [Pre-Deployment Production Hardening](../MILESTONE_PRE_DEPLOYMENT.md)  
 **Issue ID:** `PRE-06`  
 **Priority:** `critical` (Deployment-blocking)  
-**Status:** `completed`  
+**Status:** `ready-for-dev`  
 **Target Pull Request:** `fix(api): harden production config cors and timeouts`  
 
 ---
@@ -74,10 +74,10 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [x] API fails startup if database TLS is unverified or JWT secret is weak in production mode.
-- [x] Wildcard CORS is rejected; only explicitly allowlisted frontend origins can execute cross-origin requests.
-- [x] SIGTERM stops accepting new traffic and gracefully completes active requests before exiting.
-- [x] Health checks accurately reflect database and Redis connection readiness.
+- [ ] API fails startup if database TLS is unverified or JWT secret is weak in production mode.
+- [ ] Wildcard CORS is rejected; only explicitly allowlisted frontend origins can execute cross-origin requests.
+- [ ] SIGTERM stops accepting new traffic and gracefully completes active requests before exiting.
+- [ ] Health checks accurately reflect database and Redis connection readiness.
 
 ---
 

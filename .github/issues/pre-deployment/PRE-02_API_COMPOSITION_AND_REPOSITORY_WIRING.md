@@ -1,12 +1,12 @@
 ---
 title: "PRE-02 — API Composition and Repository Wiring"
-labels: ["area/api", "kind/architecture", "priority/critical", "status/completed", "production-readiness"]
+labels: ["area/api", "kind/architecture", "priority/critical", "status/ready-for-dev", "production-readiness"]
 milestone: "Pre-Deployment Production Hardening"
 parent_issue: "PRE-DEPLOY-EPIC_KELVIN_PRE_DEPLOYMENT_ENGINEERING_HARDENING.md"
 workstream: "Pre-Deployment Hardening"
 issue_id: "PRE-02"
 priority: "critical"
-status: "completed"
+status: "ready-for-dev"
 ---
 
 # PRE-02 — API Composition and Repository Wiring
@@ -15,7 +15,7 @@ status: "completed"
 **Milestone:** [Pre-Deployment Production Hardening](../MILESTONE_PRE_DEPLOYMENT.md)  
 **Issue ID:** `PRE-02`  
 **Priority:** `critical` (Deployment-blocking)  
-**Status:** `completed`  
+**Status:** `ready-for-dev`  
 **Target Pull Request:** `fix(api): implement application composition root and repository wiring`  
 
 ---
@@ -85,10 +85,10 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [x] All API routes are backed by persistent PostgreSQL and Redis stores with zero nil-pointer panics.
-- [x] No fake or mock repositories are active in production builds.
-- [x] Missing environment configuration or database failure causes immediate graceful fatal shutdown at boot.
-- [x] Integration tests confirm assessment creation, finding retrieval, and job status updates persist to PostgreSQL.
+- [ ] All API routes are backed by persistent PostgreSQL and Redis stores with zero nil-pointer panics.
+- [ ] No fake or mock repositories are active in production builds.
+- [ ] Missing environment configuration or database failure causes immediate graceful fatal shutdown at boot.
+- [ ] Integration tests confirm assessment creation, finding retrieval, and job status updates persist to PostgreSQL.
 
 ---
 

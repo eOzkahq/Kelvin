@@ -1,12 +1,12 @@
 ---
 title: "PRE-03 — Redis TLS and Idempotency Integration"
-labels: ["area/infra", "kind/security", "priority/critical", "status/completed", "production-readiness"]
+labels: ["area/infra", "kind/security", "priority/critical", "status/ready-for-dev", "production-readiness"]
 milestone: "Pre-Deployment Production Hardening"
 parent_issue: "PRE-DEPLOY-EPIC_KELVIN_PRE_DEPLOYMENT_ENGINEERING_HARDENING.md"
 workstream: "Pre-Deployment Hardening"
 issue_id: "PRE-03"
 priority: "critical"
-status: "completed"
+status: "ready-for-dev"
 ---
 
 # PRE-03 — Redis TLS and Idempotency Integration
@@ -15,7 +15,7 @@ status: "completed"
 **Milestone:** [Pre-Deployment Production Hardening](../MILESTONE_PRE_DEPLOYMENT.md)  
 **Issue ID:** `PRE-03`  
 **Priority:** `critical` (Deployment-blocking)  
-**Status:** `completed`  
+**Status:** `ready-for-dev`  
 **Target Pull Request:** `fix(redis): enforce tls connection and tenant scoped idempotency`  
 
 ---
@@ -83,10 +83,10 @@ flowchart LR
 
 ## ✅ Acceptance Criteria
 
-- [x] API and worker connect cleanly to Redis over TLS with zero plaintext socket leaks.
-- [x] Invalid Redis credentials fail gracefully without hanging startup.
-- [x] Duplicate assessment submissions within idempotency TTL are rejected.
-- [x] Tenant-owned keys cannot collide across different tenant environments.
+- [ ] API and worker connect cleanly to Redis over TLS with zero plaintext socket leaks.
+- [ ] Invalid Redis credentials fail gracefully without hanging startup.
+- [ ] Duplicate assessment submissions within idempotency TTL are rejected.
+- [ ] Tenant-owned keys cannot collide across different tenant environments.
 
 ---
 

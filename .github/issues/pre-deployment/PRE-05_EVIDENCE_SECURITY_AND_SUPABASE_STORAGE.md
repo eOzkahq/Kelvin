@@ -6,7 +6,7 @@ parent_issue: "PRE-DEPLOY-EPIC_KELVIN_PRE_DEPLOYMENT_ENGINEERING_HARDENING.md"
 workstream: "Pre-Deployment Hardening"
 issue_id: "PRE-05"
 priority: "critical"
-status: "completed"
+status: "ready-for-dev"
 ---
 
 # PRE-05 — Evidence Security and Supabase Storage
@@ -15,7 +15,7 @@ status: "completed"
 **Milestone:** [Pre-Deployment Production Hardening](../MILESTONE_PRE_DEPLOYMENT.md)  
 **Issue ID:** `PRE-05`  
 **Priority:** `critical` (Deployment-blocking)  
-**Status:** `completed`  
+**Status:** `ready-for-dev`  
 **Target Pull Request:** `fix(security): remove evidence fallback key and wire supabase storage`  
 
 ---
@@ -79,10 +79,10 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [x] API refuses to start in production when EVIDENCE_SIGNING_KEY is absent or default fallback is used.
-- [x] All reports and evidence are stored in private Supabase buckets with zero public access.
-- [x] Tenant A cannot generate signed URLs or access evidence objects owned by Tenant B.
-- [x] Signed URLs expire strictly after the configured TTL and cannot be reused or manipulated.
+- [ ] API refuses to start in production when EVIDENCE_SIGNING_KEY is absent or default fallback is used.
+- [ ] All reports and evidence are stored in private Supabase buckets with zero public access.
+- [ ] Tenant A cannot generate signed URLs or access evidence objects owned by Tenant B.
+- [ ] Signed URLs expire strictly after the configured TTL and cannot be reused or manipulated.
 
 ---
 
