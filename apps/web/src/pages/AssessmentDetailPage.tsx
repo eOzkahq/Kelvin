@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchAssessmentDetail,
   cancelAssessment,
-} from "../features/assessments/assessmentApi";
+} from "../features/assessments";
 import {
   Card,
   CardHeader,
@@ -31,19 +31,26 @@ export default function AssessmentDetailPage() {
     queryFn: () => fetchAssessmentDetail(id),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      // Stop polling on terminal states
-      if (status === "COMPLETED" || status === "FAILED" || status === "CANCELLED") {
+      // Stop polling on terminal states (FE-26.5)
+      if (
+        status === "COMPLETED" ||
+        status === "FAILED" ||
+        status === "CANCELLED" ||
+        status === "TIMED_OUT"
+      ) {
         return false;
       }
-      return 5000; // Poll every 5s while active
+      return 3000; // Poll every 3s while active
     },
   });
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelAssessment(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["assessment", id] });
-      setShowCancelModal(false);
+    onSuccess: (data) => {
+      if (data && data.success) {
+        queryClient.invalidateQueries({ queryKey: ["assessment", id] });
+        setShowCancelModal(false);
+      }
     },
   });
 
@@ -69,7 +76,10 @@ export default function AssessmentDetailPage() {
   }
 
   const isTerminal =
-    detail.status === "COMPLETED" || detail.status === "FAILED" || detail.status === "CANCELLED";
+    detail.status === "COMPLETED" ||
+    detail.status === "FAILED" ||
+    detail.status === "CANCELLED" ||
+    detail.status === "TIMED_OUT";
 
   const currentStageIndex = STAGES.indexOf(detail.currentStage);
 
@@ -258,6 +268,11 @@ export default function AssessmentDetailPage() {
           <span className="font-mono text-cyan-400">{detail.targetAddress}</span>. Partial results
           already recorded will be preserved in the findings repository.
         </p>
+        {cancelMutation.isError && (
+          <div className="mt-3 text-xs text-red-400 bg-red-950/40 p-2.5 rounded border border-red-900/50">
+            Failed to terminate assessment: {cancelMutation.error?.message || "Internal server error"}
+          </div>
+        )}
       </Modal>
     </div>
   );

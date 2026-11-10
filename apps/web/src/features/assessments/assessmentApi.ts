@@ -1,4 +1,4 @@
-import { apiClient } from "../../services/api";
+import { apiClient, ApiError } from "../../services/api";
 import type {
   AssessmentDetail,
   AssessmentRecord,
@@ -176,7 +176,10 @@ export async function fetchAssessmentDetail(id: string): Promise<AssessmentDetai
 export async function cancelAssessment(id: string): Promise<AssessmentCancelResponse> {
   try {
     return await apiClient.post<AssessmentCancelResponse>(`/assessments/${encodeURIComponent(id)}/cancel`, {});
-  } catch {
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw new Error(`Failed to cancel assessment: ${err.message}`);
+    }
     // Local state update for mock/offline testing
     const found = mockAssessmentsStore.find((a) => a.id === id);
     if (found) {

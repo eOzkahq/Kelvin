@@ -7,7 +7,7 @@ import {
   createAssessment,
   type TargetOption,
   type ScanProfile,
-} from "../features/assessments/assessmentApi";
+} from "../features/assessments";
 import {
   Card,
   CardHeader,

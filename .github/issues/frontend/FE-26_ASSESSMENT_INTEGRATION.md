@@ -1,12 +1,12 @@
 ---
 title: "FE-26 — Assessment Integration"
-labels: ["phase/frontend", "area/assessment", "kind/bug", "priority/critical", "status/ready-for-dev"]
+labels: ["phase/frontend", "area/assessment", "kind/bug", "priority/critical", "status/completed"]
 milestone: "Frontend Development & Product Experience"
 parent_issue: "FE-EPIC-02_KELVIN_FRONTEND_REPAIR_AND_INTEGRATION.md"
 workstream: "Frontend Repair"
 issue_id: "FE-26"
 priority: "critical"
-status: "ready-for-dev"
+status: "completed"
 ---
 
 # FE-26 — Assessment Integration
@@ -15,7 +15,7 @@ status: "ready-for-dev"
 **Milestone:** [Frontend Development & Product Experience](../MILESTONE_FRONTEND.md)  
 **Issue ID:** `FE-26`  
 **Priority:** `P0 — Critical` (Release-blocking)  
-**Status:** `ready-for-dev`  
+**Status:** `completed`  
 **Target Pull Request:** `fix(web): complete assessment lifecycle integration`  
 
 ---
@@ -86,11 +86,11 @@ sequenceDiagram
 
 ## ✅ Acceptance Criteria
 
-- [ ] fetchAssessmentDetail and cancelAssessment are fully implemented, typed, and tested.
-- [ ] Navigating directly to /assessments/:id loads the assessment detail and updates in real-time.
-- [ ] Polling stops immediately when the assessment reaches terminal status (COMPLETED, FAILED, or CANCELLED).
-- [ ] Cancellation requires explicit user confirmation and displays clear error banners if the backend rejects cancellation.
-- [ ] The UI never reports a scan as cancelled unless confirmed by a successful 200/204 response from the Go API.
+- [x] fetchAssessmentDetail and cancelAssessment are fully implemented, typed, and tested.
+- [x] Navigating directly to /assessments/:id loads the assessment detail and updates in real-time.
+- [x] Polling stops immediately when the assessment reaches terminal status (COMPLETED, FAILED, or CANCELLED).
+- [x] Cancellation requires explicit user confirmation and displays clear error banners if the backend rejects cancellation.
+- [x] The UI never reports a scan as cancelled unless confirmed by a successful 200/204 response from the Go API.
 
 ---
 
