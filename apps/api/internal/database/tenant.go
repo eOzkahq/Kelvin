@@ -31,7 +31,7 @@ func BeginTenantTx(ctx context.Context, pool *pgxpool.Pool) (pgx.Tx, error) {
 		_ = tx.Rollback(ctx)
 		return nil, fmt.Errorf("database: assume tenant-scoped application role: %w", err)
 	}
-	if _, err = tx.Exec(ctx, "SELECT set_config('app.tenant_id', $1, true)", tenantID.String()); err != nil {
+	if _, err = tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true), set_config('app.tenant_id', $1, true)", tenantID.String()); err != nil {
 		_ = tx.Rollback(ctx)
 		return nil, fmt.Errorf("database: set tenant context: %w", err)
 	}

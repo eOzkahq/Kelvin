@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kelvin/kelvin/packages/common/tenant"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -58,14 +59,52 @@ func ValidateTransition(from, to State) error {
 // so concurrent API/worker calls share one clock and one atomic update.
 type Store struct{ DB *pgxpool.Pool }
 
+// Transition transitions a job state. When tenant context is present in ctx,
+// tenant boundaries are enforced and cross-tenant updates are rejected.
 func (s Store) Transition(ctx context.Context, id string, to State, workerID string) error {
+	tenantID, err := tenant.ID(ctx)
+	if err == nil {
+		return s.TransitionForTenant(ctx, tenantID.String(), id, to, workerID)
+	}
+	return s.transitionInternal(ctx, "", id, to, workerID)
+}
+
+// TransitionForTenant transitions a job state under an explicit tenant boundary.
+func (s Store) TransitionForTenant(ctx context.Context, tenantID, id string, to State, workerID string) error {
+	if tenantID == "" {
+		return errors.New("job: tenant ID is required")
+	}
+	return s.transitionInternal(ctx, tenantID, id, to, workerID)
+}
+
+func (s Store) transitionInternal(ctx context.Context, tenantID, id string, to State, workerID string) error {
 	tx, err := s.DB.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("begin job transition: %w", err)
 	}
 	defer tx.Rollback(ctx)
+
+	if tenantID != "" {
+		if _, err = tx.Exec(ctx, "SET LOCAL ROLE kelvin_app"); err != nil {
+			return fmt.Errorf("assume tenant role: %w", err)
+		}
+		if _, err = tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true), set_config('app.tenant_id', $1, true)", tenantID); err != nil {
+			return fmt.Errorf("set tenant context: %w", err)
+		}
+	}
+
 	var from State
-	err = tx.QueryRow(ctx, `SELECT status FROM jobs WHERE id=$1 FOR UPDATE`, id).Scan(&from)
+	var query string
+	var args []any
+	if tenantID != "" {
+		query = `SELECT status FROM jobs WHERE id=$1 AND tenant_id=$2 FOR UPDATE`
+		args = []any{id, tenantID}
+	} else {
+		query = `SELECT status FROM jobs WHERE id=$1 FOR UPDATE`
+		args = []any{id}
+	}
+
+	err = tx.QueryRow(ctx, query, args...).Scan(&from)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
@@ -75,12 +114,28 @@ func (s Store) Transition(ctx context.Context, id string, to State, workerID str
 	if err = ValidateTransition(from, to); err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `UPDATE jobs SET status=$2,
+
+	var updateQuery string
+	var updateArgs []any
+	if tenantID != "" {
+		updateQuery = `UPDATE jobs SET status=$2,
         worker_id=CASE WHEN $2='RUNNING' AND $3 <> '' THEN $3 ELSE worker_id END,
         started_at=CASE WHEN $2='RUNNING' THEN COALESCE(started_at, now()) ELSE started_at END,
         finished_at=CASE WHEN $2 IN ('COMPLETED','FAILED','CANCELLED','TIMED_OUT') THEN now() ELSE NULL END,
         heartbeat_at=CASE WHEN $2='RUNNING' THEN now() ELSE heartbeat_at END,
-        updated_at=now() WHERE id=$1`, id, to, workerID)
+        updated_at=now() WHERE id=$1 AND tenant_id=$4`
+		updateArgs = []any{id, to, workerID, tenantID}
+	} else {
+		updateQuery = `UPDATE jobs SET status=$2,
+        worker_id=CASE WHEN $2='RUNNING' AND $3 <> '' THEN $3 ELSE worker_id END,
+        started_at=CASE WHEN $2='RUNNING' THEN COALESCE(started_at, now()) ELSE started_at END,
+        finished_at=CASE WHEN $2 IN ('COMPLETED','FAILED','CANCELLED','TIMED_OUT') THEN now() ELSE NULL END,
+        heartbeat_at=CASE WHEN $2='RUNNING' THEN now() ELSE heartbeat_at END,
+        updated_at=now() WHERE id=$1`
+		updateArgs = []any{id, to, workerID}
+	}
+
+	_, err = tx.Exec(ctx, updateQuery, updateArgs...)
 	if err != nil {
 		return fmt.Errorf("update job: %w", err)
 	}
@@ -93,6 +148,21 @@ func (s Store) Transition(ctx context.Context, id string, to State, workerID str
 // SetDeadline records the absolute scanner deadline when a worker starts. A
 // non-positive duration is rejected so jobs cannot accidentally run unbounded.
 func (s Store) SetDeadline(ctx context.Context, id string, duration time.Duration) error {
+	tenantID, err := tenant.ID(ctx)
+	if err == nil {
+		return s.SetDeadlineForTenant(ctx, tenantID.String(), id, duration)
+	}
+	return s.setDeadlineInternal(ctx, "", id, duration)
+}
+
+func (s Store) SetDeadlineForTenant(ctx context.Context, tenantID, id string, duration time.Duration) error {
+	if tenantID == "" {
+		return errors.New("job: tenant ID is required")
+	}
+	return s.setDeadlineInternal(ctx, tenantID, id, duration)
+}
+
+func (s Store) setDeadlineInternal(ctx context.Context, tenantID, id string, duration time.Duration) error {
 	if duration <= 0 {
 		return errors.New("job execution deadline must be positive")
 	}
@@ -102,15 +172,37 @@ func (s Store) SetDeadline(ctx context.Context, id string, duration time.Duratio
 		return fmt.Errorf("begin set deadline: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	tag, err := tx.Exec(ctx, `UPDATE jobs SET hard_deadline_at=now()+($2 * interval '1 second'), updated_at=now()
+
+	if tenantID != "" {
+		if _, err = tx.Exec(ctx, "SET LOCAL ROLE kelvin_app"); err != nil {
+			return fmt.Errorf("assume tenant role: %w", err)
+		}
+		if _, err = tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true), set_config('app.tenant_id', $1, true)", tenantID); err != nil {
+			return fmt.Errorf("set tenant context: %w", err)
+		}
+	}
+
+	var tag any
+	if tenantID != "" {
+		tagRes, err := tx.Exec(ctx, `UPDATE jobs SET hard_deadline_at=now()+($3 * interval '1 second'), updated_at=now()
+        WHERE id=$1 AND tenant_id=$2 AND status='RUNNING'`, id, tenantID, duration.Seconds())
+		if err != nil {
+			return fmt.Errorf("set job execution deadline: %w", err)
+		}
+		if tagRes.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+	} else {
+		tagRes, err := tx.Exec(ctx, `UPDATE jobs SET hard_deadline_at=now()+($2 * interval '1 second'), updated_at=now()
         WHERE id=$1 AND status='RUNNING'`, id, duration.Seconds())
-	if err != nil {
-		return fmt.Errorf("set job execution deadline: %w", err)
+		if err != nil {
+			return fmt.Errorf("set job execution deadline: %w", err)
+		}
+		if tagRes.RowsAffected() == 0 {
+			return ErrNotFound
+		}
 	}
-	if tag.RowsAffected() == 0 {
-		_ = tx.Rollback(ctx)
-		return ErrNotFound
-	}
+	_ = tag
 
 	return tx.Commit(ctx)
 }
@@ -119,6 +211,21 @@ func (s Store) SetDeadline(ctx context.Context, id string, duration time.Duratio
 // Redis is used for fast worker liveness checks; this durable timestamp lets
 // the control plane recover correctly if Redis is unavailable.
 func (s Store) RecordHeartbeat(ctx context.Context, id, workerID string, lease time.Duration) error {
+	tenantID, err := tenant.ID(ctx)
+	if err == nil {
+		return s.RecordHeartbeatForTenant(ctx, tenantID.String(), id, workerID, lease)
+	}
+	return s.recordHeartbeatInternal(ctx, "", id, workerID, lease)
+}
+
+func (s Store) RecordHeartbeatForTenant(ctx context.Context, tenantID, id, workerID string, lease time.Duration) error {
+	if tenantID == "" {
+		return errors.New("job: tenant ID is required")
+	}
+	return s.recordHeartbeatInternal(ctx, tenantID, id, workerID, lease)
+}
+
+func (s Store) recordHeartbeatInternal(ctx context.Context, tenantID, id, workerID string, lease time.Duration) error {
 	if workerID == "" || lease <= 0 {
 		return errors.New("job heartbeat requires a worker ID and positive lease")
 	}
@@ -128,14 +235,31 @@ func (s Store) RecordHeartbeat(ctx context.Context, id, workerID string, lease t
 		return fmt.Errorf("begin record heartbeat: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	tag, err := tx.Exec(ctx, `UPDATE jobs SET heartbeat_at=now(), lease_expires_at=now()+($3 * interval '1 second'), updated_at=now()
+
+	if tenantID != "" {
+		if _, err = tx.Exec(ctx, "SET LOCAL ROLE kelvin_app"); err != nil {
+			return fmt.Errorf("assume tenant role: %w", err)
+		}
+		if _, err = tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true), set_config('app.tenant_id', $1, true)", tenantID); err != nil {
+			return fmt.Errorf("set tenant context: %w", err)
+		}
+		tag, err := tx.Exec(ctx, `UPDATE jobs SET heartbeat_at=now(), lease_expires_at=now()+($4 * interval '1 second'), updated_at=now()
+        WHERE id=$1 AND tenant_id=$2 AND worker_id=$3 AND status='RUNNING'`, id, tenantID, workerID, lease.Seconds())
+		if err != nil {
+			return fmt.Errorf("record job heartbeat: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+	} else {
+		tag, err := tx.Exec(ctx, `UPDATE jobs SET heartbeat_at=now(), lease_expires_at=now()+($3 * interval '1 second'), updated_at=now()
         WHERE id=$1 AND worker_id=$2 AND status='RUNNING'`, id, workerID, lease.Seconds())
-	if err != nil {
-		return fmt.Errorf("record job heartbeat: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		_ = tx.Rollback(ctx)
-		return ErrNotFound
+		if err != nil {
+			return fmt.Errorf("record job heartbeat: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
 	}
 
 	return tx.Commit(ctx)
