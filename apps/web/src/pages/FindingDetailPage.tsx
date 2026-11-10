@@ -355,7 +355,7 @@ export default function FindingDetailPage() {
               <div className="mt-4 space-y-3">
                 <div className="flex items-center justify-between text-xs text-zinc-500">
                   <span>SHA-256 Checksum: <code className="text-zinc-400">{selectedEvidence.sha256}</code></span>
-                  <span>Captured: {new Date(selectedEvidence.timestamp).toLocaleString()}</span>
+                  <span>Captured: {new Date(selectedEvidence.timestamp || selectedEvidence.createdAt || Date.now()).toLocaleString()}</span>
                 </div>
 
                 <div className="relative overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4 font-mono text-xs text-zinc-300">
@@ -386,7 +386,7 @@ export default function FindingDetailPage() {
               {finding.observations.map((obs) => (
                 <div key={obs.id} className="relative">
                   <span className="absolute -left-[21px] top-1 h-3 w-3 rounded-full border-2 border-zinc-900 bg-cyan-400" />
-                  <div className="text-xs text-zinc-500">{new Date(obs.observedAt).toLocaleString()}</div>
+                  <div className="text-xs text-zinc-500">{new Date(obs.observedAt || obs.timestamp || Date.now()).toLocaleString()}</div>
                   <h4 className="text-sm font-semibold text-zinc-200 mt-0.5">{obs.assessmentTitle}</h4>
                   <div className="flex items-center gap-2 mt-1 text-xs text-zinc-400">
                     <span>Scanner: <strong className="text-zinc-300">{obs.scanner}</strong></span>
