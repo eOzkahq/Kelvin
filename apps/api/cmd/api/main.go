@@ -100,16 +100,17 @@ func main() {
 
 	// 3. Supabase Storage Provider
 	if cfg.Supabase.URL != "" && cfg.Supabase.ServiceRoleKey != "" {
-		_, err := storage.NewSupabaseStorageProvider(storage.Config{
+		storageProvider, err := storage.NewSupabaseStorageProvider(storage.Config{
 			URL:             cfg.Supabase.URL,
 			ServiceRoleKey:  cfg.Supabase.ServiceRoleKey,
 			ReportsBucket:   cfg.Supabase.ReportsBucket,
 			EvidenceBucket:  cfg.Supabase.EvidenceBucket,
-			SignedURLExpiry: 300 * time.Second,
+			SignedURLExpiry: time.Duration(cfg.Evidence.SignedURLTTLSeconds) * time.Second,
 		})
 		if err != nil {
 			log.Fatal("supabase storage provider initialization failed", zap.Error(err))
 		}
+		server.SetStorageProvider(storageProvider)
 	} else if isProduction {
 		log.Warn("supabase storage not fully configured; check cloud environment settings")
 	}

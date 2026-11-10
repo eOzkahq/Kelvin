@@ -136,8 +136,12 @@ func Load() (Config, error) {
 	// Idempotency record TTL (default 24 hours = 86400 seconds).
 	v.SetDefault("idempotency.ttl_seconds", int64(86400))
 
-	// Evidence signed URL TTL (default 15 minutes = 900 seconds).
-	v.SetDefault("evidence.signed_url_ttl_seconds", 900)
+	// Evidence signed URL TTL (default 5 minutes = 300 seconds).
+	v.SetDefault("evidence.signed_url_ttl_seconds", 300)
+
+	// Supabase private storage bucket defaults.
+	v.SetDefault("supabase.storage_bucket_reports", "kelvin-reports")
+	v.SetDefault("supabase.storage_bucket_evidence", "kelvin-evidence")
 
 	// Evidence retention policy defaults (DATA_LIFECYCLE.md §3).
 	v.SetDefault("retention.active_days", 90)
@@ -279,6 +283,15 @@ func Load() (Config, error) {
 		}
 	} else if jwtSecret != "" && len(jwtSecret) < 32 {
 		return Config{}, errors.New("KELVIN_JWT_SECRET must be at least 32 bytes when set")
+	}
+
+	signingKey := v.GetString("evidence.signing_key")
+	if env == EnvStaging || env == EnvProduction {
+		if len(signingKey) < 32 || signingKey == "kelvin-default-evidence-signing-key-32-bytes" {
+			return Config{}, errors.New("KELVIN_EVIDENCE_SIGNING_KEY of at least 32 bytes is required in staging and production; hardcoded fallback key is prohibited")
+		}
+	} else if signingKey != "" && (len(signingKey) < 32 || signingKey == "kelvin-default-evidence-signing-key-32-bytes") {
+		return Config{}, errors.New("KELVIN_EVIDENCE_SIGNING_KEY must be at least 32 bytes and cannot use default fallback key")
 	}
 
 	cfg := Config{

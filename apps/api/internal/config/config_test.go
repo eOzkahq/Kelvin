@@ -64,6 +64,7 @@ func TestLoadProductionValidDatabaseURL(t *testing.T) {
 	_ = os.Setenv("KELVIN_DATABASE_URL", "postgres://user:pass@db.internal:5432/kelvin_prod")
 	_ = os.Setenv("KELVIN_REDIS_ADDR", "redis.internal:6379")
 	_ = os.Setenv("KELVIN_JWT_SECRET", "test-secret-at-least-32-bytes-long")
+	_ = os.Setenv("KELVIN_EVIDENCE_SIGNING_KEY", "test-evidence-signing-key-32-bytes-long!")
 
 	cfg, err := Load()
 	if err != nil {
@@ -85,5 +86,24 @@ func TestLoadProductionRequiresJWTSecret(t *testing.T) {
 	_ = os.Setenv("KELVIN_REDIS_ADDR", "redis.internal:6379")
 	if _, err := Load(); err == nil {
 		t.Fatal("expected production configuration to require a JWT signing secret")
+	}
+}
+
+func TestLoadProductionRequiresEvidenceSigningKey(t *testing.T) {
+	os.Clearenv()
+	_ = os.Setenv("KELVIN_ENV", "production")
+	_ = os.Setenv("KELVIN_DATABASE_URL", "postgres://user:pass@db.internal:5432/kelvin_prod")
+	_ = os.Setenv("KELVIN_REDIS_ADDR", "redis.internal:6379")
+	_ = os.Setenv("KELVIN_JWT_SECRET", "test-secret-at-least-32-bytes-long")
+
+	// Missing signing key
+	if _, err := Load(); err == nil {
+		t.Fatal("expected production configuration to require an evidence signing key")
+	}
+
+	// Default fallback key rejected
+	_ = os.Setenv("KELVIN_EVIDENCE_SIGNING_KEY", "kelvin-default-evidence-signing-key-32-bytes")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected production configuration to reject the hardcoded default fallback key")
 	}
 }

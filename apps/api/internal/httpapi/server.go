@@ -31,6 +31,7 @@ type Server struct {
 	idempotencyStore idempotency.Store // nil means idempotency middleware is disabled
 	findingStore     findingStoreIface // nil means finding endpoints return 503
 	evidenceSigner   *evidence.Signer
+	storageProvider  any               // optional storage adapter
 	protectedRoute   func(http.Handler) http.Handler
 }
 
@@ -53,7 +54,7 @@ func (s *Server) ValidateDependencies(isProduction bool) error {
 		return errors.New("server: idempotency store is required in production")
 	}
 	if s.evidenceSigner == nil {
-		return errors.New("server: evidence signer is required in production")
+		return errors.New("server: valid evidence signing key (at least 32 bytes) is required in production")
 	}
 	return nil
 }
@@ -61,16 +62,19 @@ func (s *Server) ValidateDependencies(isProduction bool) error {
 // New builds the server with all registered routes.
 func New(cfg config.Config, log *zap.Logger) *Server {
 	s := &Server{cfg: cfg, log: log, mux: http.NewServeMux()}
-	var signerKey []byte
-	if len(cfg.Evidence.SigningKey) >= 32 {
-		signerKey = []byte(cfg.Evidence.SigningKey)
-	} else {
-		hash := sha256.Sum256([]byte("kelvin-default-evidence-signing-key-32-bytes"))
-		signerKey = hash[:]
+	if len(cfg.Evidence.SigningKey) >= 32 && cfg.Evidence.SigningKey != "kelvin-default-evidence-signing-key-32-bytes" {
+		s.evidenceSigner, _ = evidence.NewSigner([]byte(cfg.Evidence.SigningKey))
+	} else if cfg.Development {
+		hash := sha256.Sum256([]byte("kelvin-dev-only-ephemeral-key-" + cfg.APIVersion))
+		s.evidenceSigner, _ = evidence.NewSigner(hash[:])
 	}
-	s.evidenceSigner, _ = evidence.NewSigner(signerKey)
 	s.routes()
 	return s
+}
+
+// SetStorageProvider assigns the storage service provider.
+func (s *Server) SetStorageProvider(provider any) {
+	s.storageProvider = provider
 }
 
 // SetJobStore assigns the job store used by the cancel endpoint. If nil, the
