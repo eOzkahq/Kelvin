@@ -80,12 +80,12 @@ flowchart TD
 
 ## 🗂️ 3. Repair Phased Issues & PR Breakdown
 
-- [x] **[FE-25: Frontend Contract Reconciliation](frontend/FE-25_FRONTEND_CONTRACT_RECONCILIATION.md)** (`critical`) — PR: `fix(web): reconcile frontend feature contracts`
-- [x] **[FE-26: Assessment Integration](frontend/FE-26_ASSESSMENT_INTEGRATION.md)** (`critical`) — PR: `fix(web): complete assessment lifecycle integration`
-- [x] **[FE-27: Findings Integration](frontend/FE-27_FINDINGS_INTEGRATION.md)** (`critical`) — PR: `fix(web): complete findings workspace integration`
-- [x] **[FE-28: Remediation Integration](frontend/FE-28_REMEDIATION_INTEGRATION.md)** (`critical`) — PR: `fix(web): complete remediation workflow integration`
-- [x] **[FE-29: Explicit Demo Mode & Data Isolation](frontend/FE-29_EXPLICIT_DEMO_MODE_AND_DATA_ISOLATION.md)** (`critical`) — PR: `fix(web): isolate explicit demo data from production`
-- [x] **[FE-30: Build, Test and Release Acceptance](frontend/FE-30_BUILD_TEST_AND_RELEASE_ACCEPTANCE.md)** (`critical`) — PR: `fix(web): complete production build and release verification`
+- [ ] **[FE-25: Frontend Contract Reconciliation](frontend/FE-25_FRONTEND_CONTRACT_RECONCILIATION.md)** (`critical`) — PR: `fix(web): reconcile frontend feature contracts`
+- [ ] **[FE-26: Assessment Integration](frontend/FE-26_ASSESSMENT_INTEGRATION.md)** (`critical`) — PR: `fix(web): complete assessment lifecycle integration`
+- [ ] **[FE-27: Findings Integration](frontend/FE-27_FINDINGS_INTEGRATION.md)** (`critical`) — PR: `fix(web): complete findings workspace integration`
+- [ ] **[FE-28: Remediation Integration](frontend/FE-28_REMEDIATION_INTEGRATION.md)** (`critical`) — PR: `fix(web): complete remediation workflow integration`
+- [ ] **[FE-29: Explicit Demo Mode & Data Isolation](frontend/FE-29_EXPLICIT_DEMO_MODE_AND_DATA_ISOLATION.md)** (`critical`) — PR: `fix(web): isolate explicit demo data from production`
+- [ ] **[FE-30: Build, Test and Release Acceptance](frontend/FE-30_BUILD_TEST_AND_RELEASE_ACCEPTANCE.md)** (`critical`) — PR: `fix(web): complete production build and release verification`
 
 ---
 

@@ -1,12 +1,12 @@
 ---
 title: "FE-29 — Explicit Demo Mode & Data Isolation"
-labels: ["phase/frontend", "area/web", "kind/bug", "priority/critical", "status/completed"]
+labels: ["phase/frontend", "area/web", "kind/bug", "priority/critical", "status/ready-for-dev"]
 milestone: "Frontend Development & Product Experience"
 parent_issue: "FE-EPIC-02_KELVIN_FRONTEND_REPAIR_AND_INTEGRATION.md"
 workstream: "Frontend Repair"
 issue_id: "FE-29"
 priority: "critical"
-status: "completed"
+status: "ready-for-dev"
 ---
 
 # FE-29 — Explicit Demo Mode & Data Isolation
@@ -15,7 +15,7 @@ status: "completed"
 **Milestone:** [Frontend Development & Product Experience](../MILESTONE_FRONTEND.md)  
 **Issue ID:** `FE-29`  
 **Priority:** `P0 — Critical` (Release-blocking)  
-**Status:** `completed`  
+**Status:** `ready-for-dev`  
 **Target Pull Request:** `fix(web): isolate explicit demo data from production`  
 
 ---
@@ -84,11 +84,11 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [x] Demo mode is strictly disabled by default in production builds (ADR-FE-03, ADR-FE-04).
-- [x] No fictional mock findings, assessments, or remediation tasks appear when connected to a live backend.
-- [x] When the backend is down or returns 500/404, the UI renders the proper ErrorBanner or ErrorBoundary, never demo data.
-- [x] Demo mutations are strictly simulated in-memory and never dispatched to the live backend.
-- [x] Automated unit tests prove that production provider rejects simulated fallback under simulated HTTP 500 errors.
+- [ ] Demo mode is strictly disabled by default in production builds (ADR-FE-03, ADR-FE-04).
+- [ ] No fictional mock findings, assessments, or remediation tasks appear when connected to a live backend.
+- [ ] When the backend is down or returns 500/404, the UI renders the proper ErrorBanner or ErrorBoundary, never demo data.
+- [ ] Demo mutations are strictly simulated in-memory and never dispatched to the live backend.
+- [ ] Automated unit tests prove that production provider rejects simulated fallback under simulated HTTP 500 errors.
 
 ---
 
