@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { fetchAssessments } from "../features/assessments/assessmentApi";
+import { fetchAssessments } from "../features/assessments";
 import {
   Card,
   CardHeader,
