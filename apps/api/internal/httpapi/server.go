@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"github.com/kelvin/kelvin/apps/api/internal/config"
 	"github.com/kelvin/kelvin/apps/api/internal/evidence"
+	"github.com/kelvin/kelvin/apps/api/internal/findings"
 	"github.com/kelvin/kelvin/apps/api/internal/idempotency"
 	"github.com/kelvin/kelvin/apps/api/internal/metrics"
 	"github.com/kelvin/kelvin/apps/api/internal/middleware"
@@ -30,22 +31,50 @@ type Server struct {
 	idempotencyStore idempotency.Store // nil means idempotency middleware is disabled
 	findingStore     findingStoreIface // nil means finding endpoints return 503
 	evidenceSigner   *evidence.Signer
+	storageProvider  any               // optional storage adapter
 	protectedRoute   func(http.Handler) http.Handler
+}
+
+// Compile-time check ensuring PostgresFindingRepository satisfies findingStoreIface.
+var _ findingStoreIface = (*findings.PostgresFindingRepository)(nil)
+
+// ValidateDependencies checks that all required stores are wired. In production mode,
+// missing stores return an error.
+func (s *Server) ValidateDependencies(isProduction bool) error {
+	if !isProduction {
+		return nil
+	}
+	if s.jobStore == nil {
+		return errors.New("server: job store is required in production")
+	}
+	if s.findingStore == nil {
+		return errors.New("server: finding store is required in production")
+	}
+	if s.idempotencyStore == nil {
+		return errors.New("server: idempotency store is required in production")
+	}
+	if s.evidenceSigner == nil {
+		return errors.New("server: valid evidence signing key (at least 32 bytes) is required in production")
+	}
+	return nil
 }
 
 // New builds the server with all registered routes.
 func New(cfg config.Config, log *zap.Logger) *Server {
 	s := &Server{cfg: cfg, log: log, mux: http.NewServeMux()}
-	var signerKey []byte
-	if len(cfg.Evidence.SigningKey) >= 32 {
-		signerKey = []byte(cfg.Evidence.SigningKey)
-	} else {
-		hash := sha256.Sum256([]byte("kelvin-default-evidence-signing-key-32-bytes"))
-		signerKey = hash[:]
+	if len(cfg.Evidence.SigningKey) >= 32 && cfg.Evidence.SigningKey != "kelvin-default-evidence-signing-key-32-bytes" {
+		s.evidenceSigner, _ = evidence.NewSigner([]byte(cfg.Evidence.SigningKey))
+	} else if cfg.Development {
+		hash := sha256.Sum256([]byte("kelvin-dev-only-ephemeral-key-" + cfg.APIVersion))
+		s.evidenceSigner, _ = evidence.NewSigner(hash[:])
 	}
-	s.evidenceSigner, _ = evidence.NewSigner(signerKey)
 	s.routes()
 	return s
+}
+
+// SetStorageProvider assigns the storage service provider.
+func (s *Server) SetStorageProvider(provider any) {
+	s.storageProvider = provider
 }
 
 // SetJobStore assigns the job store used by the cancel endpoint. If nil, the
@@ -82,6 +111,7 @@ func (s *Server) SetReadyCheckers(checkers ReadyCheckers) {
 func (s *Server) Handler() http.Handler {
 	var h http.Handler = s.mux
 	h = middleware.BodyLimit(s.cfg.BodyLimitBytes)(h)
+	h = middleware.CORS(s.cfg.AllowedOrigins)(h)
 	h = Recover()(h)
 	h = middleware.AccessLog()(h)
 	h = middleware.Correlation(h)
@@ -90,6 +120,8 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/health", s.handleHealth)
+	s.mux.HandleFunc("GET /healthz", s.handleHealthLive)
+	s.mux.HandleFunc("GET /readyz", s.handleHealthReady)
 	s.mux.HandleFunc("GET /health/live", s.handleHealthLive)
 	s.mux.HandleFunc("GET /health/ready", s.handleHealthReady)
 	s.mux.HandleFunc("GET /health/db", s.handleHealthDB)

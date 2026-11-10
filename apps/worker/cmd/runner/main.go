@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
@@ -14,7 +15,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/packages/common/logging"
 	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
-	"github.com/redis/go-redis/v9"
+	commonredis "github.com/kelvin/kelvin/packages/common/redis"
 	"go.uber.org/zap"
 )
 
@@ -34,30 +35,64 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	registry := adapters.NewRegistry()
+	// 1. Initialize OCI sandbox executor
 	var executor sandbox.Executor
+	ociExec, err := sandbox.NewOCIExecutor()
+	if err != nil {
+		if cfg.Env == config.EnvProduction {
+			log.Fatal("sandbox executor initialization failed", zap.Error(err))
+		}
+		log.Warn("no OCI container runtime found, falling back to simulated sandbox", zap.Error(err))
+		executor = sandbox.NewFake()
+	} else {
+		executor = ociExec
+	}
+
+	// 2. Register MVP scanner adapters into registry
+	registry := adapters.NewRegistry()
+	if err := adapters.RegisterDefaultAdapters(registry, executor); err != nil {
+		log.Fatal("failed to register default scanner adapters", zap.Error(err))
+	}
+	if err := registry.Initialize(ctx, log); err != nil {
+		log.Fatal("failed to initialize adapter registry", zap.Error(err))
+	}
+
+	// 3. Connect Redis Queue Consumer
 	var workQueue queue.Queue = queue.NopQueue{}
-	if cfg.Env == config.EnvProduction && cfg.Redis.Addr == "" {
-		log.Fatal("KELVIN_REDIS_ADDR is required in production")
+	if cfg.Env == config.EnvProduction && cfg.Redis.URL == "" && cfg.Redis.Addr == "" {
+		log.Fatal("KELVIN_REDIS_ADDR or REDIS_URL is required in production")
 	}
 	if cfg.Env == config.EnvProduction && cfg.Redis.WorkerTokenSecret == "" {
 		log.Fatal("KELVIN_WORKER_TOKEN_SECRET is required in production")
 	}
-	if cfg.Redis.Addr != "" {
-		if len(registry.Names()) == 0 {
-			log.Fatal("worker queue is configured but no scanner adapters are registered")
+	if cfg.Redis.URL != "" || cfg.Redis.Addr != "" {
+		redisCfg := commonredis.Config{
+			URL:          cfg.Redis.URL,
+			Addr:         cfg.Redis.Addr,
+			Password:     cfg.Redis.Password,
+			DB:           cfg.Redis.DB,
+			TLSEnabled:   cfg.Redis.TLSEnabled || strings.HasPrefix(cfg.Redis.URL, "rediss://") || cfg.Env == config.EnvProduction,
+			PoolSize:     commonredis.WorkerPoolSize,
+			MinIdleConns: commonredis.WorkerMinIdleConns,
+			DialTimeout:  commonredis.DefaultDialTimeout,
+			ReadTimeout:  commonredis.DefaultReadTimeout,
+			WriteTimeout: commonredis.DefaultWriteTimeout,
 		}
-		var err error
-		executor, err = sandbox.NewOCIExecutor()
+		redisClient, err := commonredis.NewClient(redisCfg)
 		if err != nil {
-			log.Fatal("sandbox executor initialization failed", zap.Error(err))
+			log.Fatal("redis client initialization failed", zap.Error(err))
 		}
-		client := redis.NewClient(&redis.Options{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
-		if err := client.Ping(ctx).Err(); err != nil {
+		if err := redisClient.Ping(ctx); err != nil {
 			log.Fatal("redis connection failed", zap.Error(err))
 		}
-		defer func() { _ = client.Close() }()
-		shared, err := commonqueue.NewRedis(client, commonqueue.RedisConfig{Prefix: "kelvin:jobs", Group: "workers", Consumer: cfg.WorkerID, WorkerID: cfg.WorkerID, TokenSecret: []byte(cfg.Redis.WorkerTokenSecret)})
+		defer func() { _ = redisClient.Close() }()
+		shared, err := commonqueue.NewRedis(redisClient.UniversalClient(), commonqueue.RedisConfig{
+			Prefix:      "kelvin:jobs",
+			Group:       "workers",
+			Consumer:    cfg.WorkerID,
+			WorkerID:    cfg.WorkerID,
+			TokenSecret: []byte(cfg.Redis.WorkerTokenSecret),
+		})
 		if err != nil {
 			log.Fatal("redis queue initialization failed", zap.Error(err))
 		}
@@ -65,7 +100,11 @@ func main() {
 		if err != nil {
 			log.Fatal("worker queue initialization failed", zap.Error(err))
 		}
+	} else if cfg.Env == config.EnvProduction {
+		log.Fatal("worker queue must be connected to Redis in production")
 	}
+
+	// 4. Run Daemon loop with concurrency and resource bounds
 	err = daemon.Run(ctx, log, daemon.Config{
 		WorkerID:     cfg.WorkerID,
 		PollInterval: cfg.PollInterval,
