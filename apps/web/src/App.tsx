@@ -45,6 +45,8 @@ export default function App() {
           <Route path="/reports" element={<ReportCenterPage />} />
           <Route path="/audit" element={<AuditLogsPage />} />
           <Route path="/account" element={<AccountProfilePage />} />
+          <Route path="/profile" element={<AccountProfilePage />} />
+          <Route path="/settings" element={<PlatformSettingsPage />} />
           <Route path="/admin/org" element={<OrgAdminPage />} />
           <Route path="/admin/team" element={<TeamMembersPage />} />
           <Route path="/admin/roles" element={<RolesPermissionsSsoPage />} />

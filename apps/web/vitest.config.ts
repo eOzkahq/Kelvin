@@ -17,5 +17,8 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    env: {
+      VITE_KELVIN_DEMO_MODE: "true",
+    },
   },
 });

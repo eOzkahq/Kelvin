@@ -3,6 +3,7 @@ import { Sidebar } from "./Sidebar";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { TenantSwitcher } from "./TenantSwitcher";
 import { UserMenu } from "./UserMenu";
+import { isDemoMode } from "../../config/env";
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -53,6 +54,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
 
       {/* Main Column */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Persistent Demo Warning Banner */}
+        {isDemoMode() && (
+          <aside
+            role="status"
+            aria-label="Demo Mode Active"
+            className="bg-amber-500 text-black px-4 py-1.5 text-center font-bold text-xs tracking-wider flex items-center justify-center gap-2 select-none shadow-md z-30"
+          >
+            <span>⚠️</span>
+            <span>DEMO DATA — NOT LIVE SECURITY RESULTS</span>
+            <span className="font-mono text-[10px] font-normal bg-black/15 px-1.5 py-0.5 rounded">
+              VITE_KELVIN_DEMO_MODE=true
+            </span>
+          </aside>
+        )}
+
         {/* Top Header */}
         <header className="flex h-14 items-center justify-between border-b border-zinc-800 bg-zinc-900/60 px-4 backdrop-blur">
           <div className="flex items-center gap-3">
