@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import {
   getFindingDetail,
   transitionFindingStatus,
+  sanitizeEvidence,
   type FindingDetail,
   type FindingStatus,
 } from "../features/findings";
@@ -361,8 +362,8 @@ export default function FindingDetailPage() {
                 <div className="relative overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-4 font-mono text-xs text-zinc-300">
                   <pre className="whitespace-pre-wrap leading-relaxed">
                     {showRawUnsanitized
-                      ? selectedEvidence.rawPayload
-                      : selectedEvidence.sanitizedPayload}
+                      ? (selectedEvidence.rawPayload || selectedEvidence.sanitizedPayload)
+                      : (selectedEvidence.sanitizedPayload || sanitizeEvidence(selectedEvidence.rawPayload || "").sanitized)}
                   </pre>
                 </div>
               </div>

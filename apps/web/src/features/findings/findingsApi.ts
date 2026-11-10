@@ -369,6 +369,7 @@ export async function batchUpdateFindings(
 
   mockFindingsStore = mockFindingsStore.map((f: Finding) => {
     if (payload.findingIds.includes(f.id)) {
+      updatedCount++;
       return {
         ...f,
         status: payload.status ?? f.status,
@@ -379,9 +380,13 @@ export async function batchUpdateFindings(
   });
 
   return {
-    updatedCount: payload.findingIds.length,
-    success: true,
-    message: `Successfully updated ${payload.findingIds.length} findings`,
+    updatedCount,
+    success: errors.length === 0,
+    message:
+      errors.length > 0
+        ? `Partially updated ${updatedCount} findings (${errors.length} failed)`
+        : `Successfully updated ${updatedCount} findings`,
+    errors: errors.length > 0 ? errors : undefined,
   };
 }
 
