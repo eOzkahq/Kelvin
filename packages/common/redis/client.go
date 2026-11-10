@@ -15,8 +15,12 @@ import (
 
 // Default configuration constants for Redis 7+ infrastructure.
 const (
-	DefaultPoolSize     = 20
-	DefaultMinIdleConns = 5
+	DefaultPoolSize     = 5
+	DefaultMinIdleConns = 2
+	APIPoolSize         = 5
+	APIMinIdleConns     = 2
+	WorkerPoolSize      = 3
+	WorkerMinIdleConns  = 1
 	DefaultDialTimeout  = 5 * time.Second
 	DefaultReadTimeout  = 3 * time.Second
 	DefaultWriteTimeout = 3 * time.Second
@@ -94,6 +98,9 @@ func NewClient(cfg Config) (*Client, error) {
 		if parsed.TLSConfig != nil {
 			opts.TLSConfig = parsed.TLSConfig
 		}
+		if strings.HasPrefix(cfg.URL, "rediss://") {
+			cfg.TLSEnabled = true
+		}
 	} else {
 		if cfg.Addr == "" {
 			opts.Addr = "localhost:6379"
@@ -104,9 +111,18 @@ func NewClient(cfg Config) (*Client, error) {
 		opts.DB = cfg.DB
 	}
 
-	if cfg.TLSEnabled && opts.TLSConfig == nil {
-		opts.TLSConfig = &tls.Config{
-			MinVersion: tls.VersionTLS12,
+	if cfg.TLSEnabled {
+		if opts.TLSConfig == nil {
+			opts.TLSConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
+		}
+		if opts.TLSConfig.ServerName == "" {
+			host := opts.Addr
+			if strings.Contains(host, ":") {
+				host = strings.Split(host, ":")[0]
+			}
+			opts.TLSConfig.ServerName = host
 		}
 	}
 

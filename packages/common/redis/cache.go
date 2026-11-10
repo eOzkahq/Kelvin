@@ -25,6 +25,22 @@ func FormatTenantKey(tenantID, resource, id string) string {
 	return fmt.Sprintf("kelvin:%s:%s:%s", tenantID, resource, id)
 }
 
+// FormatIdempotencyKey constructs a tenant-isolated idempotency key: kelvin:idempotency:{tenant_id}:{key}
+func FormatIdempotencyKey(tenantID, key string) string {
+	if tenantID == "" {
+		tenantID = "global"
+	}
+	return fmt.Sprintf("kelvin:idempotency:%s:%s", tenantID, key)
+}
+
+// FormatCacheKey constructs a tenant-isolated cache key: kelvin:cache:{tenant_id}:{key}
+func FormatCacheKey(tenantID, key string) string {
+	if tenantID == "" {
+		tenantID = "global"
+	}
+	return fmt.Sprintf("kelvin:cache:%s:%s", tenantID, key)
+}
+
 // ValidateTenantKey verifies that a Redis key is prefixed with the specified tenant ID.
 func ValidateTenantKey(key, expectedTenantID string) bool {
 	prefix := fmt.Sprintf("kelvin:%s:", expectedTenantID)

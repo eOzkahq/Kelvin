@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,11 +18,12 @@ import (
 	"github.com/kelvin/kelvin/apps/api/internal/storage"
 	"github.com/kelvin/kelvin/apps/api/pkg/job"
 	"github.com/kelvin/kelvin/packages/common/logging"
+	commonredis "github.com/kelvin/kelvin/packages/common/redis"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
-type redisPinger struct{ client *redis.Client }
+type redisPinger struct{ client redis.UniversalClient }
 
 func (p redisPinger) Ping(ctx context.Context) error { return p.client.Ping(ctx).Err() }
 
@@ -61,20 +63,35 @@ func main() {
 	}
 
 	// 2. Redis connection & Idempotency Store
-	if cfg.Redis.Addr != "" {
-		redisClient := redis.NewClient(&redis.Options{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
-		if err := redisClient.Ping(context.Background()).Err(); err != nil {
+	if cfg.Redis.URL != "" || cfg.Redis.Addr != "" {
+		redisCfg := commonredis.Config{
+			URL:          cfg.Redis.URL,
+			Addr:         cfg.Redis.Addr,
+			Password:     cfg.Redis.Password,
+			DB:           cfg.Redis.DB,
+			TLSEnabled:   cfg.Redis.TLSEnabled || strings.HasPrefix(cfg.Redis.URL, "rediss://") || isProduction,
+			PoolSize:     commonredis.APIPoolSize,
+			MinIdleConns: commonredis.APIMinIdleConns,
+			DialTimeout:  commonredis.DefaultDialTimeout,
+			ReadTimeout:  commonredis.DefaultReadTimeout,
+			WriteTimeout: commonredis.DefaultWriteTimeout,
+		}
+		redisClient, err := commonredis.NewClient(redisCfg)
+		if err != nil {
+			log.Fatal("redis initialization failed", zap.Error(err))
+		}
+		if err := redisClient.Ping(context.Background()); err != nil {
 			log.Fatal("redis connection failed", zap.Error(err))
 		}
 		defer func() { _ = redisClient.Close() }()
-		ready.Redis = redisPinger{client: redisClient}
+		ready.Redis = redisPinger{client: redisClient.UniversalClient()}
 
 		// Composition Root: Wire Redis Idempotency Store
 		idempTTL := time.Duration(cfg.Idempotency.TTLSeconds) * time.Second
 		if idempTTL <= 0 {
 			idempTTL = 24 * time.Hour
 		}
-		server.SetIdempotencyStore(idempotency.NewRedisStore(redisClient, idempTTL))
+		server.SetIdempotencyStore(idempotency.NewRedisStore(redisClient.UniversalClient(), idempTTL))
 	} else if isProduction {
 		log.Fatal("redis broker is required in production")
 	}

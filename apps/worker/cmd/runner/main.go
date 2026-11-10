@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
@@ -14,7 +15,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/packages/common/logging"
 	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
-	"github.com/redis/go-redis/v9"
+	commonredis "github.com/kelvin/kelvin/packages/common/redis"
 	"go.uber.org/zap"
 )
 
@@ -37,13 +38,13 @@ func main() {
 	registry := adapters.NewRegistry()
 	var executor sandbox.Executor
 	var workQueue queue.Queue = queue.NopQueue{}
-	if cfg.Env == config.EnvProduction && cfg.Redis.Addr == "" {
-		log.Fatal("KELVIN_REDIS_ADDR is required in production")
+	if cfg.Env == config.EnvProduction && cfg.Redis.URL == "" && cfg.Redis.Addr == "" {
+		log.Fatal("KELVIN_REDIS_ADDR or REDIS_URL is required in production")
 	}
 	if cfg.Env == config.EnvProduction && cfg.Redis.WorkerTokenSecret == "" {
 		log.Fatal("KELVIN_WORKER_TOKEN_SECRET is required in production")
 	}
-	if cfg.Redis.Addr != "" {
+	if cfg.Redis.URL != "" || cfg.Redis.Addr != "" {
 		if len(registry.Names()) == 0 {
 			log.Fatal("worker queue is configured but no scanner adapters are registered")
 		}
@@ -52,12 +53,27 @@ func main() {
 		if err != nil {
 			log.Fatal("sandbox executor initialization failed", zap.Error(err))
 		}
-		client := redis.NewClient(&redis.Options{Addr: cfg.Redis.Addr, Password: cfg.Redis.Password, DB: cfg.Redis.DB})
-		if err := client.Ping(ctx).Err(); err != nil {
+		redisCfg := commonredis.Config{
+			URL:          cfg.Redis.URL,
+			Addr:         cfg.Redis.Addr,
+			Password:     cfg.Redis.Password,
+			DB:           cfg.Redis.DB,
+			TLSEnabled:   cfg.Redis.TLSEnabled || strings.HasPrefix(cfg.Redis.URL, "rediss://") || cfg.Env == config.EnvProduction,
+			PoolSize:     commonredis.WorkerPoolSize,
+			MinIdleConns: commonredis.WorkerMinIdleConns,
+			DialTimeout:  commonredis.DefaultDialTimeout,
+			ReadTimeout:  commonredis.DefaultReadTimeout,
+			WriteTimeout: commonredis.DefaultWriteTimeout,
+		}
+		redisClient, err := commonredis.NewClient(redisCfg)
+		if err != nil {
+			log.Fatal("redis client initialization failed", zap.Error(err))
+		}
+		if err := redisClient.Ping(ctx); err != nil {
 			log.Fatal("redis connection failed", zap.Error(err))
 		}
-		defer func() { _ = client.Close() }()
-		shared, err := commonqueue.NewRedis(client, commonqueue.RedisConfig{Prefix: "kelvin:jobs", Group: "workers", Consumer: cfg.WorkerID, WorkerID: cfg.WorkerID, TokenSecret: []byte(cfg.Redis.WorkerTokenSecret)})
+		defer func() { _ = redisClient.Close() }()
+		shared, err := commonqueue.NewRedis(redisClient.UniversalClient(), commonqueue.RedisConfig{Prefix: "kelvin:jobs", Group: "workers", Consumer: cfg.WorkerID, WorkerID: cfg.WorkerID, TokenSecret: []byte(cfg.Redis.WorkerTokenSecret)})
 		if err != nil {
 			log.Fatal("redis queue initialization failed", zap.Error(err))
 		}
