@@ -122,17 +122,20 @@ export async function fetchProfiles(): Promise<ScanProfile[]> {
   } catch {
     return mockProfiles;
   }
+  return apiClient.get<AssessmentRecord[]>("/assessments");
 }
 
-export async function fetchTargets(): Promise<TargetOption[]> {
-  try {
-    return await apiClient.get<TargetOption[]>("/targets");
-  } catch {
-    return mockTargets;
+export async function fetchAssessmentDetail(id: string): Promise<AssessmentDetail> {
+  if (isDemoMode()) {
+    return demoAssessmentProvider.fetchAssessmentDetail(id);
   }
+  return apiClient.get<AssessmentDetail>(`/assessments/${encodeURIComponent(id)}`);
 }
 
-export async function fetchAssessments(): Promise<AssessmentRecord[]> {
+export async function cancelAssessment(id: string): Promise<AssessmentCancelResponse> {
+  if (isDemoMode()) {
+    return demoAssessmentProvider.cancelAssessment(id);
+  }
   try {
     return await apiClient.get<AssessmentRecord[]>("/assessments");
   } catch {

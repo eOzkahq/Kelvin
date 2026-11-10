@@ -120,7 +120,8 @@ export default function RemediationWorkspacePage() {
     if (!selectedTask || !newNoteContent.trim()) return;
     setIsAddingNote(true);
     try {
-      const note = await addRemediationNote(selectedTask.id, "current-analyst@kelvin.io", newNoteContent);
+      const author = localStorage.getItem("kelvin_user_email") || "current-analyst@kelvin.io";
+      const note = await addRemediationNote(selectedTask.id, author, newNoteContent);
       setSelectedTask((prev) => (prev ? { ...prev, notes: [...prev.notes, note] } : null));
       setNewNoteContent("");
     } catch (err) {

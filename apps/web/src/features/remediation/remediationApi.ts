@@ -1,4 +1,6 @@
 import { request } from "../../services/api";
+import { isDemoMode } from "../../config/env";
+import { demoRemediationProvider, INITIAL_TASKS } from "./demoProvider";
 import type {
   RemediationFilterParams,
   RemediationNote,
@@ -238,62 +240,27 @@ export async function updateTaskStatus(
   newStatus: RemediationStatus,
   note?: string
 ): Promise<RemediationTask> {
-  try {
-    const res = await request<RemediationTask>(`/remediation/tasks/${taskId}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: newStatus, note }),
-    });
-    if (res && res.id) return res;
-  } catch {
-    // Local fallback update
+  if (isDemoMode()) {
+    return demoRemediationProvider.updateTaskStatus(taskId, newStatus, note);
   }
 
-  const taskIndex = mockTasksStore.findIndex((t) => t.id === taskId);
-  if (taskIndex === -1) throw new Error(`Task ${taskId} not found`);
-
-  const task = { ...mockTasksStore[taskIndex], status: newStatus, updatedAt: new Date().toISOString() };
-  if (note) {
-    task.notes = [
-      ...task.notes,
-      {
-        id: `not-${Date.now()}`,
-        author: "analyst@kelvin.io",
-        content: note,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-  }
-  mockTasksStore[taskIndex] = task;
-  return task;
+  return request<RemediationTask>(`/remediation/tasks/${taskId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: newStatus, note }),
+  });
 }
 
 export async function triggerVerificationScan(
   taskId: string
 ): Promise<{ verificationJobId: string; status: VerificationStatus }> {
-  try {
-    const res = await request<{ verificationJobId: string; status: VerificationStatus }>(
-      `/remediation/tasks/${taskId}/verify`,
-      { method: "POST" }
-    );
-    if (res && res.verificationJobId) return res;
-  } catch {
-    // Local fallback simulation
+  if (isDemoMode()) {
+    return demoRemediationProvider.triggerVerificationScan(taskId);
   }
 
-  const taskIndex = mockTasksStore.findIndex((t) => t.id === taskId);
-  if (taskIndex !== -1) {
-    mockTasksStore[taskIndex] = {
-      ...mockTasksStore[taskIndex],
-      status: "VERIFICATION_PENDING",
-      verificationStatus: "VERIFYING",
-      updatedAt: new Date().toISOString(),
-    };
-  }
-
-  return {
-    verificationJobId: `vjob-${Date.now()}`,
-    status: "VERIFYING",
-  };
+  return request<{ verificationJobId: string; status: VerificationStatus }>(
+    `/remediation/tasks/${taskId}/verify`,
+    { method: "POST" }
+  );
 }
 
 export async function addRemediationNote(
@@ -301,19 +268,14 @@ export async function addRemediationNote(
   author: string,
   content: string
 ): Promise<RemediationNote> {
-  const newNote: RemediationNote = {
-    id: `not-${Date.now()}`,
-    author,
-    content,
-    createdAt: new Date().toISOString(),
-  };
-
-  const taskIndex = mockTasksStore.findIndex((t) => t.id === taskId);
-  if (taskIndex !== -1) {
-    mockTasksStore[taskIndex].notes.push(newNote);
+  if (isDemoMode()) {
+    return demoRemediationProvider.addRemediationNote(taskId, author, content);
   }
 
-  return newNote;
+  return request<RemediationNote>(`/remediation/tasks/${taskId}/notes`, {
+    method: "POST",
+    body: JSON.stringify({ author, content }),
+  });
 }
 
 export function resetMockRemediation(): void {

@@ -14,7 +14,7 @@
 
 This formal audit evaluates the complete KELVIN Frontend Application built across issues **FE-EPIC-01** and **FE-01 through FE-24**. All features, design system primitives, routing, security defenses, and automated test pyramids were inspected against the mandatory 8-category quality scorecard.
 
-The application achieved an **Aggregate Weighted Quality Score of 97.46 / 100** (exceeding the >= 80 passing gate). **Zero P0 (Critical) and zero P1 (High) defects remain open**, and zero release blockers exist.
+The application achieved an **Aggregate Weighted Quality Score of 97.42 / 100** (exceeding the >= 80 passing gate). **Zero P0 (Critical) and zero P1 (High) defects remain open**, and zero release blockers exist.
 
 ---
 

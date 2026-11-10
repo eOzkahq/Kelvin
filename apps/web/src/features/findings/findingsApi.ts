@@ -1,4 +1,6 @@
 import { request } from "../../services/api";
+import { isDemoMode } from "../../config/env";
+import { demoFindingsProvider, INITIAL_FINDINGS } from "./demoProvider";
 import type {
   BatchUpdatePayload,
   BatchUpdateResponse,
@@ -208,19 +210,28 @@ export async function fetchFindings(params?: FindingsFilterParams): Promise<Find
     );
   }
 
+  const query = new URLSearchParams();
+  if (params?.search) query.set("q", params.search);
   if (params?.severity) {
     const sevs = Array.isArray(params.severity) ? params.severity : [params.severity];
     filtered = filtered.filter((f: Finding) => sevs.includes(f.severity));
   }
-
   if (params?.status) {
     const stats = Array.isArray(params.status) ? params.status : [params.status];
     filtered = filtered.filter((f: Finding) => stats.includes(f.status));
   }
+  if (params?.target) query.set("target", params.target);
+  if (params?.scanner) query.set("scanner", params.scanner);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.sortBy || params?.sort) query.set("sort", params.sortBy || params.sort || "riskScore");
+  if (params?.sortOrder || params?.order) query.set("order", params.sortOrder || params.order || "desc");
 
   if (params?.target) {
     filtered = filtered.filter((f: Finding) => f.target.toLowerCase().includes(params.target!.toLowerCase()));
   }
+  return request<FindingDetail>(`/findings/${encodeURIComponent(id)}`);
+}
 
   if (params?.scanner) {
     filtered = filtered.filter((f: Finding) => f.scanner.toLowerCase() === params.scanner!.toLowerCase());
@@ -243,21 +254,6 @@ export async function fetchFindings(params?: FindingsFilterParams): Promise<Find
     }
     return sortOrder === "asc" ? comp : -comp;
   });
-
-  const page = params?.page || 1;
-  const limit = params?.limit || 25;
-  const total = filtered.length;
-  const totalPages = Math.ceil(total / limit) || 1;
-  const startIndex = (page - 1) * limit;
-  const items = filtered.slice(startIndex, startIndex + limit);
-
-  return {
-    items,
-    total,
-    page,
-    limit,
-    totalPages,
-  };
 }
 
 export async function getFindingDetail(id: string): Promise<FindingDetail> {
