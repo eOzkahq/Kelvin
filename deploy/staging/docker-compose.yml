@@ -118,6 +118,7 @@ services:
       REDIS_TLS_ENABLED: "true"
       KELVIN_WORKER_TOKEN_SECRET: ${KELVIN_WORKER_TOKEN_SECRET:-${KELVIN_JWT_SECRET}}
       KELVIN_DATABASE_URL: ${KELVIN_DATABASE_URL}
+      KELVIN_DATABASE_SSL_ROOT_CERT: ${SUPABASE_CA_CERT_PATH:-}
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       SUPABASE_STORAGE_BUCKET_EVIDENCE: ${SUPABASE_STORAGE_BUCKET_EVIDENCE:-kelvin-evidence}
@@ -158,6 +159,10 @@ services:
     restart: "no"
     read_only: true
     user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       KELVIN_ENV: staging
       KELVIN_DATABASE_URL: ${KELVIN_DATABASE_URL}

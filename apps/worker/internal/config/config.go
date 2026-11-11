@@ -34,7 +34,8 @@ func (e Environment) Valid() bool {
 
 // DatabaseConfig holds relational database connection settings for workers.
 type DatabaseConfig struct {
-	URL string `mapstructure:"url"`
+	URL         string `mapstructure:"url"`
+	SSLRootCert string `mapstructure:"sslrootcert"`
 }
 
 // RedisConfig holds Redis task broker connection settings for worker queue polling.
@@ -156,6 +157,8 @@ func Load() (Config, error) {
 
 	bindEnvWithFallback(v, "database.url", "KELVIN_DATABASE_URL")
 	bindEnvWithFallback(v, "database.url", "SUPABASE_DB_URL")
+	bindEnvWithFallback(v, "database.sslrootcert", "KELVIN_DATABASE_SSL_ROOT_CERT")
+	bindEnvWithFallback(v, "database.sslrootcert", "SUPABASE_CA_CERT_PATH")
 	bindEnvWithFallback(v, "redis.url", "KELVIN_REDIS_URL")
 	bindEnvWithFallback(v, "redis.url", "REDIS_URL")
 	bindEnvWithFallback(v, "redis.addr", "KELVIN_REDIS_ADDR")
@@ -226,6 +229,23 @@ func Load() (Config, error) {
 		}
 	}
 
+	redisTLSEnabled := v.GetBool("redis.tls_enabled")
+	if strings.HasPrefix(redisURL, "rediss://") {
+		redisTLSEnabled = true
+	}
+
+	if env == EnvStaging || env == EnvProduction {
+		if redisURL != "" && strings.HasPrefix(redisURL, "redis://") {
+			return Config{}, fmt.Errorf("insecure plaintext Redis URL (%s) is prohibited in %s; rediss:// TLS scheme is strictly required", redactURL(redisURL), env)
+		}
+		if redisURL == "" && redisAddr != "" && !redisTLSEnabled {
+			return Config{}, fmt.Errorf("plaintext Redis is prohibited in %s; REDIS_TLS_ENABLED=true is strictly required", env)
+		}
+		if !redisTLSEnabled {
+			redisTLSEnabled = true
+		}
+	}
+
 	cfg := Config{
 		Env:          env,
 		LogLevel:     logLevel,
@@ -233,12 +253,15 @@ func Load() (Config, error) {
 		PollInterval: pollInterval,
 		Development:  env == EnvDevelopment || env == EnvTesting,
 		Database: DatabaseConfig{
-			URL: dbURL,
+			URL:         dbURL,
+			SSLRootCert: v.GetString("database.sslrootcert"),
 		},
 		Redis: RedisConfig{
+			URL:               redisURL,
 			Addr:              redisAddr,
 			Password:          v.GetString("redis.password"),
 			DB:                v.GetInt("redis.db"),
+			TLSEnabled:        redisTLSEnabled,
 			WorkerTokenSecret: workerTokenSecret,
 		},
 		Storage: StorageConfig{

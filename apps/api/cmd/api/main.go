@@ -54,6 +54,9 @@ func main() {
 		if cfg.Database.MinConns > 0 {
 			poolCfg.MinConns = cfg.Database.MinConns
 		}
+		if cfg.Database.SSLRootCert != "" {
+			poolCfg.SSLRootCert = cfg.Database.SSLRootCert
+		}
 		pool, err := database.NewPool(context.Background(), cfg.Database.URL, poolCfg, log)
 		if err != nil {
 			log.Fatal("database connection failed", zap.Error(err))

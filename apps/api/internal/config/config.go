@@ -286,7 +286,7 @@ func Load() (Config, error) {
 		}
 		sslMode := strings.ToLower(u.Query().Get("sslmode"))
 		if env == EnvProduction || env == EnvStaging {
-			if sslMode == "disable" || sslMode == "allow" || sslMode == "prefer" || sslMode == "" {
+			if sslMode != "verify-full" {
 				return Config{}, fmt.Errorf("verified database TLS (sslmode=verify-full) is required in %s; got %q", env, sslMode)
 			}
 			sslRootCert := u.Query().Get("sslrootcert")
@@ -342,6 +342,22 @@ func Load() (Config, error) {
 	}
 	if (env == EnvStaging || env == EnvProduction) && redisAddr == "" && redisURL == "" {
 		return Config{}, errors.New("KELVIN_REDIS_ADDR or REDIS_URL is required in staging and production environments")
+	}
+
+	redisTLSEnabled := v.GetBool("redis.tls_enabled")
+	if strings.HasPrefix(redisURL, "rediss://") {
+		redisTLSEnabled = true
+	}
+	if env == EnvStaging || env == EnvProduction {
+		if redisURL != "" && strings.HasPrefix(redisURL, "redis://") {
+			return Config{}, fmt.Errorf("insecure plaintext Redis URL (%s) is prohibited in %s; rediss:// TLS scheme is strictly required", redactURL(redisURL), env)
+		}
+		if redisURL == "" && redisAddr != "" && !redisTLSEnabled {
+			return Config{}, fmt.Errorf("plaintext Redis is prohibited in %s; REDIS_TLS_ENABLED=true is strictly required", env)
+		}
+		if !redisTLSEnabled {
+			redisTLSEnabled = true
+		}
 	}
 	jwtSecret := v.GetString("auth.jwt_secret")
 	if env == EnvStaging || env == EnvProduction {
@@ -411,7 +427,7 @@ func Load() (Config, error) {
 			Addr:         redisAddr,
 			Password:     v.GetString("redis.password"),
 			DB:           v.GetInt("redis.db"),
-			TLSEnabled:   v.GetBool("redis.tls_enabled") || strings.HasPrefix(redisURL, "rediss://") || env == EnvStaging || env == EnvProduction,
+			TLSEnabled:   redisTLSEnabled,
 			PoolSize:     v.GetInt("redis.pool_size"),
 			MinIdleConns: v.GetInt("redis.min_idle_conns"),
 		},

@@ -4,6 +4,8 @@ package database
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -27,6 +29,7 @@ type PoolConfig struct {
 	MaxConnLifetime time.Duration
 	MaxConnIdleTime time.Duration
 	HealthTimeout   time.Duration
+	SSLRootCert     string // Path to custom root CA certificate
 }
 
 // DefaultPoolConfig returns standard production-grade pool settings.
@@ -40,8 +43,9 @@ func DefaultPoolConfig() PoolConfig {
 	}
 }
 
-// NewPool initializes a high-performance pgx connection pool with health checking.
-func NewPool(ctx context.Context, databaseURL string, poolCfg PoolConfig, log *zap.Logger) (*pgxpool.Pool, error) {
+// BuildPgxPoolConfig constructs and validates a *pgxpool.Config from databaseURL and PoolConfig,
+// configuring connection limits and custom CA certificates with strict TLS verification.
+func BuildPgxPoolConfig(databaseURL string, poolCfg PoolConfig) (*pgxpool.Config, error) {
 	if databaseURL == "" {
 		return nil, errors.New("database: database URL must not be empty")
 	}
@@ -62,6 +66,69 @@ func NewPool(ctx context.Context, databaseURL string, poolCfg PoolConfig, log *z
 	}
 	if poolCfg.MaxConnIdleTime > 0 {
 		cfg.MaxConnIdleTime = poolCfg.MaxConnIdleTime
+	}
+
+	// Resolve CA root certificate path from URL query or pool config
+	parsedURL, err := url.Parse(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("database: malformed database URL: %w", err)
+	}
+
+	urlRootCert := parsedURL.Query().Get("sslrootcert")
+	caPath := strings.TrimSpace(poolCfg.SSLRootCert)
+	if urlRootCert != "" && caPath != "" && urlRootCert != caPath {
+		return nil, fmt.Errorf("database: conflicting CA certificate paths configured: URL sslrootcert=%q vs explicit KELVIN_DATABASE_SSL_ROOT_CERT=%q", urlRootCert, caPath)
+	}
+	if caPath == "" {
+		caPath = urlRootCert
+	}
+
+	if caPath != "" {
+		if _, err := os.Stat(caPath); err != nil {
+			return nil, fmt.Errorf("database: CA certificate file not found: %w", err)
+		}
+
+		caBytes, err := os.ReadFile(caPath)
+		if err != nil {
+			return nil, fmt.Errorf("database: failed to read CA certificate file %q: %w", caPath, err)
+		}
+
+		// Load system certificate pool and append custom root CA so system trust is preserved alongside custom cert
+		rootCertPool, err := x509.SystemCertPool()
+		if err != nil || rootCertPool == nil {
+			rootCertPool = x509.NewCertPool()
+		}
+		if !rootCertPool.AppendCertsFromPEM(caBytes) {
+			return nil, fmt.Errorf("database: failed to append CA certificates from %q: invalid PEM format", caPath)
+		}
+
+		if cfg.ConnConfig.TLSConfig == nil {
+			cfg.ConnConfig.TLSConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
+		}
+		cfg.ConnConfig.TLSConfig.RootCAs = rootCertPool
+
+		// Ensure ServerName is set for hostname verification if not already populated
+		if cfg.ConnConfig.TLSConfig.ServerName == "" {
+			host := parsedURL.Hostname()
+			if host != "" {
+				cfg.ConnConfig.TLSConfig.ServerName = host
+			}
+		}
+
+		// Enforce strict certificate and hostname verification
+		cfg.ConnConfig.TLSConfig.InsecureSkipVerify = false
+	}
+
+	return cfg, nil
+}
+
+// NewPool initializes a high-performance pgx connection pool with health checking.
+func NewPool(ctx context.Context, databaseURL string, poolCfg PoolConfig, log *zap.Logger) (*pgxpool.Pool, error) {
+	cfg, err := BuildPgxPoolConfig(databaseURL, poolCfg)
+	if err != nil {
+		return nil, err
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)

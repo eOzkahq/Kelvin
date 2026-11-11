@@ -117,6 +117,9 @@ func NewClient(cfg Config) (*Client, error) {
 				MinVersion: tls.VersionTLS12,
 			}
 		}
+		if opts.TLSConfig.MinVersion < tls.VersionTLS12 {
+			opts.TLSConfig.MinVersion = tls.VersionTLS12
+		}
 		if opts.TLSConfig.ServerName == "" {
 			host := opts.Addr
 			if strings.Contains(host, ":") {
@@ -124,6 +127,7 @@ func NewClient(cfg Config) (*Client, error) {
 			}
 			opts.TLSConfig.ServerName = host
 		}
+		opts.TLSConfig.InsecureSkipVerify = false
 	}
 
 	rdb := redis.NewClient(opts)

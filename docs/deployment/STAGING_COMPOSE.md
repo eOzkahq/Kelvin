@@ -30,10 +30,12 @@ Unlike the local development compose file (`docker-compose.yml`), the staging co
 
 ## 3. Oracle VM ARM64 Resource Allocation Model
 
-The staging host is configured on an Oracle Cloud Infrastructure (OCI) Ampere A1 Compute instance:
+The staging host is configured on an Oracle Cloud Infrastructure (OCI) Ampere A1 Compute instance running **Oracle Linux 9.8**:
 - **vCPU / OCPU**: 1 OCPU (2 vCPUs)
 - **Host RAM**: Approximately 5.5 GiB memory + 4 GiB swap
+- **Disk**: 30 GB Root Filesystem
 - **Architecture**: ARM64 (aarch64)
+- **Host CA Bundle Path**: `/etc/pki/tls/certs/ca-bundle.crt`
 
 To ensure ample headroom for Oracle Linux kernel operations, Docker daemon, systemd journal, and administrative SSH sessions, conservative resource limits are enforced:
 
@@ -90,14 +92,16 @@ A primary security architectural decision in KELVIN is the **strict isolation of
 ### 7.1 Initial Staging Deployment (API-Only Mode - Default)
 In initial staging, only the control-plane API service is started. The worker container is kept dormant under an explicit profile to protect Oracle VM stability:
 ```bash
-# 1. Export staging environment variables
-export $(cat /etc/kelvin/staging.env | xargs)
+# 1. Source staging environment variables (chmod 0600)
+set -a
+source /etc/kelvin/staging.env
+set +a
 
-# 2. Validate configuration syntax
-docker compose -f deploy/staging/docker-compose.yml config
+# 2. Validate configuration syntax (using sudo on Oracle Linux)
+sudo docker compose -f deploy/staging/docker-compose.yml config
 
 # 3. Pull / Build ARM64 images and start API-only control plane
-docker compose -f deploy/staging/docker-compose.yml up -d --build
+sudo docker compose -f deploy/staging/docker-compose.yml up -d --build
 
 # 4. Check readiness probe (reports scannerRunner: UNAVAILABLE)
 curl -s http://127.0.0.1:8080/health/ready | jq .
@@ -106,13 +110,17 @@ curl -s http://127.0.0.1:8080/health/ready | jq .
 ### 7.2 Running Database Migrations via Staging Container
 Execute schema migrations against Supabase using the identical `kelvin-api:staging` container image:
 ```bash
-docker compose -f deploy/staging/docker-compose.yml run --rm migrate up
-# Or via helper script:
+# Via helper script with automatic sudo detection:
 ./deploy/staging/migrate.sh up
+
+# Or directly via sudo docker compose:
+sudo docker compose -f deploy/staging/docker-compose.yml run --rm \
+  -v "${SUPABASE_CA_CERT_PATH}:${SUPABASE_CA_CERT_PATH}:ro" \
+  migrate up
 ```
 
 ### 7.3 Enabling Worker Execution (Optional Profile)
 When an approved execution runner or runtime environment is provisioned:
 ```bash
-docker compose -f deploy/staging/docker-compose.yml --profile worker up -d
+sudo docker compose -f deploy/staging/docker-compose.yml --profile worker up -d
 ```
