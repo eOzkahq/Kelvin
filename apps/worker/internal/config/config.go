@@ -156,6 +156,7 @@ func Load() (Config, error) {
 
 	bindEnvWithFallback(v, "database.url", "KELVIN_DATABASE_URL")
 	bindEnvWithFallback(v, "database.url", "SUPABASE_DB_URL")
+	bindEnvWithFallback(v, "redis.url", "KELVIN_REDIS_URL")
 	bindEnvWithFallback(v, "redis.url", "REDIS_URL")
 	bindEnvWithFallback(v, "redis.addr", "KELVIN_REDIS_ADDR")
 	bindEnvWithFallback(v, "redis.password", "KELVIN_REDIS_PASSWORD")

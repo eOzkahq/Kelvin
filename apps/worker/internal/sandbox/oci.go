@@ -29,6 +29,19 @@ func NewOCIExecutor() (*OCIExecutor, error) {
 	return nil, errors.New("sandbox: no OCI runtime (podman/docker) found")
 }
 
+// VerifyRuntime probes the discovered OCI runtime binary to verify that the
+// container engine daemon/socket is responsive.
+func (e *OCIExecutor) VerifyRuntime(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, e.runtime, "info")
+	cmd.Env = runtimeEnvironment()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("sandbox: OCI runtime %q daemon/socket is unavailable: %w (output: %s)", e.runtime, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 	if err := spec.Validate(); err != nil {
 		return nil, err

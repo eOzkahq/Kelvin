@@ -28,7 +28,9 @@ ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src/apps/api
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-arm64} \
-    go build -trimpath -ldflags="-s -w -X main.version=1.0.0-prod" -o /bin/api ./cmd/api
+    go build -trimpath -ldflags="-s -w -X main.version=1.0.0-prod" -o /bin/api ./cmd/api && \
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-arm64} \
+    go build -trimpath -ldflags="-s -w" -o /bin/migrate ./cmd/migrate
 
 # Stage 2: Minimal hardened runtime
 FROM alpine:3.21
@@ -37,13 +39,15 @@ FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tini curl tzdata && \
     addgroup -g 10001 -S kelvin && \
     adduser -u 10001 -S kelvin -G kelvin -h /app -s /sbin/nologin && \
-    mkdir -p /app /tmp && \
+    mkdir -p /app /app/db/migrations /tmp && \
     chown -R 10001:10001 /app /tmp
 
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binaries and migration assets from builder
 COPY --from=builder /bin/api /app/kelvin-api
+COPY --from=builder /bin/migrate /app/kelvin-migrate
+COPY apps/api/db/migrations /app/db/migrations
 
 USER 10001:10001
 

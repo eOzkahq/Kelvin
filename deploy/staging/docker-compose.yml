@@ -42,7 +42,9 @@ services:
       KELVIN_DATABASE_MIN_CONNS: "1"
       KELVIN_REDIS_ADDR: ${KELVIN_REDIS_ADDR:-}
       KELVIN_REDIS_URL: ${REDIS_URL:-}
+      REDIS_URL: ${REDIS_URL:-}
       KELVIN_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       REDIS_TLS_ENABLED: "true"
       KELVIN_JWT_SECRET: ${KELVIN_JWT_SECRET}
       KELVIN_EVIDENCE_SIGNING_KEY: ${KELVIN_EVIDENCE_SIGNING_KEY}
@@ -65,11 +67,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.60"
-          memory: 2048M
+          cpus: "0.25"
+          memory: 1024M
         reservations:
           cpus: "0.10"
-          memory: 512M
+          memory: 256M
     logging:
       driver: "json-file"
       options:
@@ -105,15 +107,17 @@ services:
       KELVIN_WORKER_CONCURRENCY: "1"
       KELVIN_REDIS_ADDR: ${KELVIN_REDIS_ADDR:-}
       KELVIN_REDIS_URL: ${REDIS_URL:-}
+      REDIS_URL: ${REDIS_URL:-}
       KELVIN_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       REDIS_TLS_ENABLED: "true"
       KELVIN_WORKER_TOKEN_SECRET: ${KELVIN_WORKER_TOKEN_SECRET:-${KELVIN_JWT_SECRET}}
       KELVIN_DATABASE_URL: ${KELVIN_DATABASE_URL}
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       SUPABASE_STORAGE_BUCKET_EVIDENCE: ${SUPABASE_STORAGE_BUCKET_EVIDENCE:-kelvin-evidence}
-      KELVIN_LIMITS_CPU_QUOTA: "0.40"
-      KELVIN_LIMITS_MEMORY_LIMIT: "3072M"
+      KELVIN_LIMITS_CPU_QUOTA: "0.50"
+      KELVIN_LIMITS_MEMORY_LIMIT: "2048M"
       KELVIN_LIMITS_MAX_CONCURRENT_CONNS: "10"
       KELVIN_LIMITS_MAX_REQUESTS_PER_TARGET: "5"
     depends_on:
@@ -122,8 +126,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.40"
-          memory: 3072M
+          cpus: "0.50"
+          memory: 2048M
         reservations:
           cpus: "0.10"
           memory: 512M

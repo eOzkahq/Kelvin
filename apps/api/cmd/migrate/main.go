@@ -43,6 +43,7 @@ func resolveMigrationsPath(customPath string) (string, error) {
 		"db/migrations",
 		"/app/db/migrations",
 		"../db/migrations",
+		"../../db/migrations",
 		"../../apps/api/db/migrations",
 	}
 

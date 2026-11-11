@@ -4,7 +4,7 @@
 
 The staging environment is designed to execute on an **Oracle Cloud Infrastructure (OCI) Ampere A1 Compute Instance** running **Oracle Linux 8 / 9 (ARM64)**:
 - **Processor**: 1 OCPU (Ampere Altra 3.0 GHz ARM64, 2 vCPUs)
-- **Memory**: 6 GB RAM
+- **Memory**: Approximately 5.5 GiB physical RAM + 4 GiB swap
 - **Disk**: 50 GB Boot Volume (NVMe / High Performance Block Volume)
 - **Container Engine**: Docker Engine 24+ or Podman with Docker Compose v2+
 - **OS Hardening**: SELinux in enforcing/permissive mode, non-root user execution, systemd cgroups v2

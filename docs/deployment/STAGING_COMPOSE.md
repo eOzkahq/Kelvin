@@ -32,17 +32,18 @@ Unlike the local development compose file (`docker-compose.yml`), the staging co
 
 The staging host is configured on an Oracle Cloud Infrastructure (OCI) Ampere A1 Compute instance:
 - **vCPU / OCPU**: 1 OCPU (2 vCPUs)
-- **Host RAM**: 6 GB total
+- **Host RAM**: Approximately 5.5 GiB memory + 4 GiB swap
+- **Architecture**: ARM64 (aarch64)
 
-Container resource limits are strictly budgeted to prevent Out-Of-Memory (OOM) kernel kills and noisy-neighbor throttling:
+To ensure ample headroom for Oracle Linux kernel operations, Docker daemon, systemd journal, and administrative SSH sessions, conservative resource limits are enforced:
 
 ```mermaid
 flowchart TD
-    Host["Oracle Linux ARM64 Host (1 OCPU / 6 GB RAM)"]
-    subgraph Allocations ["Container Resource Budget"]
-        API["kelvin-staging-api<br/>Limits: 0.60 CPU / 2048 MB RAM<br/>Reservations: 0.10 CPU / 512 MB RAM"]
-        Worker["kelvin-staging-worker<br/>Limits: 0.40 CPU / 3072 MB RAM<br/>Reservations: 0.10 CPU / 512 MB RAM"]
-        OS["OS Kernel & Buffer Reserve<br/>~1024 MB RAM / 0.10 OCPU"]
+    Host["Oracle Linux ARM64 Host (1 OCPU / 5.5 GiB RAM)"]
+    subgraph Allocations ["Container Resource Budget (~3.0 GiB)"]
+        API["kelvin-staging-api<br/>Limits: 0.25 CPU / 1024 MB RAM<br/>Reservations: 0.10 CPU / 256 MB RAM"]
+        Worker["kelvin-staging-worker<br/>Limits: 0.50 CPU / 2048 MB RAM<br/>Reservations: 0.10 CPU / 512 MB RAM<br/>Concurrency: 1"]
+        OS["OS Kernel, Docker Engine & SSH Reserve<br/>~2.5 GiB RAM / 0.25 OCPU"]
     end
     Host --> API
     Host --> Worker
@@ -51,7 +52,21 @@ flowchart TD
 
 ---
 
-## 4. Network Model & Ingress Security
+## 4. Scanner Runtime Connectivity & Execution Boundaries
+
+A primary security architectural decision in KELVIN is the **strict isolation of the host Docker socket**:
+- The staging worker container runs as an unprivileged user (`10001:10001`) with a read-only root filesystem (`read_only: true`).
+- Mounting `/var/run/docker.sock` into the container is **strictly prohibited**, as granting socket access is effectively equivalent to root access on the host VM.
+- `NewOCIExecutor` searches for local `podman` or `docker` binaries in `PATH` and verifies engine responsiveness via `VerifyRuntime()`.
+- **Runtime Limitation**: Because the staging worker does not mount the Docker socket, it cannot directly spawn sibling containerized scanners (ZAP / Nuclei) on the staging host.
+- **Recommendations for Production Execution**:
+  1. **Restricted Socket Proxy**: Deploy an isolated sidecar container (e.g. `docker-socket-proxy`) that grants read-only access to container inspection and strictly limits `POST /containers/create` to allow-listed scanner image hashes and approved tmpfs profiles, blocking host mounts and capabilities.
+  2. **Dedicated Scanner Execution Host / Runner Pool**: Offload scanner container execution to an external microVM or serverless runner pool (e.g., AWS Fargate, Fly Machines, or dedicated ephemeral runner VMs) triggered asynchronously via Redis task messages.
+  3. **Rootless Podman**: On dedicated single-tenant nodes, configure user namespaces and `/dev/fuse` to support rootless container-in-container execution without host privileges.
+
+---
+
+## 5. Network Model & Ingress Security
 
 1. **Loopback Port Binding**:
    The API container binds strictly to `127.0.0.1:8080:8080`. It is never exposed directly on public host interfaces (`0.0.0.0`). Ingress is routed through a host-level reverse proxy (such as Caddy or Nginx) handling TLS termination and certbot renewal.
@@ -62,7 +77,7 @@ flowchart TD
 
 ---
 
-## 5. Security Controls & Container Hardening
+## 6. Security Controls & Container Hardening
 
 - **Non-Root Execution**: Runs under UID/GID `10001:10001` (`kelvin`).
 - **Read-Only Root Filesystem**: `read_only: true` is enforced for both API and Worker.
@@ -73,7 +88,7 @@ flowchart TD
 
 ---
 
-## 6. Deployment Commands
+## 7. Deployment Commands
 
 ```bash
 # 1. Export staging environment variables

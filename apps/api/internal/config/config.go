@@ -187,7 +187,7 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "database.min_conns", "KELVIN_DATABASE_MIN_CONNS")
 	bindEnvWithFallback(v, "auth.jwt_secret", "KELVIN_JWT_SECRET")
 
-	bindEnvWithFallback(v, "redis.url", "REDIS_URL")
+	bindEnvWithFallback(v, "redis.url", "KELVIN_REDIS_URL", "REDIS_URL")
 	bindEnvWithFallback(v, "redis.addr", "KELVIN_REDIS_ADDR")
 	bindEnvWithFallback(v, "redis.password", "KELVIN_REDIS_PASSWORD")
 	bindEnvWithFallback(v, "redis.password", "REDIS_PASSWORD")

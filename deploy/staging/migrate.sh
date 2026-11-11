@@ -48,23 +48,25 @@ fi
 echo "[+] Executing migration CLI with sanitized parameters..."
 cd "${REPO_ROOT}/apps/api"
 
-if command -v go >/dev/null 2>&1; then
-  go run ./cmd/migrate "${COMMAND}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
-else
-  echo "[-] Go toolchain not found locally; executing via Docker one-shot container..."
+if [ -x "${REPO_ROOT}/apps/api/bin/migrate" ]; then
+  echo "[+] Running local static migration binary..."
+  "${REPO_ROOT}/apps/api/bin/migrate" "${COMMAND}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+elif command -v docker >/dev/null 2>&1 && docker image inspect kelvin-api:staging >/dev/null 2>&1; then
+  echo "[+] Running migration via verified staging container (kelvin-api:staging)..."
   docker run --rm \
-    --network host \
-    -v "${KELVIN_MIGRATIONS_PATH}:/app/db/migrations:ro" \
+    --network kelvin-staging-net \
     ${SUPABASE_CA_CERT_PATH:+-v "${SUPABASE_CA_CERT_PATH}:${SUPABASE_CA_CERT_PATH}:ro"} \
     -e KELVIN_ENV="${KELVIN_ENV}" \
     -e KELVIN_DATABASE_URL="${KELVIN_DATABASE_URL}" \
     -e KELVIN_MIGRATIONS_PATH="/app/db/migrations" \
     ${SUPABASE_CA_CERT_PATH:+-e KELVIN_DATABASE_SSL_ROOT_CERT="${SUPABASE_CA_CERT_PATH}"} \
-    golang:1.24-alpine sh -c "
-      apk add --no-cache ca-certificates git >/dev/null 2>&1
-      go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.0
-      migrate -path /app/db/migrations -database \"\${KELVIN_DATABASE_URL}\" ${COMMAND}
-    "
+    kelvin-api:staging /app/kelvin-migrate "${COMMAND}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+elif command -v go >/dev/null 2>&1; then
+  echo "[+] Running migration via local Go toolchain..."
+  go run ./cmd/migrate "${COMMAND}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+else
+  echo "[-] ERROR: Neither kelvin-api:staging image nor Go compiler found to execute migrations."
+  exit 1
 fi
 
 echo "[+] Staging migration workflow finished successfully."

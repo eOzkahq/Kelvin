@@ -39,7 +39,7 @@ func main() {
 	var executor sandbox.Executor
 	ociExec, err := sandbox.NewOCIExecutor()
 	if err != nil {
-		if cfg.Env == config.EnvProduction {
+		if cfg.Env == config.EnvProduction || cfg.Env == config.EnvStaging {
 			log.Fatal("sandbox executor initialization failed", zap.Error(err))
 		}
 		log.Warn("no OCI container runtime found, falling back to simulated sandbox", zap.Error(err))
