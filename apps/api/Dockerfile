@@ -2,9 +2,12 @@
 # Target architecture: linux/arm64 & linux/amd64
 
 # Stage 1: Build binary
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 
 WORKDIR /src
+
+# Ensure reproducible build using local container toolchain without auto-downloading
+ENV GOTOOLCHAIN=local
 
 # Install CA certificates and build tools
 RUN apk add --no-cache ca-certificates git
@@ -14,6 +17,8 @@ COPY go.work go.work.sum* ./
 COPY apps/api/go.mod apps/api/go.sum* ./apps/api/
 COPY apps/worker/go.mod apps/worker/go.sum* ./apps/worker/
 COPY packages/common/go.mod packages/common/go.sum* ./packages/common/
+COPY packages/schemas/go.mod packages/schemas/go.sum* ./packages/schemas/
+COPY tests/integration/go.mod tests/integration/go.sum* ./tests/integration/
 
 WORKDIR /src/apps/api
 RUN go mod download
