@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -88,7 +90,17 @@ func NewPool(ctx context.Context, databaseURL string, poolCfg PoolConfig, log *z
 type Migrator struct {
 	migrationsPath string
 	databaseURL    string
+	env            string
+	caCertPath     string
 	log            *zap.Logger
+}
+
+// MigratorOptions holds configuration options for Migrator initialization.
+type MigratorOptions struct {
+	MigrationsPath string
+	DatabaseURL    string
+	Environment    string
+	CACertPath     string
 }
 
 // NewMigrator returns a new Migrator instance.
@@ -98,6 +110,27 @@ func NewMigrator(migrationsPath, databaseURL string, log *zap.Logger) *Migrator 
 		databaseURL:    databaseURL,
 		log:            log,
 	}
+}
+
+// NewMigratorWithOptions returns a new Migrator configured with explicit options.
+func NewMigratorWithOptions(opts MigratorOptions, log *zap.Logger) *Migrator {
+	return &Migrator{
+		migrationsPath: opts.MigrationsPath,
+		databaseURL:    opts.DatabaseURL,
+		env:            strings.ToLower(strings.TrimSpace(opts.Environment)),
+		caCertPath:     strings.TrimSpace(opts.CACertPath),
+		log:            log,
+	}
+}
+
+// SetEnvironment configures the target environment tier ("development", "staging", "production").
+func (m *Migrator) SetEnvironment(env string) {
+	m.env = strings.ToLower(strings.TrimSpace(env))
+}
+
+// SetCACertPath sets a custom CA certificate path for verified TLS.
+func (m *Migrator) SetCACertPath(path string) {
+	m.caCertPath = strings.TrimSpace(path)
 }
 
 // normalizeSourceURL ensures file path is formatted as a valid golang-migrate URL.
@@ -163,22 +196,73 @@ func (m *Migrator) Version() (uint, bool, error) {
 	return mig.Version()
 }
 
+// Force sets the schema version and clears the dirty flag (useful for disaster recovery).
+func (m *Migrator) Force(version int) error {
+	mig, err := m.instance()
+	if err != nil {
+		return err
+	}
+	defer func() { _, _ = mig.Close() }()
+
+	m.log.Warn("forcing migration version...", zap.Int("version", version))
+	return mig.Force(version)
+}
+
 func (m *Migrator) instance() (*migrate.Migrate, error) {
 	sourceURL := normalizeSourceURL(m.migrationsPath)
 
-	// Ensure sslmode parameter is present
-	dbURL := m.databaseURL
-	if !strings.Contains(dbURL, "sslmode=") {
-		if strings.Contains(dbURL, "?") {
-			dbURL += "&sslmode=disable"
-		} else {
-			dbURL += "?sslmode=disable"
+	if m.databaseURL == "" {
+		return nil, errors.New("database migration: database connection URL is required and must not be empty")
+	}
+
+	u, err := url.Parse(m.databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("database migration: invalid database connection URL: %w", err)
+	}
+
+	q := u.Query()
+	sslMode := strings.ToLower(strings.TrimSpace(q.Get("sslmode")))
+
+	// Insecure implicit fallback (?sslmode=disable) is strictly prohibited.
+	// Missing SSL mode produces a clear error.
+	if sslMode == "" {
+		return nil, errors.New("database migration: missing required 'sslmode' query parameter in database URL (staging and production require sslmode=verify-full; local development requires explicit deliberate configuration)")
+	}
+
+	env := m.env
+	if env == "" {
+		if envVal := os.Getenv("KELVIN_ENV"); envVal != "" {
+			env = strings.ToLower(strings.TrimSpace(envVal))
+		} else if envVal := os.Getenv("APP_ENV"); envVal != "" {
+			env = strings.ToLower(strings.TrimSpace(envVal))
 		}
 	}
 
+	isStagingOrProd := env == "production" || env == "staging"
+	if isStagingOrProd {
+		if sslMode != "verify-full" {
+			return nil, fmt.Errorf("database migration: insecure sslmode=%q is prohibited in %s (sslmode=verify-full is strictly required)", sslMode, env)
+		}
+	}
+
+	// Apply configured CA certificate path if provided and not already present in URL query
+	if m.caCertPath != "" && q.Get("sslrootcert") == "" {
+		q.Set("sslrootcert", m.caCertPath)
+		u.RawQuery = q.Encode()
+	}
+
+	// If sslrootcert is configured, verify that the certificate file exists
+	if rootCert := q.Get("sslrootcert"); rootCert != "" {
+		if _, statErr := os.Stat(rootCert); statErr != nil {
+			return nil, fmt.Errorf("database migration: CA certificate file not found at sslrootcert path %q: %w", rootCert, statErr)
+		}
+	}
+
+	dbURL := u.String()
 	mig, err := migrate.New(sourceURL, dbURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize golang-migrate instance: %w", err)
+		redactedHost := u.Host
+		return nil, fmt.Errorf("failed to initialize golang-migrate instance for %s: %w", redactedHost, err)
 	}
 	return mig, nil
 }

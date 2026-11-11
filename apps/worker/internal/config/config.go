@@ -156,6 +156,7 @@ func Load() (Config, error) {
 
 	bindEnvWithFallback(v, "database.url", "KELVIN_DATABASE_URL")
 	bindEnvWithFallback(v, "database.url", "SUPABASE_DB_URL")
+	bindEnvWithFallback(v, "redis.url", "KELVIN_REDIS_URL")
 	bindEnvWithFallback(v, "redis.url", "REDIS_URL")
 	bindEnvWithFallback(v, "redis.addr", "KELVIN_REDIS_ADDR")
 	bindEnvWithFallback(v, "redis.password", "KELVIN_REDIS_PASSWORD")
@@ -200,10 +201,17 @@ func Load() (Config, error) {
 	dbURL := v.GetString("database.url")
 	if dbURL != "" {
 		if !strings.HasPrefix(dbURL, "postgres://") && !strings.HasPrefix(dbURL, "postgresql://") {
-			return Config{}, fmt.Errorf("invalid KELVIN_DATABASE_URL: %q (must start with postgres:// or postgresql://)", dbURL)
+			return Config{}, fmt.Errorf("invalid KELVIN_DATABASE_URL: %q (must start with postgres:// or postgresql://)", redactURL(dbURL))
 		}
-		if _, err := url.Parse(dbURL); err != nil {
+		u, err := url.Parse(dbURL)
+		if err != nil {
 			return Config{}, fmt.Errorf("invalid KELVIN_DATABASE_URL: %w", err)
+		}
+		sslMode := strings.ToLower(u.Query().Get("sslmode"))
+		if env == EnvProduction || env == EnvStaging {
+			if sslMode != "verify-full" {
+				return Config{}, fmt.Errorf("verified database TLS (sslmode=verify-full) is required in %s; got %q", env, sslMode)
+			}
 		}
 	}
 
@@ -267,4 +275,18 @@ func bindEnvWithFallback(v *viper.Viper, viperKey, envKey string) {
 // FromEnv maintains backwards compatibility with earlier callers.
 func FromEnv() (Config, error) {
 	return Load()
+}
+
+func redactURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "[invalid-url]"
+	}
+	if u.User != nil {
+		u.User = url.UserPassword(u.User.Username(), "REDACTED")
+	}
+	return u.String()
 }

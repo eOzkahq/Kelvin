@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -145,4 +146,124 @@ func TestLoadProductionRequiresEvidenceSigningKey(t *testing.T) {
 	if _, err := Load(); err == nil {
 		t.Fatal("expected production configuration to reject the hardcoded default fallback key")
 	}
+}
+
+func TestLoadStagingDatabaseTLS_Enforced(t *testing.T) {
+	os.Clearenv()
+	_ = os.Setenv("KELVIN_ENV", "staging")
+	_ = os.Setenv("KELVIN_REDIS_ADDR", "redis.staging:6379")
+	_ = os.Setenv("KELVIN_JWT_SECRET", "staging-jwt-secret-min-32-bytes-secure!")
+	_ = os.Setenv("KELVIN_EVIDENCE_SIGNING_KEY", "staging-evidence-secret-min-32-bytes!")
+
+	t.Run("Rejects missing or insecure sslmode in staging and redacts credentials", func(t *testing.T) {
+		insecureURLs := []string{
+			"postgres://dbuser:supersecretpassword@db.staging:5432/kelvin_staging",
+			"postgres://dbuser:supersecretpassword@db.staging:5432/kelvin_staging?sslmode=disable",
+			"postgres://dbuser:supersecretpassword@db.staging:5432/kelvin_staging?sslmode=prefer",
+		}
+		for _, rawURL := range insecureURLs {
+			_ = os.Setenv("KELVIN_DATABASE_URL", rawURL)
+			_, err := Load()
+			if err == nil {
+				t.Fatalf("expected error for staging URL %s, but succeeded", rawURL)
+			}
+			if strings.Contains(err.Error(), "supersecretpassword") {
+				t.Errorf("error leaked sensitive database credentials: %v", err)
+			}
+		}
+	})
+
+	t.Run("Accepts verify-full in staging", func(t *testing.T) {
+		_ = os.Setenv("KELVIN_DATABASE_URL", "postgres://dbuser:pass@db.staging:5432/kelvin_staging?sslmode=verify-full")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("expected success with verify-full in staging, got: %v", err)
+		}
+		if cfg.Database.MaxConns != 5 {
+			t.Errorf("expected default staging max_conns to be 5, got %d", cfg.Database.MaxConns)
+		}
+		if cfg.Database.MinConns != 1 {
+			t.Errorf("expected default staging min_conns to be 1, got %d", cfg.Database.MinConns)
+		}
+	})
+}
+
+func TestLoadStagingDatabaseSSLRootCert(t *testing.T) {
+	os.Clearenv()
+	_ = os.Setenv("KELVIN_ENV", "staging")
+	_ = os.Setenv("KELVIN_REDIS_ADDR", "redis.staging:6379")
+	_ = os.Setenv("KELVIN_JWT_SECRET", "staging-jwt-secret-min-32-bytes-secure!")
+	_ = os.Setenv("KELVIN_EVIDENCE_SIGNING_KEY", "staging-evidence-secret-min-32-bytes!")
+
+	t.Run("Fails if configured sslrootcert does not exist", func(t *testing.T) {
+		_ = os.Setenv("KELVIN_DATABASE_URL", "postgres://dbuser:pass@db.staging:5432/kelvin_staging?sslmode=verify-full")
+		_ = os.Setenv("KELVIN_DATABASE_SSL_ROOT_CERT", "/non/existent/ca.crt")
+		_, err := Load()
+		if err == nil {
+			t.Fatal("expected error when sslrootcert does not exist, got nil")
+		}
+		if !strings.Contains(err.Error(), "configured database sslrootcert file does not exist") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("Succeeds when sslrootcert exists", func(t *testing.T) {
+		certPath := "./test_ca_cert.crt"
+		if err := os.WriteFile(certPath, []byte("-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----"), 0600); err != nil {
+			t.Fatalf("failed to create cert file: %v", err)
+		}
+		defer os.Remove(certPath)
+
+		_ = os.Setenv("KELVIN_DATABASE_URL", "postgres://dbuser:pass@db.staging:5432/kelvin_staging?sslmode=verify-full")
+		_ = os.Setenv("KELVIN_DATABASE_SSL_ROOT_CERT", certPath)
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("expected success with existing sslrootcert, got: %v", err)
+		}
+		if cfg.Database.SSLRootCert != certPath {
+			t.Errorf("expected SSLRootCert %q, got %q", certPath, cfg.Database.SSLRootCert)
+		}
+	})
+}
+
+func TestLoadDatabasePoolSizingDefaults(t *testing.T) {
+	t.Run("Development defaults to 25/5", func(t *testing.T) {
+		os.Clearenv()
+		_ = os.Setenv("KELVIN_ENV", "development")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Database.MaxConns != 25 || cfg.Database.MinConns != 5 {
+			t.Errorf("expected 25/5 dev pool defaults, got max=%d min=%d", cfg.Database.MaxConns, cfg.Database.MinConns)
+		}
+	})
+
+	t.Run("Production defaults to 5/1 and respects explicit overrides", func(t *testing.T) {
+		os.Clearenv()
+		_ = os.Setenv("KELVIN_ENV", "production")
+		_ = os.Setenv("KELVIN_DATABASE_URL", "postgres://user:pass@db.internal:5432/kelvin?sslmode=verify-full")
+		_ = os.Setenv("KELVIN_REDIS_ADDR", "redis.internal:6379")
+		_ = os.Setenv("KELVIN_JWT_SECRET", "test-secret-at-least-32-bytes-long")
+		_ = os.Setenv("KELVIN_EVIDENCE_SIGNING_KEY", "test-evidence-signing-key-32-bytes-long!")
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Database.MaxConns != 5 || cfg.Database.MinConns != 1 {
+			t.Errorf("expected 5/1 prod pool defaults, got max=%d min=%d", cfg.Database.MaxConns, cfg.Database.MinConns)
+		}
+
+		// Explicit overrides
+		_ = os.Setenv("KELVIN_DATABASE_MAX_CONNS", "10")
+		_ = os.Setenv("KELVIN_DATABASE_MIN_CONNS", "2")
+		cfgOverride, err := Load()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfgOverride.Database.MaxConns != 10 || cfgOverride.Database.MinConns != 2 {
+			t.Errorf("expected 10/2 pool override, got max=%d min=%d", cfgOverride.Database.MaxConns, cfgOverride.Database.MinConns)
+		}
+	})
 }

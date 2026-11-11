@@ -39,7 +39,7 @@ func main() {
 	var executor sandbox.Executor
 	ociExec, err := sandbox.NewOCIExecutor()
 	if err != nil {
-		if cfg.Env == config.EnvProduction {
+		if cfg.Env == config.EnvProduction || cfg.Env == config.EnvStaging {
 			log.Fatal("sandbox executor initialization failed", zap.Error(err))
 		}
 		log.Warn("no OCI container runtime found, falling back to simulated sandbox", zap.Error(err))
@@ -59,11 +59,12 @@ func main() {
 
 	// 3. Connect Redis Queue Consumer
 	var workQueue queue.Queue = queue.NopQueue{}
-	if cfg.Env == config.EnvProduction && cfg.Redis.URL == "" && cfg.Redis.Addr == "" {
-		log.Fatal("KELVIN_REDIS_ADDR or REDIS_URL is required in production")
+	isProdLike := cfg.Env == config.EnvProduction || cfg.Env == config.EnvStaging
+	if isProdLike && cfg.Redis.URL == "" && cfg.Redis.Addr == "" {
+		log.Fatal("KELVIN_REDIS_ADDR or REDIS_URL is required in staging and production")
 	}
-	if cfg.Env == config.EnvProduction && cfg.Redis.WorkerTokenSecret == "" {
-		log.Fatal("KELVIN_WORKER_TOKEN_SECRET is required in production")
+	if isProdLike && cfg.Redis.WorkerTokenSecret == "" {
+		log.Fatal("KELVIN_WORKER_TOKEN_SECRET is required in staging and production")
 	}
 	if cfg.Redis.URL != "" || cfg.Redis.Addr != "" {
 		redisCfg := commonredis.Config{
@@ -71,7 +72,7 @@ func main() {
 			Addr:         cfg.Redis.Addr,
 			Password:     cfg.Redis.Password,
 			DB:           cfg.Redis.DB,
-			TLSEnabled:   cfg.Redis.TLSEnabled || strings.HasPrefix(cfg.Redis.URL, "rediss://") || cfg.Env == config.EnvProduction,
+			TLSEnabled:   cfg.Redis.TLSEnabled || strings.HasPrefix(cfg.Redis.URL, "rediss://") || isProdLike,
 			PoolSize:     commonredis.WorkerPoolSize,
 			MinIdleConns: commonredis.WorkerMinIdleConns,
 			DialTimeout:  commonredis.DefaultDialTimeout,

@@ -70,6 +70,12 @@ func TestServerCompositionValidation(t *testing.T) {
 		// Wire idempotency store
 		srv.SetIdempotencyStore(dummyIdempotencyStore{})
 		err = srv.ValidateDependencies(true)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "storage provider is required")
+
+		// Wire storage provider
+		srv.SetStorageProvider("mock-storage-provider")
+		err = srv.ValidateDependencies(true)
 		assert.NoError(t, err)
 	})
 }

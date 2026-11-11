@@ -395,3 +395,26 @@ func TestFakeExecutorSimulatesDeadlineTimeout(t *testing.T) {
 		t.Fatalf("expected exit code -1, got %d", res.ExitCode)
 	}
 }
+
+func TestNewOCIExecutor_FailsWhenRuntimeUnavailable(t *testing.T) {
+	// Isolate PATH so neither docker nor podman can be discovered
+	t.Setenv("PATH", t.TempDir())
+	executor, err := NewOCIExecutor()
+	if err == nil {
+		t.Fatalf("expected NewOCIExecutor to fail when runtime is unavailable, got %v", executor)
+	}
+	if !strings.Contains(err.Error(), "no OCI runtime") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+func TestOCIExecutor_VerifyRuntime_FailsWhenDaemonUnavailable(t *testing.T) {
+	exec := &OCIExecutor{runtime: "non-existent-docker-binary-xyz"}
+	err := exec.VerifyRuntime(context.Background())
+	if err == nil {
+		t.Fatal("expected VerifyRuntime to fail when daemon is unavailable, got nil")
+	}
+	if !strings.Contains(err.Error(), "daemon/socket is unavailable") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}

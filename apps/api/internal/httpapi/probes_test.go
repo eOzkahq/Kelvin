@@ -139,3 +139,66 @@ func TestHealthReady_TimeoutReturns503(t *testing.T) {
 	}
 }
 
+func TestHealthReady_ScannerRunnerStatus(t *testing.T) {
+	cfg := config.Config{APIVersion: "1.0.0-test"}
+
+	t.Run("Reports UNAVAILABLE when scanner runner is not configured", func(t *testing.T) {
+		srv := New(cfg, zap.NewNop())
+		srv.SetReadyCheckers(ReadyCheckers{
+			DB:    &mockPinger{err: nil},
+			Redis: &mockPinger{err: nil},
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+
+		var res struct {
+			Data struct {
+				Status        string `json:"status"`
+				ScannerRunner string `json:"scannerRunner"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if res.Data.ScannerRunner != "UNAVAILABLE" {
+			t.Errorf("expected ScannerRunner UNAVAILABLE, got %q", res.Data.ScannerRunner)
+		}
+	})
+
+	t.Run("Reports REGISTERED when scanner runner is healthy", func(t *testing.T) {
+		srv := New(cfg, zap.NewNop())
+		srv.SetReadyCheckers(ReadyCheckers{
+			DB:            &mockPinger{err: nil},
+			Redis:         &mockPinger{err: nil},
+			ScannerRunner: &mockPinger{err: nil},
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+
+		var res struct {
+			Data struct {
+				Status        string `json:"status"`
+				ScannerRunner string `json:"scannerRunner"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if res.Data.ScannerRunner != "REGISTERED" {
+			t.Errorf("expected ScannerRunner REGISTERED, got %q", res.Data.ScannerRunner)
+		}
+	})
+}
+
