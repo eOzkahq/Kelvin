@@ -18,9 +18,10 @@ type Pinger interface {
 
 // ReadyCheckers aggregates dependency pingers.
 type ReadyCheckers struct {
-	DB      Pinger
-	Redis   Pinger
-	Storage Pinger
+	DB            Pinger
+	Redis         Pinger
+	Storage       Pinger
+	ScannerRunner Pinger
 }
 
 type livenessData struct {
@@ -28,10 +29,11 @@ type livenessData struct {
 }
 
 type readinessData struct {
-	Status    string `json:"status"`
-	Database  string `json:"database"`
-	Broker    string `json:"broker"`
-	Timestamp string `json:"timestamp"`
+	Status        string `json:"status"`
+	Database      string `json:"database"`
+	Broker        string `json:"broker"`
+	ScannerRunner string `json:"scannerRunner"`
+	Timestamp     string `json:"timestamp"`
 }
 
 // handleHealthLive handles GET /health/live (Liveness probe).
@@ -81,11 +83,19 @@ func (s *Server) handleHealthReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	scannerStatus := "UNAVAILABLE"
+	if s.readyCheckers.ScannerRunner != nil {
+		if err := s.readyCheckers.ScannerRunner.Ping(ctx); err == nil {
+			scannerStatus = "REGISTERED"
+		}
+	}
+
 	WriteSuccess(w, r, http.StatusOK, readinessData{
-		Status:    "READY",
-		Database:  dbStatus,
-		Broker:    redisStatus,
-		Timestamp: now,
+		Status:        "READY",
+		Database:      dbStatus,
+		Broker:        redisStatus,
+		ScannerRunner: scannerStatus,
+		Timestamp:     now,
 	}, nil)
 }
 

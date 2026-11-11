@@ -81,7 +81,9 @@ services:
       - kelvin-staging-net
 
   # ----------------------------------------------------------------------------
-  # KELVIN Scanner Execution Worker
+  # KELVIN Scanner Execution Worker (Execution Plane - Explicit Profile)
+  # In staging API-only mode, worker is disabled by default to preserve control plane stability.
+  # Run with '--profile worker' only when an approved execution environment is available.
   # ----------------------------------------------------------------------------
   worker:
     build:
@@ -91,6 +93,9 @@ services:
         TARGETARCH: arm64
     image: kelvin-worker:staging
     container_name: kelvin-staging-worker
+    profiles:
+      - worker
+      - scanner-runner
     restart: unless-stopped
     read_only: true
     user: "10001:10001"
@@ -136,6 +141,30 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
+    networks:
+      - kelvin-staging-net
+
+  # ----------------------------------------------------------------------------
+  # One-shot Database Migrations Runner (Manual Execution Only)
+  # Uses verified staging image containing compiled /app/kelvin-migrate and SQL assets
+  # Run via: docker compose -f deploy/staging/docker-compose.yml run --rm migrate up
+  # ----------------------------------------------------------------------------
+  migrate:
+    image: kelvin-api:staging
+    container_name: kelvin-staging-migrate
+    profiles:
+      - tools
+      - migrate
+    restart: "no"
+    read_only: true
+    user: "10001:10001"
+    environment:
+      KELVIN_ENV: staging
+      KELVIN_DATABASE_URL: ${KELVIN_DATABASE_URL}
+      KELVIN_DATABASE_SSL_ROOT_CERT: ${SUPABASE_CA_CERT_PATH:-}
+      KELVIN_MIGRATIONS_PATH: "/app/db/migrations"
+    entrypoint: ["/app/kelvin-migrate"]
+    command: ["version"]
     networks:
       - kelvin-staging-net
 

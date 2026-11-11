@@ -48,9 +48,13 @@ fi
 echo "[+] Executing migration CLI with sanitized parameters..."
 cd "${REPO_ROOT}/apps/api"
 
-if [ -x "${REPO_ROOT}/apps/api/bin/migrate" ]; then
-  echo "[+] Running local static migration binary..."
-  "${REPO_ROOT}/apps/api/bin/migrate" "${COMMAND}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+if command -v docker >/dev/null 2>&1 && [ -f "${SCRIPT_DIR}/docker-compose.yml" ] && docker compose version >/dev/null 2>&1; then
+  echo "[+] Running migration via docker compose migrate service (kelvin-api:staging)..."
+  docker compose -f "${SCRIPT_DIR}/docker-compose.yml" run --rm \
+    ${SUPABASE_CA_CERT_PATH:+-v "${SUPABASE_CA_CERT_PATH}:${SUPABASE_CA_CERT_PATH}:ro"} \
+    -e KELVIN_DATABASE_URL="${KELVIN_DATABASE_URL}" \
+    ${SUPABASE_CA_CERT_PATH:+-e KELVIN_DATABASE_SSL_ROOT_CERT="${SUPABASE_CA_CERT_PATH}"} \
+    migrate "${COMMAND}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 elif command -v docker >/dev/null 2>&1 && docker image inspect kelvin-api:staging >/dev/null 2>&1; then
   echo "[+] Running migration via verified staging container (kelvin-api:staging)..."
   docker run --rm \
@@ -61,11 +65,14 @@ elif command -v docker >/dev/null 2>&1 && docker image inspect kelvin-api:stagin
     -e KELVIN_MIGRATIONS_PATH="/app/db/migrations" \
     ${SUPABASE_CA_CERT_PATH:+-e KELVIN_DATABASE_SSL_ROOT_CERT="${SUPABASE_CA_CERT_PATH}"} \
     kelvin-api:staging /app/kelvin-migrate "${COMMAND}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+elif [ -x "${REPO_ROOT}/apps/api/bin/migrate" ]; then
+  echo "[+] Running local static migration binary..."
+  "${REPO_ROOT}/apps/api/bin/migrate" "${COMMAND}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 elif command -v go >/dev/null 2>&1; then
   echo "[+] Running migration via local Go toolchain..."
   go run ./cmd/migrate "${COMMAND}" ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 else
-  echo "[-] ERROR: Neither kelvin-api:staging image nor Go compiler found to execute migrations."
+  echo "[-] ERROR: Neither docker compose/image nor Go compiler found to execute migrations."
   exit 1
 fi
 

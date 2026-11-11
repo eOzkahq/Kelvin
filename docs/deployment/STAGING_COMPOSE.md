@@ -58,11 +58,8 @@ A primary security architectural decision in KELVIN is the **strict isolation of
 - The staging worker container runs as an unprivileged user (`10001:10001`) with a read-only root filesystem (`read_only: true`).
 - Mounting `/var/run/docker.sock` into the container is **strictly prohibited**, as granting socket access is effectively equivalent to root access on the host VM.
 - `NewOCIExecutor` searches for local `podman` or `docker` binaries in `PATH` and verifies engine responsiveness via `VerifyRuntime()`.
-- **Runtime Limitation**: Because the staging worker does not mount the Docker socket, it cannot directly spawn sibling containerized scanners (ZAP / Nuclei) on the staging host.
-- **Recommendations for Production Execution**:
-  1. **Restricted Socket Proxy**: Deploy an isolated sidecar container (e.g. `docker-socket-proxy`) that grants read-only access to container inspection and strictly limits `POST /containers/create` to allow-listed scanner image hashes and approved tmpfs profiles, blocking host mounts and capabilities.
-  2. **Dedicated Scanner Execution Host / Runner Pool**: Offload scanner container execution to an external microVM or serverless runner pool (e.g., AWS Fargate, Fly Machines, or dedicated ephemeral runner VMs) triggered asynchronously via Redis task messages.
-  3. **Rootless Podman**: On dedicated single-tenant nodes, configure user namespaces and `/dev/fuse` to support rootless container-in-container execution without host privileges.
+- **Runtime Limitation**: Because the staging worker does not mount the host Docker socket, it cannot directly spawn sibling containerized scanners on the staging control plane host.
+- **Architectural Boundary Specification**: For complete design details on the dedicated execution plane, target authorization enforcement, pinned digest locks, egress controls, and heartbeat integration, refer to [SCANNER_EXECUTION_ARCHITECTURE.md](./SCANNER_EXECUTION_ARCHITECTURE.md).
 
 ---
 
@@ -80,7 +77,7 @@ A primary security architectural decision in KELVIN is the **strict isolation of
 ## 6. Security Controls & Container Hardening
 
 - **Non-Root Execution**: Runs under UID/GID `10001:10001` (`kelvin`).
-- **Read-Only Root Filesystem**: `read_only: true` is enforced for both API and Worker.
+- **Read-Only Root Filesystem**: `read_only: true` is enforced for API, Worker, and Migration containers.
 - **Temporary Storage**: Dedicated `tmpfs` mounts at `/tmp` (`size=256m` for API, `size=1024m` for Worker) with `noexec` and `nosuid` where applicable.
 - **Capabilities & Privilege Escalation**: `cap_drop: [ALL]` and `no-new-privileges: true` block privilege escalation.
 - **Log Rotation**: Docker JSON logging is capped at 5 files of 50 MB each (`max-size: "50m"`, `max-file: "5"`).
@@ -90,6 +87,8 @@ A primary security architectural decision in KELVIN is the **strict isolation of
 
 ## 7. Deployment Commands
 
+### 7.1 Initial Staging Deployment (API-Only Mode - Default)
+In initial staging, only the control-plane API service is started. The worker container is kept dormant under an explicit profile to protect Oracle VM stability:
 ```bash
 # 1. Export staging environment variables
 export $(cat /etc/kelvin/staging.env | xargs)
@@ -97,10 +96,23 @@ export $(cat /etc/kelvin/staging.env | xargs)
 # 2. Validate configuration syntax
 docker compose -f deploy/staging/docker-compose.yml config
 
-# 3. Pull / Build ARM64 images and start services
+# 3. Pull / Build ARM64 images and start API-only control plane
 docker compose -f deploy/staging/docker-compose.yml up -d --build
 
-# 4. Check status and health probes
-docker compose -f deploy/staging/docker-compose.yml ps
-docker compose -f deploy/staging/docker-compose.yml logs -f --tail=50
+# 4. Check readiness probe (reports scannerRunner: UNAVAILABLE)
+curl -s http://127.0.0.1:8080/health/ready | jq .
+```
+
+### 7.2 Running Database Migrations via Staging Container
+Execute schema migrations against Supabase using the identical `kelvin-api:staging` container image:
+```bash
+docker compose -f deploy/staging/docker-compose.yml run --rm migrate up
+# Or via helper script:
+./deploy/staging/migrate.sh up
+```
+
+### 7.3 Enabling Worker Execution (Optional Profile)
+When an approved execution runner or runtime environment is provisioned:
+```bash
+docker compose -f deploy/staging/docker-compose.yml --profile worker up -d
 ```

@@ -63,9 +63,13 @@ export SUPABASE_CA_CERT_PATH="/etc/ssl/certs/supabase-ca.crt"
 
 # 2. Check current schema version
 ./deploy/staging/migrate.sh version
+# Or directly via docker compose:
+docker compose -f deploy/staging/docker-compose.yml run --rm migrate version
 
 # 3. Execute one-shot migration
 ./deploy/staging/migrate.sh up
+# Or directly via docker compose:
+docker compose -f deploy/staging/docker-compose.yml run --rm migrate up
 ```
 
 ### Rollback Expectations & Procedure

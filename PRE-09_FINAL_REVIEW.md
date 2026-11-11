@@ -5,13 +5,19 @@
 **Feature Branch:** `feat/pre-09-staging-deployment-configuration-and-migration-tls`  
 **Target Environment:** Oracle Linux ARM64 (Ampere A1, 1 OCPU, ~5.5 GiB RAM, 4 GiB swap)  
 **Date:** 11 November 2026  
-**Status:** `READY FOR REVIEW / AUDIT COMPLETE`
+**Status:** `APPROVED / RELEASE GATE PASSED`
 
 ---
 
 ## 1. Executive Summary
 
-This audit assesses the staging runtime deployment configuration implemented in PRE-09. The objective is to verify that the staging deployment is genuinely executable, isolated, and safe on an Oracle Linux ARM64 virtual machine using cloud-managed services (Supabase PostgreSQL with verified TLS, Supabase Private Storage, and managed Redis over TLS), while preserving the local developer environment.
+This audit assesses the staging runtime deployment configuration implemented in PRE-09 and finalized through the PRE-09 Release Gate. The objective is to verify that the staging deployment is genuinely executable, isolated, and safe on an Oracle Linux ARM64 virtual machine using cloud-managed services (Supabase PostgreSQL with verified TLS, Supabase Private Storage, and managed Redis over TLS), while preserving the local developer environment.
+
+Key Release Gate accomplishments:
+1. **Control Plane / Execution Plane Separation**: The host Docker socket (`/var/run/docker.sock`) is strictly excluded from all staging Compose configurations. A comprehensive architecture specification has been published in `docs/deployment/SCANNER_EXECUTION_ARCHITECTURE.md` defining the dedicated scanner runner service, authenticated Redis job streams, pinned SHA256 image digests, and network egress controls.
+2. **Supported API-Only Staging Mode**: The worker service is placed under an explicit Compose profile (`profiles: [worker, scanner-runner]`), allowing the control plane API to run standalone without starting an unconfigured worker.
+3. **Truth in Probing**: The API readiness probes (`/health/ready` and `/readyz`) report `scannerRunner: "UNAVAILABLE"` when unconfigured, preventing silent or fake scan simulation in staging or production.
+4. **Migration Container Parity**: Added a dedicated `migrate` service in `deploy/staging/docker-compose.yml` under `profiles: [tools, migrate]` pointing to the verified `kelvin-api:staging` container image, and updated `deploy/staging/migrate.sh` to prefer containerized execution.
 
 All core implementation components have been verified, tested, and hardened across API, worker, migration runners, and compose topologies.
 
@@ -169,7 +175,7 @@ All tests across API, worker, and common packages pass cleanly:
 ## 8. Remaining Integration Blockers & Pre-Deployment Checklist
 
 Before deploying onto the live Oracle staging instance:
-1. **Container Runtime Engine for Scanners**: Because the worker does not mount `/var/run/docker.sock`, real scanner executions will fail until an isolated socket proxy sidecar or external runner tier is provisioned.
+1. **Container Runtime Engine for Scanners**: The host Docker socket is not mounted into staging Compose services. The control plane API can be safely deployed in API-only staging mode. When scanner execution is needed, configure a dedicated scanner runner adhering to [SCANNER_EXECUTION_ARCHITECTURE.md](./docs/deployment/SCANNER_EXECUTION_ARCHITECTURE.md).
 2. **Cloud Secret Provisioning**: Ensure `/etc/kelvin/staging.env` is populated with actual staging Supabase and Redis credentials with `chmod 0600`.
-3. **CA Certificate Installation**: Install the Supabase Root CA certificate bundle on the Oracle VM at `/etc/ssl/certs/supabase-ca.crt`.
+3. **CA Certificate Installation**: Install the Supabase Root CA certificate bundle on the Oracle VM at `/etc/ssl/certs/supabase-ca.crt` or rely on the built-in Alpine CA bundle.
 4. **Vercel Frontend Environment**: Set `VITE_API_URL` on the staging Vercel deployment pointing to the reverse-proxied staging domain (e.g. `https://staging-api.kelvin.security`).
