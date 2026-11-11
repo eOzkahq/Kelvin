@@ -56,6 +56,9 @@ func (s *Server) ValidateDependencies(isProduction bool) error {
 	if s.evidenceSigner == nil {
 		return errors.New("server: valid evidence signing key (at least 32 bytes) is required in production")
 	}
+	if s.storageProvider == nil {
+		return errors.New("server: storage provider is required in production")
+	}
 	return nil
 }
 

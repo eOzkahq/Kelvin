@@ -1,0 +1,141 @@
+# ==============================================================================
+# KELVIN Staging Runtime Deployment (PRE-09)
+# Oracle Linux ARM64 (1 OCPU / 6 GB RAM) - Cloud Managed Services Topology
+# ==============================================================================
+# Architecture:
+#   - Database: Supabase PostgreSQL (verified TLS sslmode=verify-full)
+#   - Task Broker: Managed Redis over TLS (rediss://)
+#   - Artifacts: Supabase Private Storage (reports & evidence)
+#   - Frontend: Vercel (external, origins explicitly restricted)
+#   - Control Plane: Go API (Apps/API, non-root, read-only rootfs)
+#   - Worker: Scanner Runner (Apps/Worker, non-root, concurrency=1, no Docker socket)
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # KELVIN Control Plane API Gateway
+  # ----------------------------------------------------------------------------
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      args:
+        TARGETARCH: arm64
+    image: kelvin-api:staging
+    container_name: kelvin-staging-api
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    environment:
+      KELVIN_ENV: staging
+      KELVIN_API_ADDR: ":8080"
+      KELVIN_API_VERSION: "1.0.0-staging"
+      KELVIN_DATABASE_URL: ${KELVIN_DATABASE_URL}
+      KELVIN_DATABASE_SSL_ROOT_CERT: ${SUPABASE_CA_CERT_PATH:-}
+      KELVIN_DATABASE_MAX_CONNS: "5"
+      KELVIN_DATABASE_MIN_CONNS: "1"
+      KELVIN_REDIS_ADDR: ${KELVIN_REDIS_ADDR:-}
+      KELVIN_REDIS_URL: ${REDIS_URL:-}
+      KELVIN_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_TLS_ENABLED: "true"
+      KELVIN_JWT_SECRET: ${KELVIN_JWT_SECRET}
+      KELVIN_EVIDENCE_SIGNING_KEY: ${KELVIN_EVIDENCE_SIGNING_KEY}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_STORAGE_BUCKET_REPORTS: ${SUPABASE_STORAGE_BUCKET_REPORTS:-kelvin-reports}
+      SUPABASE_STORAGE_BUCKET_EVIDENCE: ${SUPABASE_STORAGE_BUCKET_EVIDENCE:-kelvin-evidence}
+      KELVIN_API_ALLOWED_ORIGINS: ${KELVIN_API_ALLOWED_ORIGINS:-https://staging.kelvin.security,https://eozka.com}
+      KELVIN_API_SHUTDOWN_TIMEOUT_S: "30"
+    ports:
+      # Bound strictly to loopback interface for reverse proxy (Caddy/Nginx) termination
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.60"
+          memory: 2048M
+        reservations:
+          cpus: "0.10"
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - kelvin-staging-net
+
+  # ----------------------------------------------------------------------------
+  # KELVIN Scanner Execution Worker
+  # ----------------------------------------------------------------------------
+  worker:
+    build:
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
+      args:
+        TARGETARCH: arm64
+    image: kelvin-worker:staging
+    container_name: kelvin-staging-worker
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,nosuid,size=1024m
+    environment:
+      KELVIN_ENV: staging
+      KELVIN_WORKER_ID: staging-worker-arm64-01
+      KELVIN_WORKER_POLL_INTERVAL: 1s
+      KELVIN_WORKER_CONCURRENCY: "1"
+      KELVIN_REDIS_ADDR: ${KELVIN_REDIS_ADDR:-}
+      KELVIN_REDIS_URL: ${REDIS_URL:-}
+      KELVIN_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_TLS_ENABLED: "true"
+      KELVIN_WORKER_TOKEN_SECRET: ${KELVIN_WORKER_TOKEN_SECRET:-${KELVIN_JWT_SECRET}}
+      KELVIN_DATABASE_URL: ${KELVIN_DATABASE_URL}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_STORAGE_BUCKET_EVIDENCE: ${SUPABASE_STORAGE_BUCKET_EVIDENCE:-kelvin-evidence}
+      KELVIN_LIMITS_CPU_QUOTA: "0.40"
+      KELVIN_LIMITS_MEMORY_LIMIT: "3072M"
+      KELVIN_LIMITS_MAX_CONCURRENT_CONNS: "10"
+      KELVIN_LIMITS_MAX_REQUESTS_PER_TARGET: "5"
+    depends_on:
+      api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.40"
+          memory: 3072M
+        reservations:
+          cpus: "0.10"
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - kelvin-staging-net
+
+networks:
+  kelvin-staging-net:
+    name: kelvin-staging-net
+    driver: bridge

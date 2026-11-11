@@ -32,15 +32,16 @@ func (e Environment) Valid() bool {
 
 // DatabaseConfig holds typed relational database parameters.
 type DatabaseConfig struct {
-	URL      string `mapstructure:"url"`
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"` // Sensitive - redacted in logs
-	Database string `mapstructure:"database"`
-	SSLMode  string `mapstructure:"sslmode"`
-	MaxConns int32  `mapstructure:"max_conns"`
-	MinConns int32  `mapstructure:"min_conns"`
+	URL         string `mapstructure:"url"`
+	Host        string `mapstructure:"host"`
+	Port        int    `mapstructure:"port"`
+	User        string `mapstructure:"user"`
+	Password    string `mapstructure:"password"` // Sensitive - redacted in logs
+	Database    string `mapstructure:"database"`
+	SSLMode     string `mapstructure:"sslmode"`
+	SSLRootCert string `mapstructure:"sslrootcert"`
+	MaxConns    int32  `mapstructure:"max_conns"`
+	MinConns    int32  `mapstructure:"min_conns"`
 }
 
 type AuthConfig struct {
@@ -139,9 +140,7 @@ func Load() (Config, error) {
 	v.SetDefault("api.shutdown_timeout_s", 30)         // 30s graceful shutdown drain window
 	v.SetDefault("api.allowed_origins", []string{"https://eozka.com"})
 
-	// Database and Redis pool defaults (1 OCPU / bounded production)
-	v.SetDefault("database.max_conns", int32(25))
-	v.SetDefault("database.min_conns", int32(5))
+	// Redis pool defaults (1 OCPU / bounded production)
 	v.SetDefault("redis.pool_size", 5)
 	v.SetDefault("redis.min_idle_conns", 2)
 
@@ -182,6 +181,8 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "database.user", "POSTGRES_USER")
 	bindEnvWithFallback(v, "database.password", "POSTGRES_PASSWORD")
 	bindEnvWithFallback(v, "database.database", "POSTGRES_DB")
+	bindEnvWithFallback(v, "database.sslmode", "POSTGRES_SSLMODE")
+	bindEnvWithFallback(v, "database.sslrootcert", "KELVIN_DATABASE_SSL_ROOT_CERT", "DATABASE_SSL_ROOT_CERT", "PGSSLROOTCERT")
 	bindEnvWithFallback(v, "database.max_conns", "KELVIN_DATABASE_MAX_CONNS")
 	bindEnvWithFallback(v, "database.min_conns", "KELVIN_DATABASE_MIN_CONNS")
 	bindEnvWithFallback(v, "auth.jwt_secret", "KELVIN_JWT_SECRET")
@@ -260,32 +261,73 @@ func Load() (Config, error) {
 		if pw := v.GetString("supabase.db_password"); pw != "" {
 			userInfo = url.UserPassword(user, pw)
 		}
+		q := url.Values{}
+		q.Set("sslmode", sslMode)
+		if rootCert := v.GetString("database.sslrootcert"); rootCert != "" {
+			q.Set("sslrootcert", rootCert)
+		}
 		u := url.URL{
 			Scheme:   "postgresql",
 			User:     userInfo,
 			Host:     fmt.Sprintf("%s:%d", supabaseHost, port),
 			Path:     "/" + name,
-			RawQuery: "sslmode=" + sslMode,
+			RawQuery: q.Encode(),
 		}
 		dbURL = u.String()
 	}
 
 	if dbURL != "" {
 		if !strings.HasPrefix(dbURL, "postgres://") && !strings.HasPrefix(dbURL, "postgresql://") {
-			return Config{}, fmt.Errorf("invalid KELVIN_DATABASE_URL: %q (must start with postgres:// or postgresql://)", dbURL)
+			return Config{}, fmt.Errorf("invalid KELVIN_DATABASE_URL: %q (must start with postgres:// or postgresql://)", redactURL(dbURL))
 		}
 		u, err := url.Parse(dbURL)
 		if err != nil {
 			return Config{}, fmt.Errorf("invalid KELVIN_DATABASE_URL: %w", err)
 		}
 		sslMode := strings.ToLower(u.Query().Get("sslmode"))
-		if env == EnvProduction {
+		if env == EnvProduction || env == EnvStaging {
 			if sslMode == "disable" || sslMode == "allow" || sslMode == "prefer" || sslMode == "" {
-				return Config{}, errors.New("verified database TLS (sslmode=verify-full) is required in production; sslmode=disable is prohibited")
+				return Config{}, fmt.Errorf("verified database TLS (sslmode=verify-full) is required in %s; got %q", env, sslMode)
+			}
+			sslRootCert := u.Query().Get("sslrootcert")
+			if sslRootCert == "" {
+				sslRootCert = v.GetString("database.sslrootcert")
+			}
+			if sslRootCert != "" {
+				if _, err := os.Stat(sslRootCert); err != nil {
+					return Config{}, fmt.Errorf("configured database sslrootcert file does not exist: %w", err)
+				}
 			}
 		}
 	} else if env == EnvStaging || env == EnvProduction {
 		return Config{}, errors.New("KELVIN_DATABASE_URL or SUPABASE_DB_HOST is required in staging and production environments")
+	}
+
+	// Database connection pool sizing:
+	// For staging and production (Oracle VM 1 OCPU / bounded deployment), default max=5, min=1.
+	// For development and testing, default max=25, min=5.
+	defaultMaxConns := int32(25)
+	defaultMinConns := int32(5)
+	if env == EnvStaging || env == EnvProduction {
+		defaultMaxConns = 5
+		defaultMinConns = 1
+	}
+	maxConns := defaultMaxConns
+	if v.IsSet("database.max_conns") {
+		maxConns = int32(v.GetInt("database.max_conns"))
+	}
+	minConns := defaultMinConns
+	if v.IsSet("database.min_conns") {
+		minConns = int32(v.GetInt("database.min_conns"))
+	}
+	if maxConns <= 0 {
+		return Config{}, fmt.Errorf("database max_conns must be positive, got %d", maxConns)
+	}
+	if minConns < 0 {
+		return Config{}, fmt.Errorf("database min_conns must be non-negative, got %d", minConns)
+	}
+	if minConns > maxConns {
+		return Config{}, fmt.Errorf("database min_conns (%d) cannot exceed max_conns (%d)", minConns, maxConns)
 	}
 
 	redisAddr := v.GetString("redis.addr")
@@ -303,8 +345,8 @@ func Load() (Config, error) {
 	}
 	jwtSecret := v.GetString("auth.jwt_secret")
 	if env == EnvStaging || env == EnvProduction {
-		if len(jwtSecret) < 32 {
-			return Config{}, errors.New("KELVIN_JWT_SECRET of at least 32 bytes is required in staging and production")
+		if len(jwtSecret) < 32 || jwtSecret == "kelvin-insecure-dev-secret-key-32-bytes" || strings.Contains(strings.ToLower(jwtSecret), "placeholder") {
+			return Config{}, errors.New("KELVIN_JWT_SECRET of at least 32 bytes and non-placeholder value is required in staging and production")
 		}
 	} else if jwtSecret != "" && len(jwtSecret) < 32 {
 		return Config{}, errors.New("KELVIN_JWT_SECRET must be at least 32 bytes when set")
@@ -312,7 +354,7 @@ func Load() (Config, error) {
 
 	signingKey := v.GetString("evidence.signing_key")
 	if env == EnvStaging || env == EnvProduction {
-		if len(signingKey) < 32 || signingKey == "kelvin-default-evidence-signing-key-32-bytes" {
+		if len(signingKey) < 32 || signingKey == "kelvin-default-evidence-signing-key-32-bytes" || strings.Contains(strings.ToLower(signingKey), "placeholder") {
 			return Config{}, errors.New("KELVIN_EVIDENCE_SIGNING_KEY of at least 32 bytes is required in staging and production; hardcoded fallback key is prohibited")
 		}
 	} else if signingKey != "" && (len(signingKey) < 32 || signingKey == "kelvin-default-evidence-signing-key-32-bytes") {
@@ -352,15 +394,16 @@ func Load() (Config, error) {
 		Development:      env == EnvDevelopment || env == EnvTesting,
 		AllowedOrigins:   origins,
 		Database: DatabaseConfig{
-			URL:      dbURL,
-			Host:     v.GetString("database.host"),
-			Port:     v.GetInt("database.port"),
-			User:     v.GetString("database.user"),
-			Password: v.GetString("database.password"),
-			Database: v.GetString("database.database"),
-			SSLMode:  v.GetString("database.sslmode"),
-			MaxConns: int32(v.GetInt("database.max_conns")),
-			MinConns: int32(v.GetInt("database.min_conns")),
+			URL:         dbURL,
+			Host:        v.GetString("database.host"),
+			Port:        v.GetInt("database.port"),
+			User:        v.GetString("database.user"),
+			Password:    v.GetString("database.password"),
+			Database:    v.GetString("database.database"),
+			SSLMode:     v.GetString("database.sslmode"),
+			SSLRootCert: v.GetString("database.sslrootcert"),
+			MaxConns:    maxConns,
+			MinConns:    minConns,
 		},
 		Auth: AuthConfig{JWTSecret: jwtSecret},
 		Redis: RedisConfig{
@@ -368,7 +411,7 @@ func Load() (Config, error) {
 			Addr:         redisAddr,
 			Password:     v.GetString("redis.password"),
 			DB:           v.GetInt("redis.db"),
-			TLSEnabled:   v.GetBool("redis.tls_enabled") || strings.HasPrefix(redisURL, "rediss://"),
+			TLSEnabled:   v.GetBool("redis.tls_enabled") || strings.HasPrefix(redisURL, "rediss://") || env == EnvStaging || env == EnvProduction,
 			PoolSize:     v.GetInt("redis.pool_size"),
 			MinIdleConns: v.GetInt("redis.min_idle_conns"),
 		},
@@ -422,4 +465,18 @@ func bindEnvWithFallback(v *viper.Viper, viperKey string, envKeys ...string) {
 // FromEnv maintains backwards compatibility with earlier scaffold callers.
 func FromEnv() (Config, error) {
 	return Load()
+}
+
+func redactURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "[invalid-url]"
+	}
+	if u.User != nil {
+		u.User = url.UserPassword(u.User.Username(), "REDACTED")
+	}
+	return u.String()
 }

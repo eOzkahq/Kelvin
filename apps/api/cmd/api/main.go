@@ -127,7 +127,7 @@ func main() {
 		}
 		server.SetStorageProvider(storageProvider)
 	} else if isProduction {
-		log.Warn("supabase storage not fully configured; check cloud environment settings")
+		log.Fatal("supabase storage provider is required in staging and production")
 	}
 
 	// 4. Authentication Middleware
