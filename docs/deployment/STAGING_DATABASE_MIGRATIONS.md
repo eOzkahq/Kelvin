@@ -54,23 +54,32 @@ flowchart TD
 
 ## 4. Execution Procedures
 
-### Applying Migrations (Staging Deployment Gate)
+### Applying Migrations on Oracle Linux ARM64
+On Oracle Linux 9, user `opc` typically executes container commands via `sudo`. The migration runner automatically supports this via `DOCKER_CMD`:
+
 ```bash
-# 1. Export staging database connection with verified TLS
-export KELVIN_ENV=staging
-export KELVIN_DATABASE_URL="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_REF}.supabase.co:5432/postgres?sslmode=verify-full&sslrootcert=/etc/ssl/certs/supabase-ca.crt"
-export SUPABASE_CA_CERT_PATH="/etc/ssl/certs/supabase-ca.crt"
+# 1. Source staging environment variables (chmod 0600)
+set -a
+source /etc/kelvin/staging.env
+set +a
 
-# 2. Check current schema version
+# 2. Check current schema version using sudo Docker Compose
 ./deploy/staging/migrate.sh version
-# Or directly via docker compose:
-docker compose -f deploy/staging/docker-compose.yml run --rm migrate version
+# Or explicitly specifying sudo docker:
+DOCKER_CMD="sudo docker" ./deploy/staging/migrate.sh version
+# Or directly via sudo docker compose:
+sudo docker compose -f deploy/staging/docker-compose.yml run --rm \
+  -v "${SUPABASE_CA_CERT_PATH}:${SUPABASE_CA_CERT_PATH}:ro" \
+  migrate version
 
-# 3. Execute one-shot migration
+# 3. Execute one-shot schema migration up
 ./deploy/staging/migrate.sh up
-# Or directly via docker compose:
-docker compose -f deploy/staging/docker-compose.yml run --rm migrate up
 ```
+
+### PostgreSQL TLS & CA Certificate Mounting
+- **Verified TLS**: The connection URL must strictly contain `sslmode=verify-full`.
+- **System & Custom Root CAs**: On Oracle Linux hosts, the system CA bundle resides at `/etc/pki/tls/certs/ca-bundle.crt`.
+- **Container Path Alignment**: `migrate.sh` validates that `SUPABASE_CA_CERT_PATH` exists on the host and mounts it read-only at the identical container path (`-v "${SUPABASE_CA_CERT_PATH}:${SUPABASE_CA_CERT_PATH}:ro"`), ensuring that any `sslrootcert` URL query parameter or `KELVIN_DATABASE_SSL_ROOT_CERT` environment variable resolves correctly within the container.
 
 ### Rollback Expectations & Procedure
 If an issue arises after applying a migration, rollback should be executed step-by-step:
