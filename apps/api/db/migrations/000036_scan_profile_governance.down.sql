@@ -4,4 +4,4 @@
 -- ==============================================================================
 
 DROP TABLE IF EXISTS scan_profile_snapshots CASCADE;
-DROP TABLE IF EXISTS scan_profiles CASCADE;
+DROP INDEX IF EXISTS idx_scan_profiles_lookup;

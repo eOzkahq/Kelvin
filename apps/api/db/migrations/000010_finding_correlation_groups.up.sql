@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS finding_correlation_groups (
   metadata         jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at       timestamptz NOT NULL DEFAULT now(),
   updated_at       timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT uq_correlation_groups_id_tenant UNIQUE (id, tenant_id)
+  CONSTRAINT uq_finding_correlation_groups_id_tenant UNIQUE (id, tenant_id)
 );
 
 -- 2. Create finding_correlation_group_members table

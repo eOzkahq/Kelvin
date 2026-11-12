@@ -19,7 +19,7 @@
 Following empirical analysis from the Phase 5 load and stress tests (Issue #372 / `P5-16`), this specification details the architectural optimizations, database indexing improvements, and verified capacity baselines for KELVIN production deployments.
 
 ### Key Optimization Highlights
-1. **Database Indexing (`Migration 000060`):** Compound B-Tree indexes on `findings (organization_id, severity, status, created_at DESC)` reduced p99 findings search latency from 198ms to **44ms** (a 77% latency reduction).
+1. **Database Indexing (`Migration 000060`):** Compound B-Tree indexes on `findings (tenant_id, severity, status, created_at DESC)` and related performance indexes reduced p99 findings search latency from 198ms to **44ms** (a 77% latency reduction).
 2. **Go Runtime Tuning:** Setting `GOMEMLIMIT=85%` and optimizing buffer allocations eliminated garbage collection pauses during large PDF report rendering.
 3. **Capacity Baseline & Scaling Ceilings:** Formally bounded capacity tiers preventing noisy-neighbor starvation and runaway cloud infrastructure costs.
 
