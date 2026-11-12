@@ -106,3 +106,35 @@ To recover:
    ./deploy/staging/migrate.sh version
    ```
 5. Fix the migration script and re-run `./deploy/staging/migrate.sh up`.
+
+---
+
+## 5. Pre-Staging Migration Chain Audit & Repair
+
+Prior to the initial application of migrations onto the staging Supabase PostgreSQL database (initial version `nil`), an exhaustive audit and execution pass was performed across all 61 migration pairs against a clean PostgreSQL 16 database.
+
+### Audited Defect Register & Resolution
+
+1. **Migration 000060 (`000060_performance_indexing_and_capacity`)**:
+   - *Findings Multi-Tenant Triage Index*: Repaired column reference from `organization_id` to canonical `tenant_id` (`findings (tenant_id, severity, status, created_at DESC)`).
+   - *Assessment-to-Finding Composite Index*: Replaced non-existent `assessment_findings` table with direct assessment join index on `findings (tenant_id, assessment_id)`.
+   - *Evidence Lookup Index*: Added leading `tenant_id` column to index (`evidence (tenant_id, finding_id, created_at DESC)`) preserving strict tenant isolation boundaries.
+   - *Audit Timeline Index*: Replaced non-existent `audit_events (organization_id, timestamp)` with valid schema reference `audit_log (tenant_id, created_at DESC)`.
+   - *Assessment Queue Scheduling Index*: Corrected lowercase partial index predicate `('queued', 'scheduled')` to the canonical uppercase assessment enum status `WHERE status = 'QUEUED'`.
+   - *Down Migration Symmetry*: Ensured `000060.down.sql` cleanly and idempotently drops all 5 repaired indexes.
+
+2. **Migration 000061 (`000061_standardize_tenant_rls_and_job_store`)**:
+   - *Table Name Correction*: Corrected non-existent table reference `remediation_notes` to `remediation_updates`.
+   - *RLS Policy Normalization*: Replaced non-permissive `AS RESTRICTIVE` policies on Phase 3 tenant tables (`remediation_tasks`, `remediation_updates`, `finding_risk_history`, `finding_evidence_links`, `report_snapshots`, `report_artifacts`, `evidence`) with standard permissive policies bound to `current_tenant_id()`. This resolved an issue where non-superuser application roles (`kelvin_app`) were rejected by PostgreSQL due to lack of permissive policies.
+   - *True Rollback Implementation*: Updated `000061.down.sql` to explicitly revert `FORCE ROW LEVEL SECURITY` to `NO FORCE` on the 6 newly forced tables, while preserving `FORCE` on tables that had it in earlier migrations (`000001`, `000003`, `000005`).
+
+3. **Pre-requisite Upstream Schema Alignment (Migrations 000010, 000017, 000036)**:
+   - *Migration 000010*: Renamed unique constraint `uq_correlation_groups_id_tenant` to `uq_finding_correlation_groups_id_tenant` on `finding_correlation_groups` to resolve naming collision with `correlation_groups`.
+   - *Migration 000017 & 000036*: Added safe column additions (`ADD COLUMN IF NOT EXISTS`) and aligned down migrations to support running the full chain on fresh databases where `evidence` and `scan_profiles` were originally scaffolded in migration 000001.
+
+### Verified Invariants
+
+- **Execution Tested**: The full migration chain from version 000001 to 000061 applies cleanly from scratch without errors.
+- **Rollback Tested**: Step-wise rollbacks (`Steps(-1)`) cleanly revert 000061 to 000060 and 000060 to 000059, and reapply cleanly back to 000061.
+- **Tenant Isolation Tested**: Cross-tenant data reads, mutations, and deletions across two isolated tenants under role `kelvin_app` are strictly denied by PostgreSQL RLS. Missing tenant context fails closed (0 rows).
+

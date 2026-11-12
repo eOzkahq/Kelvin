@@ -6,9 +6,9 @@
 
 CREATE TABLE IF NOT EXISTS scan_profiles (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id     UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  name                VARCHAR(255) NOT NULL,
-  slug                VARCHAR(100) NOT NULL,
+  organization_id     UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  name                VARCHAR(255),
+  slug                VARCHAR(100),
   description         TEXT NOT NULL DEFAULT '',
   scanners            JSONB NOT NULL DEFAULT '[]'::jsonb,
   intensity           VARCHAR(50) NOT NULL DEFAULT 'NORMAL', -- PASSIVE, NORMAL, AGGRESSIVE, INVASIVE
@@ -16,14 +16,29 @@ CREATE TABLE IF NOT EXISTS scan_profiles (
   state               VARCHAR(50) NOT NULL DEFAULT 'DRAFT', -- DRAFT, PENDING_APPROVAL, APPROVED, ACTIVE, REJECTED, RETIRED
   version             INTEGER NOT NULL DEFAULT 1,
   requires_approval   BOOLEAN NOT NULL DEFAULT false,
-  created_by_user_id  VARCHAR(255) NOT NULL,
+  created_by_user_id  VARCHAR(255),
   approved_by_user_id VARCHAR(255),
   approved_at         TIMESTAMPTZ,
   rejection_reason    TEXT NOT NULL DEFAULT '',
   created_at          TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
-  updated_at          TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
-  CONSTRAINT uq_scan_profile_org_slug_version UNIQUE (organization_id, slug, version)
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
 );
+
+-- Ensure governance columns exist if table was previously scaffolded in initial schema
+ALTER TABLE scan_profiles
+  ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS slug VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS scanners JSONB NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS intensity VARCHAR(50) NOT NULL DEFAULT 'NORMAL',
+  ADD COLUMN IF NOT EXISTS config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS state VARCHAR(50) NOT NULL DEFAULT 'DRAFT',
+  ADD COLUMN IF NOT EXISTS requires_approval BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS created_by_user_id VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS approved_by_user_id VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS rejection_reason TEXT NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_scan_profiles_lookup
   ON scan_profiles (organization_id, state);

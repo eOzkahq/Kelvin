@@ -26,10 +26,11 @@ func TestCapacityAndOptimization(t *testing.T) {
 	upContent := string(upData)
 
 	expectedIndexes := []string{
-		"idx_findings_org_severity_status_created",
-		"idx_assessment_findings_composite",
+		"idx_findings_tenant_severity_status_created",
+		"idx_findings_tenant_assessment",
 		"idx_evidence_finding_created",
-		"idx_audit_events_org_timestamp",
+		"idx_audit_log_tenant_timestamp",
+		"idx_assessments_status_scheduled",
 	}
 	for _, idx := range expectedIndexes {
 		if !strings.Contains(upContent, idx) {

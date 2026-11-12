@@ -29,6 +29,22 @@ CREATE TABLE IF NOT EXISTS evidence (
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
 );
 
+-- Ensure columns exist if table was previously scaffolded in initial schema
+ALTER TABLE evidence
+  ADD COLUMN IF NOT EXISTS project_id UUID,
+  ADD COLUMN IF NOT EXISTS assessment_id UUID,
+  ADD COLUMN IF NOT EXISTS observation_id UUID,
+  ADD COLUMN IF NOT EXISTS provenance TEXT NOT NULL DEFAULT 'RAW_SCANNER',
+  ADD COLUMN IF NOT EXISTS storage_ref TEXT,
+  ADD COLUMN IF NOT EXISTS inline_content TEXT,
+  ADD COLUMN IF NOT EXISTS redacted_fields JSONB NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS sensitivity_level TEXT NOT NULL DEFAULT 'INTERNAL',
+  ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE',
+  ADD COLUMN IF NOT EXISTS retention_days INT NOT NULL DEFAULT 90,
+  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ DEFAULT (now() + interval '90 days');
+
+ALTER TABLE evidence ALTER COLUMN finding_id DROP NOT NULL;
+
 -- 1. Enable PostgreSQL Row-Level Security (RLS)
 ALTER TABLE evidence ENABLE ROW LEVEL SECURITY;
 
