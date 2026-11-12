@@ -27,24 +27,24 @@ const (
 
 var (
 	ErrObjectNotFound     = errors.New("storage: object not found")
-	ErrFileTooLarge        = errors.New("storage: file exceeds maximum allowable size (50 MB)")
-	ErrInvalidContentType  = errors.New("storage: invalid or unauthorized content type")
-	ErrCorruptedPayload    = errors.New("storage: payload magic bytes do not match declared content type")
-	ErrInvalidStoragePath  = errors.New("storage: storage path must conform to {tenant_id}/{assessment_id}/{file_id}")
-	ErrCrossTenantAccess   = errors.New("storage: cross-tenant access violation")
+	ErrFileTooLarge       = errors.New("storage: file exceeds maximum allowable size (50 MB)")
+	ErrInvalidContentType = errors.New("storage: invalid or unauthorized content type")
+	ErrCorruptedPayload   = errors.New("storage: payload magic bytes do not match declared content type")
+	ErrInvalidStoragePath = errors.New("storage: storage path must conform to {tenant_id}/{assessment_id}/{file_id}")
+	ErrCrossTenantAccess  = errors.New("storage: cross-tenant access violation")
 )
 
 // AllowedContentTypes defines whitelisted MIME types for evidence and report artifacts.
 var AllowedContentTypes = map[string]bool{
-	"application/pdf":              true,
-	"text/html; charset=utf-8":     true,
-	"text/html":                    true,
-	"application/json":             true,
-	"text/plain; charset=utf-8":    true,
-	"text/plain":                   true,
-	"application/xml":              true,
-	"text/xml":                     true,
-	"application/octet-stream":     true,
+	"application/pdf":           true,
+	"text/html; charset=utf-8":  true,
+	"text/html":                 true,
+	"application/json":          true,
+	"text/plain; charset=utf-8": true,
+	"text/plain":                true,
+	"application/xml":           true,
+	"text/xml":                  true,
+	"application/octet-stream":  true,
 }
 
 // StorageService defines the decoupling boundary for object storage.
@@ -139,6 +139,53 @@ func NewSupabaseStorageProvider(cfg Config) (*SupabaseStorageProvider, error) {
 	}, nil
 }
 
+// IsModernSecretKey detects whether the provided key uses the modern Supabase secret key format
+// (prefixed with "sb_secret_").
+func IsModernSecretKey(key string) bool {
+	return strings.HasPrefix(strings.TrimSpace(key), "sb_secret_")
+}
+
+// sanitizeError redacts sensitive credentials from error strings to prevent leaking secrets in logs or responses.
+func sanitizeError(err error, sensitive ...string) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	modified := false
+	for _, s := range sensitive {
+		trimmed := strings.TrimSpace(s)
+		if trimmed != "" && strings.Contains(msg, trimmed) {
+			msg = strings.ReplaceAll(msg, trimmed, "[REDACTED]")
+			modified = true
+		}
+	}
+	if modified {
+		return errors.New(msg)
+	}
+	return err
+}
+
+// WithHTTPClient allows setting a custom HTTP client, primarily for testing or custom timeouts.
+func (s *SupabaseStorageProvider) WithHTTPClient(client *http.Client) *SupabaseStorageProvider {
+	if client != nil {
+		s.httpClient = client
+	}
+	return s
+}
+
+// applyAuthHeaders sets authentication headers on the request according to the key type:
+// - Modern secret keys (prefixed with "sb_secret_"): sets "apikey", omits "Authorization"
+// - Legacy JWT service-role keys: sets both "apikey" and "Authorization: Bearer <key>"
+func (s *SupabaseStorageProvider) applyAuthHeaders(req *http.Request) {
+	key := strings.TrimSpace(s.cfg.ServiceRoleKey)
+	req.Header.Set("apikey", key)
+	if IsModernSecretKey(key) {
+		req.Header.Del("Authorization")
+	} else {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
+}
+
 func (s *SupabaseStorageProvider) Upload(ctx context.Context, bucket, objectPath, contentType string, data []byte) error {
 	if err := ValidateArtifact(contentType, data); err != nil {
 		return err
@@ -147,17 +194,16 @@ func (s *SupabaseStorageProvider) Upload(ctx context.Context, bucket, objectPath
 	endpoint := fmt.Sprintf("%s/storage/v1/object/%s/%s", strings.TrimRight(s.cfg.URL, "/"), bucket, strings.TrimLeft(objectPath, "/"))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(data))
 	if err != nil {
-		return err
+		return sanitizeError(err, s.cfg.ServiceRoleKey)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+s.cfg.ServiceRoleKey)
-	req.Header.Set("apikey", s.cfg.ServiceRoleKey)
+	s.applyAuthHeaders(req)
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("x-upsert", "true")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("supabase storage: upload request failed: %w", err)
+		return fmt.Errorf("supabase storage: upload request failed: %w", sanitizeError(err, s.cfg.ServiceRoleKey))
 	}
 	defer resp.Body.Close()
 
@@ -172,15 +218,14 @@ func (s *SupabaseStorageProvider) Download(ctx context.Context, bucket, objectPa
 	endpoint := fmt.Sprintf("%s/storage/v1/object/%s/%s", strings.TrimRight(s.cfg.URL, "/"), bucket, strings.TrimLeft(objectPath, "/"))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, err
+		return nil, sanitizeError(err, s.cfg.ServiceRoleKey)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+s.cfg.ServiceRoleKey)
-	req.Header.Set("apikey", s.cfg.ServiceRoleKey)
+	s.applyAuthHeaders(req)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("supabase storage: download request failed: %w", err)
+		return nil, fmt.Errorf("supabase storage: download request failed: %w", sanitizeError(err, s.cfg.ServiceRoleKey))
 	}
 	defer resp.Body.Close()
 
@@ -193,7 +238,7 @@ func (s *SupabaseStorageProvider) Download(ctx context.Context, bucket, objectPa
 
 	buf := new(bytes.Buffer)
 	if _, err := buf.ReadFrom(resp.Body); err != nil {
-		return nil, err
+		return nil, sanitizeError(err, s.cfg.ServiceRoleKey)
 	}
 
 	return buf.Bytes(), nil
@@ -220,15 +265,14 @@ func (s *SupabaseStorageProvider) Delete(ctx context.Context, bucket, objectPath
 	endpoint := fmt.Sprintf("%s/storage/v1/object/%s/%s", strings.TrimRight(s.cfg.URL, "/"), bucket, strings.TrimLeft(objectPath, "/"))
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
-		return err
+		return sanitizeError(err, s.cfg.ServiceRoleKey)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+s.cfg.ServiceRoleKey)
-	req.Header.Set("apikey", s.cfg.ServiceRoleKey)
+	s.applyAuthHeaders(req)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("supabase storage: delete request failed: %w", err)
+		return fmt.Errorf("supabase storage: delete request failed: %w", sanitizeError(err, s.cfg.ServiceRoleKey))
 	}
 	defer resp.Body.Close()
 
