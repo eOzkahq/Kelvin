@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -30,12 +32,14 @@ func (p redisPinger) Ping(ctx context.Context) error { return p.client.Ping(ctx)
 func main() {
 	cfg, err := config.FromEnv()
 	if err != nil {
-		zap.NewNop().Fatal("invalid configuration", zap.Error(err))
+		fmt.Fprintf(os.Stderr, "api startup configuration error: %v\n", err)
+		os.Exit(1)
 	}
 
 	log, err := logging.New(cfg.LogLevel, cfg.Development)
 	if err != nil {
-		zap.NewNop().Fatal("invalid log level", zap.Error(err))
+		fmt.Fprintf(os.Stderr, "api startup logger initialization error: %v\n", err)
+		os.Exit(1)
 	}
 	logging.SetDefault(log)
 	defer func() { _ = log.Sync() }()
