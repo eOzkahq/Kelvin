@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -22,12 +24,14 @@ import (
 func main() {
 	cfg, err := config.FromEnv()
 	if err != nil {
-		zap.NewNop().Fatal("invalid configuration", zap.Error(err))
+		fmt.Fprintf(os.Stderr, "worker startup configuration error: %v\n", err)
+		os.Exit(1)
 	}
 
 	log, err := logging.New(cfg.LogLevel, cfg.Development)
 	if err != nil {
-		zap.NewNop().Fatal("invalid log level", zap.Error(err))
+		fmt.Fprintf(os.Stderr, "worker startup logger initialization error: %v\n", err)
+		os.Exit(1)
 	}
 	logging.SetDefault(log)
 	defer func() { _ = log.Sync() }()
