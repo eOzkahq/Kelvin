@@ -31,21 +31,16 @@ func validateNetworkProperties(rec NetworkInspectRecord) []string {
 	if !rec.Internal {
 		mismatches = append(mismatches, "internal=false")
 	}
-	hasSubnet := false
-	hasGateway := false
-	for _, s := range rec.Subnets {
-		if s.Subnet == "10.89.10.0/24" {
-			hasSubnet = true
+	if len(rec.Subnets) != 1 {
+		mismatches = append(mismatches, "expected exactly 1 configured subnet")
+	} else {
+		s0 := rec.Subnets[0]
+		if s0.Subnet != "10.89.10.0/24" {
+			mismatches = append(mismatches, "subnet missing 10.89.10.0/24")
 		}
-		if s.Gateway == "10.89.10.1" {
-			hasGateway = true
+		if s0.Gateway != "10.89.10.1" {
+			mismatches = append(mismatches, "gateway missing 10.89.10.1")
 		}
-	}
-	if !hasSubnet {
-		mismatches = append(mismatches, "subnet missing 10.89.10.0/24")
-	}
-	if !hasGateway {
-		mismatches = append(mismatches, "gateway missing 10.89.10.1")
 	}
 	return mismatches
 }
@@ -123,9 +118,70 @@ func TestNetworkValidation_IncorrectSubnetGateway(t *testing.T) {
 	}
 }
 
-// 5. Test conflicting subordinate UID/GID ranges
+// 4b. Test extra subnet: strictly rejected (must be exactly 1 configured subnet)
+func TestNetworkValidation_ExtraSubnetRejected(t *testing.T) {
+	rec := NetworkInspectRecord{
+		Name:     "kelvin-scanner-net",
+		Internal: true,
+	}
+	rec.Subnets = append(rec.Subnets,
+		struct {
+			Subnet  string `json:"subnet"`
+			Gateway string `json:"gateway"`
+		}{Subnet: "10.89.10.0/24", Gateway: "10.89.10.1"},
+		struct {
+			Subnet  string `json:"subnet"`
+			Gateway string `json:"gateway"`
+		}{Subnet: "10.89.20.0/24", Gateway: "10.89.20.1"},
+	)
+
+	mismatches := validateNetworkProperties(rec)
+	if len(mismatches) == 0 {
+		t.Fatal("expected extra subnet network to fail validation")
+	}
+	foundExtraSubnetErr := false
+	for _, m := range mismatches {
+		if strings.Contains(m, "expected exactly 1 configured subnet") {
+			foundExtraSubnetErr = true
+		}
+	}
+	if !foundExtraSubnetErr {
+		t.Errorf("expected 'exactly 1 configured subnet' error, got: %v", mismatches)
+	}
+}
+
+// 5. Test conflicting subordinate UID/GID ranges & collision checks
 func validateOrAddSubidContent(content string) (newContent string, err string) {
+	targetUser := "kelvin-worker"
+	targetStart := 100000
+	targetCount := 65536
+	targetEnd := targetStart + targetCount - 1 // 165535
 	expected := "kelvin-worker:100000:65536"
+
+	// Check collision with other users
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		parts := strings.Split(trimmed, ":")
+		if len(parts) >= 3 && parts[0] != targetUser {
+			var start, count int
+			_, errStart := strings.NewReader(parts[1]).Read(nil)
+			_, errCount := strings.NewReader(parts[2]).Read(nil)
+			if errStart == nil && errCount == nil {
+				start = parseSubidInt(parts[1])
+				count = parseSubidInt(parts[2])
+				if start > 0 && count > 0 {
+					otherEnd := start + count - 1
+					if start <= targetEnd && otherEnd >= targetStart {
+						return "", "subordinate ID range collision: user '" + parts[0] + "' overlaps with kelvin-worker"
+					}
+				}
+			}
+		}
+	}
+
 	var existingLines []string
 	for _, line := range strings.Split(content, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -146,6 +202,18 @@ func validateOrAddSubidContent(content string) (newContent string, err string) {
 	}
 
 	return "", "conflicting subordinate ID configuration found: expected " + expected + ", found " + strings.Join(existingLines, ", ")
+}
+
+func parseSubidInt(s string) int {
+	var n int
+	for _, c := range s {
+		if c >= '0' && c <= '9' {
+			n = n*10 + int(c-'0')
+		} else {
+			return 0
+		}
+	}
+	return n
 }
 
 func TestSubordinateIDValidation_ConflictingRanges(t *testing.T) {
@@ -180,6 +248,24 @@ func TestSubordinateIDValidation_ConflictingRanges(t *testing.T) {
 	_, errD := validateOrAddSubidContent("kelvin-worker:100000:65536\nkelvin-worker:200000:65536\n")
 	if errD == "" {
 		t.Fatal("expected conflict error for multiple mappings, got nil")
+	}
+
+	// Case E: Range collision with another user (50000:60000 covers 50000-109999, overlaps 100000)
+	_, errE := validateOrAddSubidContent("otheruser:50000:60000\n")
+	if errE == "" {
+		t.Fatal("expected collision error for overlapping other user (50000:60000), got nil")
+	}
+	if !strings.Contains(errE, "range collision") {
+		t.Errorf("expected collision message, got: %s", errE)
+	}
+
+	// Case F: Range collision with another user (150000:20000 covers 150000-169999, overlaps 165535)
+	_, errF := validateOrAddSubidContent("developer:150000:20000\n")
+	if errF == "" {
+		t.Fatal("expected collision error for overlapping other user (150000:20000), got nil")
+	}
+	if !strings.Contains(errF, "range collision") {
+		t.Errorf("expected collision message, got: %s", errF)
 	}
 }
 

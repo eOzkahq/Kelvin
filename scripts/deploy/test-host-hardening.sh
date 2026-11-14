@@ -38,7 +38,8 @@ echo "--- Testing Network Validation Logic ---"
 inspect_and_validate_network() {
   local mock_name="$1"
   local mock_internal="$2"
-  local mock_subnets="$3"
+  local mock_subnets="${3:-}"
+  local mock_gateways="${4:-}"
 
   local net_name="kelvin-scanner-net"
   local req_internal="true"
@@ -52,11 +53,26 @@ inspect_and_validate_network() {
   if [[ "$mock_internal" != "$req_internal" ]]; then
     mismatches+=("internal='$mock_internal' (expected '$req_internal')")
   fi
-  if ! echo "$mock_subnets" | grep -qw "$req_subnet"; then
-    mismatches+=("subnet missing '$req_subnet' (got '$mock_subnets')")
+
+  local sub_arr=()
+  if [[ -n "$mock_subnets" ]]; then
+    read -r -a sub_arr <<< "$mock_subnets"
   fi
-  if ! echo "$mock_subnets" | grep -qw "$req_gateway"; then
-    mismatches+=("gateway missing '$req_gateway' (got '$mock_subnets')")
+  local gw_arr=()
+  if [[ -n "$mock_gateways" ]]; then
+    read -r -a gw_arr <<< "$mock_gateways"
+  fi
+
+  if [[ ${#sub_arr[@]} -ne 1 ]]; then
+    mismatches+=("expected exactly 1 subnet, got ${#sub_arr[@]} ('$mock_subnets')")
+  elif [[ "${sub_arr[0]}" != "$req_subnet" ]]; then
+    mismatches+=("subnet='${sub_arr[0]}' (expected '$req_subnet')")
+  fi
+
+  if [[ ${#gw_arr[@]} -ne 1 ]]; then
+    mismatches+=("expected exactly 1 gateway, got ${#gw_arr[@]} ('$mock_gateways')")
+  elif [[ "${gw_arr[0]}" != "$req_gateway" ]]; then
+    mismatches+=("gateway='${gw_arr[0]}' (expected '$req_gateway')")
   fi
 
   if [[ ${#mismatches[@]} -gt 0 ]]; then
@@ -67,14 +83,14 @@ inspect_and_validate_network() {
 }
 
 # 1. Existing Correct Network
-if errs="$(inspect_and_validate_network "kelvin-scanner-net" "true" "10.89.10.0/24 10.89.10.1")"; then
+if errs="$(inspect_and_validate_network "kelvin-scanner-net" "true" "10.89.10.0/24" "10.89.10.1")"; then
   test_pass "Scenario 1: Existing correct network verified untouched"
 else
   test_fail "Scenario 1: Expected valid network to pass, got: $errs"
 fi
 
 # 2. Existing Incorrect Internal Network (internal=false)
-if errs="$(inspect_and_validate_network "kelvin-scanner-net" "false" "10.89.10.0/24 10.89.10.1")"; then
+if errs="$(inspect_and_validate_network "kelvin-scanner-net" "false" "10.89.10.0/24" "10.89.10.1")"; then
   test_fail "Scenario 2: Non-internal network unexpectedly passed"
 else
   if echo "$errs" | grep -q "internal='false'"; then
@@ -84,21 +100,32 @@ else
   fi
 fi
 
-# 3. Existing Non-Internal Network
-if errs="$(inspect_and_validate_network "kelvin-scanner-net" "" "10.89.10.0/24 10.89.10.1")"; then
+# 3. Existing Non-Internal Network (empty internal flag)
+if errs="$(inspect_and_validate_network "kelvin-scanner-net" "" "10.89.10.0/24" "10.89.10.1")"; then
   test_fail "Scenario 3: Empty internal network unexpectedly passed"
 else
   test_pass "Scenario 3: Non-internal network strictly rejected"
 fi
 
-# 4. Incorrect Subnet & Gateway
-if errs="$(inspect_and_validate_network "kelvin-scanner-net" "true" "10.89.20.0/24 10.89.20.1")"; then
-  test_fail "Scenario 4: Mismatched subnet/gateway unexpectedly passed"
+# 4a. Incorrect Subnet & Gateway
+if errs="$(inspect_and_validate_network "kelvin-scanner-net" "true" "10.89.20.0/24" "10.89.20.1")"; then
+  test_fail "Scenario 4a: Mismatched subnet/gateway unexpectedly passed"
 else
-  if echo "$errs" | grep -q "subnet" && echo "$errs" | grep -q "gateway"; then
-    test_pass "Scenario 4: Incorrect subnet and gateway rejected with explicit error"
+  if echo "$errs" | grep -q "subnet=" && echo "$errs" | grep -q "gateway="; then
+    test_pass "Scenario 4a: Incorrect subnet and gateway rejected with explicit error"
   else
-    test_fail "Scenario 4: Error missing subnet/gateway details: $errs"
+    test_fail "Scenario 4a: Error missing subnet/gateway details: $errs"
+  fi
+fi
+
+# 4b. Extra Subnets & Gateways Rejected (strict exact 1 requirement)
+if errs="$(inspect_and_validate_network "kelvin-scanner-net" "true" "10.89.10.0/24 10.89.20.0/24" "10.89.10.1 10.89.20.1")"; then
+  test_fail "Scenario 4b: Extra subnets unexpectedly passed"
+else
+  if echo "$errs" | grep -q "expected exactly 1 subnet, got 2"; then
+    test_pass "Scenario 4b: Extra subnets/gateways strictly rejected (exact 1 enforced)"
+  else
+    test_fail "Scenario 4b: Error missing extra subnet details: $errs"
   fi
 fi
 
@@ -109,14 +136,32 @@ echo "--- Testing Subuid / Subgid Validation Logic ---"
 
 validate_or_add_subid() {
   local id_file="$1"
-  local expected="kelvin-worker:100000:65536"
+  local target_user="kelvin-worker"
+  local target_start=100000
+  local target_count=65536
+  local target_end=$((target_start + target_count - 1))
+  local expected="${target_user}:${target_start}:${target_count}"
 
   if [[ ! -f "$id_file" ]]; then
     touch "$id_file"
   fi
 
+  # Check for range collisions with other users
+  while IFS=: read -r user start count || [[ -n "$user" ]]; do
+    [[ -z "$user" || "$user" =~ ^# ]] && continue
+    if [[ "$user" != "$target_user" ]]; then
+      if [[ "$start" =~ ^[0-9]+$ && "$count" =~ ^[0-9]+$ ]]; then
+        local other_end=$((start + count - 1))
+        if (( start <= target_end && other_end >= target_start )); then
+          echo "COLLISION:$user:$start:$count"
+          return 1
+        fi
+      fi
+    fi
+  done < "$id_file"
+
   local existing_lines
-  existing_lines="$(grep "^kelvin-worker:" "$id_file" 2>/dev/null || true)"
+  existing_lines="$(grep "^${target_user}:" "$id_file" 2>/dev/null || true)"
 
   if [[ -z "$existing_lines" ]]; then
     echo "$expected" >> "$id_file"
@@ -179,6 +224,21 @@ if OUT_D="$(validate_or_add_subid "$SUBUID_D")"; then
   test_fail "Scenario 5d: Multiple duplicate lines unexpectedly passed"
 else
   test_pass "Scenario 5d: Multiple mappings rejected with conflict error"
+fi
+
+# Case 5e: Subordinate ID range collision with another user -> aborts
+SUBUID_E="$TEST_DIR/subuid_e"
+cat << 'EOF' > "$SUBUID_E"
+otheruser:50000:60000
+EOF
+if OUT_E="$(validate_or_add_subid "$SUBUID_E")"; then
+  test_fail "Scenario 5e: Subordinate ID range collision with another user unexpectedly passed"
+else
+  if echo "$OUT_E" | grep -q "COLLISION:otheruser:50000:60000"; then
+    test_pass "Scenario 5e: Subordinate ID range collision with another user strictly rejected"
+  else
+    test_fail "Scenario 5e: Unexpected collision output: $OUT_E"
+  fi
 fi
 
 rm -rf "$TEST_DIR"

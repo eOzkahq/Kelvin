@@ -81,30 +81,57 @@ else
 fi
 
 # 6. Configure subuid and subgid for rootless container user namespaces (100000:65536)
+# Checks for subordinate range collisions across all existing users before appending.
 echo "Configuring /etc/subuid and /etc/subgid for kelvin-worker..."
 validate_or_add_subid() {
   local id_file="$1"
-  local expected="kelvin-worker:100000:65536"
+  local target_user="kelvin-worker"
+  local target_start=100000
+  local target_count=65536
+  local target_end=$((target_start + target_count - 1)) # 165535
+  local expected="$target_user:$target_start:$target_count"
 
   if [[ ! -f "$id_file" ]]; then
     touch "$id_file"
   fi
 
+  # Check every existing line for range collisions
+  while IFS=: read -r user start count extra || [[ -n "${user:-}" ]]; do
+    user="$(echo "${user:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    if [[ -z "$user" || "$user" =~ ^# ]]; then
+      continue
+    fi
+    start="$(echo "${start:-}" | tr -d ' ')"
+    count="$(echo "${count:-}" | tr -d ' ')"
+
+    if [[ "$start" =~ ^[0-9]+$ && "$count" =~ ^[0-9]+$ ]]; then
+      local other_end=$((start + count - 1))
+      if [[ "$user" != "$target_user" ]]; then
+        if (( start <= target_end && other_end >= target_start )); then
+          echo "ERROR: Subordinate ID range collision in $id_file:" >&2
+          echo "User '$user' has range $start:$count [$start-$other_end] which overlaps with required $target_user range $target_start:$target_count [$target_start-$target_end]." >&2
+          echo "Aborting setup to prevent container user namespace collision." >&2
+          exit 1
+        fi
+      fi
+    fi
+  done < "$id_file"
+
+  # Validate kelvin-worker's own mapping
   local existing_lines
-  existing_lines="$(grep "^kelvin-worker:" "$id_file" 2>/dev/null || true)"
+  existing_lines="$(grep "^${target_user}:" "$id_file" 2>/dev/null || true)"
 
   if [[ -z "$existing_lines" ]]; then
     echo "Adding '$expected' to $id_file..."
     echo "$expected" >> "$id_file"
   else
-    local count
-    count="$(echo "$existing_lines" | wc -l)"
-    if [[ "$count" -eq 1 && "$existing_lines" == "$expected" ]]; then
+    local count_lines
+    count_lines="$(echo "$existing_lines" | wc -l)"
+    if [[ "$count_lines" -eq 1 && "$existing_lines" == "$expected" ]]; then
       echo "Verified existing subordinate ID mapping in $id_file ($expected)."
     else
-      echo "ERROR: Conflicting subordinate ID configuration found in $id_file for kelvin-worker." >&2
-      echo "Found:" >&2
-      echo "$existing_lines" >&2
+      echo "ERROR: Conflicting subordinate ID configuration found in $id_file for $target_user." >&2
+      echo "Found: '$existing_lines'" >&2
       echo "Expected exactly: '$expected'" >&2
       echo "Automatic overwrite or appending conflicting mappings is prohibited. Remediate manually." >&2
       exit 1
@@ -155,7 +182,7 @@ fi
 
 # 10. Provision dedicated internal scanner network in rootless Podman
 echo "Provisioning and validating internal scanner network (kelvin-scanner-net) as kelvin-worker..."
-runuser -u kelvin-worker -- bash -c '
+runuser -u kelvin-worker -- bash << 'EOF_RUNUSER'
   set -euo pipefail
   export XDG_RUNTIME_DIR="/run/user/10001"
   NET_NAME="kelvin-scanner-net"
@@ -165,30 +192,98 @@ runuser -u kelvin-worker -- bash -c '
 
   inspect_and_validate_network() {
     local net_name="$1"
-    local name internal subnets mismatches=()
-
-    name="$(podman network inspect "$net_name" --format "{{.Name}}" 2>/dev/null || echo "")"
-    internal="$(podman network inspect "$net_name" --format "{{.Internal}}" 2>/dev/null || echo "")"
-    subnets="$(podman network inspect "$net_name" --format "{{range .Subnets}}{{.Subnet}} {{.Gateway}}{{end}}" 2>/dev/null || echo "")"
-
-    if [[ "$name" != "$net_name" ]]; then
-      mismatches+=("name=\x27$name\x27 (expected \x27$net_name\x27)")
-    fi
-    if [[ "$internal" != "$REQ_INTERNAL" ]]; then
-      mismatches+=("internal=\x27$internal\x27 (expected \x27$REQ_INTERNAL\x27)")
-    fi
-    if ! echo "$subnets" | grep -qw "$REQ_SUBNET"; then
-      mismatches+=("subnet missing \x27$REQ_SUBNET\x27 (got \x27$subnets\x27)")
-    fi
-    if ! echo "$subnets" | grep -qw "$REQ_GATEWAY"; then
-      mismatches+=("gateway missing \x27$REQ_GATEWAY\x27 (got \x27$subnets\x27)")
-    fi
-
-    if [[ ${#mismatches[@]} -gt 0 ]]; then
-      echo "${mismatches[*]}"
+    local raw_json
+    if ! raw_json="$(podman network inspect "$net_name" 2>&1)"; then
+      echo "INSPECT_FAILED: $raw_json"
       return 1
     fi
-    return 0
+
+    if [[ -z "${raw_json//[[:space:]]/}" ]]; then
+      echo "MALFORMED: Inspection output is empty"
+      return 1
+    fi
+
+    # Structural validation via Python 3 if available, or structural Go template inspection
+    if command -v python3 >/dev/null 2>&1; then
+      python3 -c '
+import json, sys
+try:
+    data = json.loads(sys.stdin.read())
+    if isinstance(data, list):
+        if len(data) != 1:
+            print(f"MALFORMED: expected 1 network record, found {len(data)}")
+            sys.exit(1)
+        net = data[0]
+    elif isinstance(data, dict):
+        net = data
+    else:
+        print("MALFORMED: unexpected root type")
+        sys.exit(1)
+
+    name = net.get("name") or net.get("Name")
+    internal = net.get("internal")
+    if internal is None:
+        internal = net.get("Internal")
+    subnets = net.get("subnets") or net.get("Subnets")
+
+    mismatches = []
+    if name != "kelvin-scanner-net":
+        mismatches.append(f"name={name} (expected kelvin-scanner-net)")
+    if internal is not True:
+        mismatches.append(f"internal={internal} (expected true)")
+    if subnets is None or not isinstance(subnets, list):
+        mismatches.append("missing or invalid subnets list")
+    elif len(subnets) != 1:
+        mismatches.append(f"expected exactly 1 configured subnet, got {len(subnets)}")
+    else:
+        s0 = subnets[0]
+        sub = s0.get("subnet") or s0.get("Subnet")
+        gw = s0.get("gateway") or s0.get("Gateway")
+        if sub != "10.89.10.0/24":
+            mismatches.append(f"subnet={sub} (expected 10.89.10.0/24)")
+        if gw != "10.89.10.1":
+            mismatches.append(f"gateway={gw} (expected 10.89.10.1)")
+
+    if mismatches:
+        print("MISCONFIGURED: " + "; ".join(mismatches))
+        sys.exit(1)
+    print("OK")
+    sys.exit(0)
+except Exception as e:
+    print(f"MALFORMED: {e}")
+    sys.exit(1)
+' <<< "$raw_json"
+    else
+      local name internal subnets_len sub0 gw0 mismatches=()
+      name="$(podman network inspect "$net_name" --format "{{.Name}}" 2>/dev/null || echo "")"
+      internal="$(podman network inspect "$net_name" --format "{{.Internal}}" 2>/dev/null || echo "")"
+      subnets_len="$(podman network inspect "$net_name" --format "{{len .Subnets}}" 2>/dev/null || echo "0")"
+
+      if [[ "$name" != "$net_name" ]]; then
+        mismatches+=("name='$name' (expected '$net_name')")
+      fi
+      if [[ "$internal" != "$REQ_INTERNAL" ]]; then
+        mismatches+=("internal='$internal' (expected '$REQ_INTERNAL')")
+      fi
+      if [[ "$subnets_len" != "1" ]]; then
+        mismatches+=("expected exactly 1 configured subnet, got $subnets_len")
+      else
+        sub0="$(podman network inspect "$net_name" --format "{{(index .Subnets 0).Subnet}}" 2>/dev/null || echo "")"
+        gw0="$(podman network inspect "$net_name" --format "{{(index .Subnets 0).Gateway}}" 2>/dev/null || echo "")"
+        if [[ "$sub0" != "$REQ_SUBNET" ]]; then
+          mismatches+=("subnet='$sub0' (expected '$REQ_SUBNET')")
+        fi
+        if [[ "$gw0" != "$REQ_GATEWAY" ]]; then
+          mismatches+=("gateway='$gw0' (expected '$REQ_GATEWAY')")
+        fi
+      fi
+      if [[ ${#mismatches[@]} -gt 0 ]]; then
+        echo "MISCONFIGURED: ${mismatches[*]}"
+        return 1
+      fi
+      echo "OK"
+      return 0
+    fi
   }
 
   if podman network exists "$NET_NAME" 2>/dev/null; then
@@ -217,7 +312,7 @@ runuser -u kelvin-worker -- bash -c '
       exit 1
     fi
   fi
-'
+EOF_RUNUSER
 
 # 11. Install systemd service unit
 echo "Installing systemd service unit /etc/systemd/system/kelvin-worker.service..."

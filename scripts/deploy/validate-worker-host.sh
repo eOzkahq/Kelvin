@@ -82,29 +82,58 @@ else
   check_fail "User kelvin-worker does not exist. Run scripts/deploy/setup-rootless-podman.sh."
 fi
 
-# 5. Subuid and Subgid Configuration (100000:65536)
+# 5. Subuid and Subgid Configuration (100000:65536) & Range Collision Audit
 validate_subid_mapping() {
   local id_file="$1"
   local id_type="$2"
-  local expected="kelvin-worker:100000:65536"
+  local target_user="kelvin-worker"
+  local target_start=100000
+  local target_count=65536
+  local target_end=$((target_start + target_count - 1)) # 165535
+  local expected="$target_user:$target_start:$target_count"
 
   if [[ ! -f "$id_file" ]]; then
     check_fail "$id_file does not exist"
     return
   fi
 
+  # Audit for range collisions with other users
+  local collision_found=0
+  while IFS=: read -r user start count extra || [[ -n "${user:-}" ]]; do
+    user="$(echo "${user:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    if [[ -z "$user" || "$user" =~ ^# ]]; then
+      continue
+    fi
+    start="$(echo "${start:-}" | tr -d ' ')"
+    count="$(echo "${count:-}" | tr -d ' ')"
+
+    if [[ "$start" =~ ^[0-9]+$ && "$count" =~ ^[0-9]+$ ]]; then
+      local other_end=$((start + count - 1))
+      if [[ "$user" != "$target_user" ]]; then
+        if (( start <= target_end && other_end >= target_start )); then
+          check_fail "Subordinate $id_type range collision in $id_file: user '$user' ($start:$count [$start-$other_end]) overlaps with required $target_user ($target_start:$target_count [$target_start-$target_end])"
+          collision_found=1
+        fi
+      fi
+    fi
+  done < "$id_file"
+
+  if [[ $collision_found -eq 1 ]]; then
+    return
+  fi
+
   local existing_lines
-  existing_lines="$(grep "^kelvin-worker:" "$id_file" 2>/dev/null || true)"
+  existing_lines="$(grep "^${target_user}:" "$id_file" 2>/dev/null || true)"
 
   if [[ -z "$existing_lines" ]]; then
-    check_fail "$id_file missing configuration for kelvin-worker (expected $expected)"
+    check_fail "$id_file missing configuration for $target_user (expected $expected)"
   else
     local count
     count="$(echo "$existing_lines" | wc -l)"
     if [[ "$count" -eq 1 && "$existing_lines" == "$expected" ]]; then
-      check_pass "$id_file configured with required mapping ($expected)"
+      check_pass "$id_file configured with required non-overlapping mapping ($expected)"
     else
-      check_fail "Conflicting subordinate $id_type mapping in $id_file for kelvin-worker (found: '$existing_lines', expected: '$expected')"
+      check_fail "Conflicting subordinate $id_type mapping in $id_file for $target_user (found: '$existing_lines', expected: '$expected')"
     fi
   fi
 }
@@ -149,10 +178,71 @@ NETWORK_CHECK_CMD='
   REQ_SUBNET="10.89.10.0/24"
   REQ_GATEWAY="10.89.10.1"
 
-  if podman network exists "$NET_NAME" >/dev/null 2>&1; then
+  if ! raw_json="$(podman network inspect "$NET_NAME" 2>&1)"; then
+    if echo "$raw_json" | grep -qi "no such network\|not found"; then
+      echo "NET_NOT_FOUND"
+    else
+      echo "NET_INSPECT_ERROR: $raw_json"
+    fi
+    exit 0
+  fi
+
+  if [[ -z "${raw_json//[[:space:]]/}" ]]; then
+    echo "NET_MALFORMED: Inspection output is empty"
+    exit 0
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c '\''
+import json, sys
+try:
+    data = json.loads(sys.stdin.read())
+    if isinstance(data, list):
+        if len(data) != 1:
+            print(f"NET_MALFORMED: expected 1 record, got {len(data)}")
+            sys.exit(0)
+        net = data[0]
+    elif isinstance(data, dict):
+        net = data
+    else:
+        print("NET_MALFORMED: invalid root type")
+        sys.exit(0)
+
+    name = net.get("name") or net.get("Name")
+    internal = net.get("internal")
+    if internal is None:
+        internal = net.get("Internal")
+    subnets = net.get("subnets") or net.get("Subnets")
+
+    mismatches = []
+    if name != "kelvin-scanner-net":
+        mismatches.append(f"name={name} (expected kelvin-scanner-net)")
+    if internal is not True:
+        mismatches.append(f"internal={internal} (expected true)")
+    if subnets is None or not isinstance(subnets, list):
+        mismatches.append("missing subnets list")
+    elif len(subnets) != 1:
+        mismatches.append(f"expected exactly 1 configured subnet, got {len(subnets)}")
+    else:
+        s0 = subnets[0]
+        sub = s0.get("subnet") or s0.get("Subnet")
+        gw = s0.get("gateway") or s0.get("Gateway")
+        if sub != "10.89.10.0/24":
+            mismatches.append(f"subnet={sub} (expected 10.89.10.0/24)")
+        if gw != "10.89.10.1":
+            mismatches.append(f"gateway={gw} (expected 10.89.10.1)")
+
+    if mismatches:
+        print("NET_MISCONFIGURED: " + "; ".join(mismatches))
+    else:
+        print("NET_OK")
+except Exception as e:
+    print(f"NET_MALFORMED: {e}")
+'\'' <<< "$raw_json"
+  else
     name="$(podman network inspect "$NET_NAME" --format "{{.Name}}" 2>/dev/null || echo "")"
     internal="$(podman network inspect "$NET_NAME" --format "{{.Internal}}" 2>/dev/null || echo "")"
-    subnets="$(podman network inspect "$NET_NAME" --format "{{range .Subnets}}{{.Subnet}} {{.Gateway}}{{end}}" 2>/dev/null || echo "")"
+    subnets_len="$(podman network inspect "$NET_NAME" --format "{{len .Subnets}}" 2>/dev/null || echo "0")"
 
     mismatches=()
     if [[ "$name" != "$NET_NAME" ]]; then
@@ -161,20 +251,24 @@ NETWORK_CHECK_CMD='
     if [[ "$internal" != "$REQ_INTERNAL" ]]; then
       mismatches+=("internal=\x27$internal\x27 (expected \x27$REQ_INTERNAL\x27)")
     fi
-    if ! echo "$subnets" | grep -qw "$REQ_SUBNET"; then
-      mismatches+=("subnet missing \x27$REQ_SUBNET\x27 (got \x27$subnets\x27)")
-    fi
-    if ! echo "$subnets" | grep -qw "$REQ_GATEWAY"; then
-      mismatches+=("gateway missing \x27$REQ_GATEWAY\x27 (got \x27$subnets\x27)")
+    if [[ "$subnets_len" != "1" ]]; then
+      mismatches+=("expected exactly 1 configured subnet, got $subnets_len")
+    else
+      sub0="$(podman network inspect "$NET_NAME" --format "{{(index .Subnets 0).Subnet}}" 2>/dev/null || echo "")"
+      gw0="$(podman network inspect "$NET_NAME" --format "{{(index .Subnets 0).Gateway}}" 2>/dev/null || echo "")"
+      if [[ "$sub0" != "$REQ_SUBNET" ]]; then
+        mismatches+=("subnet=\x27$sub0\x27 (expected \x27$REQ_SUBNET\x27)")
+      fi
+      if [[ "$gw0" != "$REQ_GATEWAY" ]]; then
+        mismatches+=("gateway=\x27$gw0\x27 (expected \x27$REQ_GATEWAY\x27)")
+      fi
     fi
 
     if [[ ${#mismatches[@]} -eq 0 ]]; then
       echo "NET_OK"
     else
-      echo "NET_MISCONFIGURED:${mismatches[*]}"
+      echo "NET_MISCONFIGURED: ${mismatches[*]}"
     fi
-  else
-    echo "NET_NOT_FOUND"
   fi
 '
 
@@ -192,13 +286,13 @@ if id -u kelvin-worker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; the
       check_pass "Internal scanner network kelvin-scanner-net verified (name=kelvin-scanner-net, internal=true, subnet=10.89.10.0/24, gateway=10.89.10.1)"
       ;;
     NET_MISCONFIGURED*)
-      check_fail "Network kelvin-scanner-net exists but is misconfigured: ${NET_RESULT#NET_MISCONFIGURED:}"
+      check_fail "Network kelvin-scanner-net exists but is misconfigured: ${NET_RESULT#NET_MISCONFIGURED: }"
       ;;
     "NET_NOT_FOUND")
       check_fail "Network kelvin-scanner-net not found. Run scripts/deploy/setup-rootless-podman.sh."
       ;;
     *)
-      check_warn "Unable to verify kelvin-scanner-net directly ($NET_RESULT)"
+      check_fail "Unable to inspect kelvin-scanner-net ($NET_RESULT). Inability to inspect is a hard failure."
       ;;
   esac
 fi
@@ -228,7 +322,9 @@ if [[ -f "$ENV_FILE" ]]; then
   fi
 
   # 10. Database CA Certificate Path from Config
-  CA_PATH="$(grep -E '^(SUPABASE_CA_CERT_PATH|KELVIN_DATABASE_SSL_ROOT_CERT)=' "$ENV_FILE" | head -n 1 | cut -d'=' -f2- | tr -d '"'"'"' || echo '')"
+  CA_PATH="$(grep -E '^(SUPABASE_CA_CERT_PATH|KELVIN_DATABASE_SSL_ROOT_CERT)=' "$ENV_FILE" | head -n 1 | cut -d'=' -f2- || true)"
+  CA_PATH="${CA_PATH//\"/}"
+  CA_PATH="${CA_PATH//\'/}"
   if [[ -z "$CA_PATH" ]]; then
     CA_PATH="/etc/kelvin/certs/supabase-root-ca.crt"
   fi
