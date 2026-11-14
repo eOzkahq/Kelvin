@@ -84,7 +84,7 @@ On the primary Oracle Linux ARM64 host, `deploy/staging/docker-compose.yml` runs
 - Reverse proxy (Caddy / Nginx) terminating TLS
 
 The scanner runner resides on a **dedicated execution boundary**:
-- **Option A (Staging Default):** Ephemeral microVM or isolated runner VM with unprivileged rootless Podman / Docker Engine.
+- **Option A (Staging Baseline — ADR-0008):** Dedicated unprivileged host-level execution worker service (`kelvin-worker.service`, user `kelvin-worker`, UID 10001) using Rootless Podman and `crun` on Oracle Linux 9.8 ARM64 with user cgroups v2 resource limits and internal network isolation (`kelvin-scanner-net`).
 - **Option B (Production Scale):** Managed Kubernetes worker pool running gVisor (`runsc`) or Firecracker microVMs (`containerd-shim-firecracker`).
 
 Communication between the Worker Gateway and the Scanner Runner occurs over mutual TLS (mTLS) or encrypted Redis Streams using short-lived HMAC-signed execution tokens.

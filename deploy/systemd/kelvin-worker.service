@@ -1,0 +1,40 @@
+[Unit]
+Description=Kelvin Security Scanner Execution Worker (Host Daemon)
+Documentation=https://github.com/Inkesk-Dozing/Kelvin
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kelvin-worker
+Group=kelvin-worker
+WorkingDirectory=/var/lib/kelvin-worker
+
+# Environment file with strict permissions (0600, owned by kelvin-worker)
+EnvironmentFile=/etc/kelvin/worker.env
+
+# Rootless Podman user session environment requirements
+Environment="XDG_RUNTIME_DIR=/run/user/10001"
+Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/10001/bus"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin:/opt/kelvin/bin"
+
+ExecStart=/opt/kelvin/bin/kelvin-worker
+Restart=on-failure
+RestartSec=5s
+
+# Graceful termination: allows worker to signal and cleanly remove active containers
+TimeoutStopSec=30s
+KillMode=control-group
+
+# Resource bounds on host daemon
+LimitNOFILE=65535
+
+# Systemd process sandboxing
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=false
+ReadWritePaths=/var/lib/kelvin-worker /run/user/10001 /var/log/kelvin /tmp
+
+[Install]
+WantedBy=multi-user.target

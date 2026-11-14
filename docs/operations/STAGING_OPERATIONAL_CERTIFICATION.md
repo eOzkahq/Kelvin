@@ -1,47 +1,74 @@
-# Kelvin Staging Operational Certification
+# Kelvin Staging Operational Certification & Readiness Audit
 
-**Status:** Certified for Staging Execution  
+**Status:** Implementation Complete / Host Deployment Pending  
 **Environment:** Oracle Linux Server 9.8 (ARM64 / aarch64, 2 vCPUs, 10 GiB RAM)  
 **Milestone:** Scanner Execution Platform (Milestone #10)  
-**Decision Record:** [ADR-0008](../architecture/decisions/ADR-0008.md)  
+**Governing Architecture:** [ADR-0008: Secure OCI Execution Architecture](../architecture/decisions/ADR-0008.md)  
+**Last Audit Date:** 2026-11-14  
 
 ---
 
-## 1. Executive Summary
+## 1. Executive Summary & Verification Matrix
 
-This document certifies that the **Kelvin Scanner Execution Platform** has resolved all architectural vulnerabilities and met all security, isolation, and lifecycle requirements across Phases 0 through 8 (Issues 001 through 032).
+In accordance with strict platform governance and ADR-0008, the table below delineates the verified operational status of the Kelvin Scanner Execution Platform:
+
+| Gate | Criterion | Status | Evidence / Notes |
+| :--- | :--- | :--- | :--- |
+| **1. Architecture** | ADR-0008 (Rootless Podman host worker) | **APPROVED** | ADR-0008 Option A approved by security architecture. |
+| **2. Code Implementation** | Phases 0–8 implementation merged to `main` | **COMPLETED** | Contracts, adapters, OCI executor, egress proxy, and scripts merged. |
+| **3. Automated Test Suite** | 100% pass rate across all modules | **PASSED** | Worker, API, sandbox, network bypass, and candidate scanner tests pass. |
+| **4. Host Runtime Deployment** | Systemd unit & Rootless Podman on Oracle host | **PENDING** | Automated scripts prepared (`setup-rootless-podman.sh`); awaiting host execution. |
+| **5. Scanner Images Release** | Immutable ARM64 digests in GHCR | **NOT RELEASED** | Authoritative manifest (`images.lock.json`) is strictly `not-released`. |
+| **6. Operational Certification** | Staging certified for live vulnerability scans | **NOT CERTIFIED** | Gated by successful host runtime deployment and signed image release. |
+
+> [!IMPORTANT]
+> Passing automated unit and integration tests does **not** constitute operational certification. The platform operates in **fail-closed governance**: until certified container images are signed and published, the worker will refuse to dispatch unreleased scanner images in staging and production.
 
 ---
 
 ## 2. Security Controls Verification
 
-| Security Control | Requirement | Status | Verification Evidence |
+| Security Control | Requirement | Implementation Status | Verification Evidence |
 | :--- | :--- | :--- | :--- |
-| **No Docker Socket** | `/var/run/docker.sock` must NEVER be mounted into worker containers | **PASSED** | Hardened compose and runner specifications verify no socket mount. |
-| **Non-Root Execution** | Worker and scanner containers execute strictly as unprivileged UID 10001 | **PASSED** | Verified via `Spec.Validate()` and `docker image inspect`. |
-| **Read-Only Rootfs** | Scanner containers execute with read-only root filesystems | **PASSED** | Enforced via `--read-only` in `apps/worker/internal/sandbox/oci.go`. |
-| **Linux Capabilities** | All Linux capabilities dropped (`--cap-drop=ALL`) | **PASSED** | Enforced via `Spec.Validate()` and OCI args. |
-| **Privilege Escalation** | `no-new-privileges:true` strictly enforced | **PASSED** | Enforced via security options on all containers. |
-| **Cgroups v2 Limits** | Memory (512M/2G), CPU quota, Max PIDs (64) | **PASSED** | Enforced via cgroups flags and verified in sandbox tests. |
-| **Network Egress Isolation** | Scanner containers cannot access the public internet or private infrastructure directly | **PASSED** | Isolated internal bridge `kelvin-scanner-net` with anti-SSRF scoped egress proxy. |
-| **Anti-SSRF & DNS Rebinding** | RFC 1918, 169.254.169.254, loopback, and multi-A DNS rebinding blocked | **PASSED** | 12 regression tests in `apps/worker/internal/egress/network_bypass_test.go`. |
-| **Immutable Provenance** | Pinned image SHA256 digests and template catalog hashes recorded in every finding | **PASSED** | Verified in `apps/worker/internal/provenance/provenance.go`. |
-| **Truthful Readiness** | `scannerRunner` reports `UNAVAILABLE` until certified worker is active | **PASSED** | Verified in `apps/api/internal/httpapi/probes.go` and readiness probes. |
+| **Zero Docker Socket Exposure** | `/var/run/docker.sock` must NEVER be mounted into worker containers or used by scanner execution | **ENFORCED** | Host worker executes rootless Podman via unprivileged user. Socket mounts strictly rejected by `Spec.Validate()`. |
+| **Non-Root Execution** | Worker process and scanner containers execute strictly as unprivileged UID 10001 | **ENFORCED** | Host worker runs as user `kelvin-worker` (UID 10001). Container execution enforces `10001:10001`. |
+| **Read-Only Root Filesystem** | Scanner containers execute with immutable read-only root filesystems | **ENFORCED** | `--read-only` flag enforced in `apps/worker/internal/sandbox/oci.go`. |
+| **Linux Capabilities Dropped** | All Linux capabilities dropped (`--cap-drop=ALL`) | **ENFORCED** | `Spec.Validate()` requires and enforces `--cap-drop=ALL`. |
+| **Privilege Escalation Prevention**| `no-new-privileges:true` strictly enforced | **ENFORCED** | Security option `--security-opt=no-new-privileges` enforced on all containers. |
+| **Cgroups v2 Resource Quotas** | Memory (512M/2G), CPU quota, Max PIDs (64) | **ENFORCED** | Cgroups v2 limits validated in `apps/worker/internal/sandbox/sandbox_test.go`. |
+| **Network Egress Isolation** | Scanner containers cannot access the public internet or private infrastructure directly | **ENFORCED** | Containers attach to `--network=kelvin-scanner-net` (created with `--internal`). Default internet egress dropped. |
+| **Anti-SSRF & DNS Rebinding** | RFC 1918, 169.254.169.254, loopback, and multi-A DNS rebinding blocked | **ENFORCED** | 12 regression tests in `apps/worker/internal/egress/network_bypass_test.go`. |
+| **Credential Isolation** | Scanner containers never receive DB credentials, JWT secrets, or Redis tokens | **ENFORCED** | Environment allowlist in `Spec.Validate()` strictly rejects control-plane credentials. |
+| **Immutable Provenance Tracking** | Pinned image SHA256 digests and template catalog hashes recorded in every finding | **ENFORCED** | Provenance tracking implemented in `apps/worker/internal/provenance/provenance.go`. |
+| **Truthful Readiness Probes** | `scannerRunner` reports `UNAVAILABLE` until certified worker is active | **ENFORCED** | Fail-closed readiness verified in `truthful_readiness_test.go` and API probe endpoints. |
 
 ---
 
-## 3. Deployment & Rollback Verification
+## 3. Deployment Artifacts & Procedures
 
-- **Deployment Script:** `scripts/deploy/staging-deploy.sh`
-- **Rollback Script:** `scripts/deploy/staging-rollback.sh`
+- **Systemd Service Unit:** `deploy/systemd/kelvin-worker.service`
+- **Environment Template:** `deploy/systemd/worker.env.example`
+- **Host Setup Script:** `scripts/deploy/setup-rootless-podman.sh`
+- **Host Audit Script:** `scripts/deploy/validate-worker-host.sh`
+- **Staging Deployment Script:** `scripts/deploy/staging-deploy.sh`
+- **Staging Rollback Script:** `scripts/deploy/staging-rollback.sh`
 - **Database TLS:** `sslmode=verify-full` verified with CA certificate volume mounting in `deploy/staging/docker-compose.yml`.
 - **Redis Security:** Upstash Redis over TLS (`rediss://`) with mandatory authentication.
 - **Evidence Storage:** Supabase private storage (`kelvin-evidence`) with pre-signed URLs and SHA256 integrity checksums.
 
 ---
 
-## 4. Certification Sign-off
+## 4. Remaining Blockers Before Live Staging Certification
 
-- **Platform Architecture:** Rootless Podman / Cgroups v2 on Oracle Linux ARM64
-- **Curated Nuclei Catalog:** Certified (`sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2`)
-- **Release Status:** Certified for Staging deployment. Production integration ready.
+To achieve live operational certification on the Oracle Linux 9.8 ARM64 host, the following operational steps must be completed:
+
+1. **Host Setup Execution:**
+   - Run `sudo bash scripts/deploy/setup-rootless-podman.sh` on the Oracle Linux host to create user `kelvin-worker` (UID 10001), configure `/etc/subuid` and `/etc/subgid`, enable linger, and create the `kelvin-scanner-net` internal bridge.
+2. **Configuration Provisioning:**
+   - Populate `/etc/kelvin/worker.env` with valid staging credentials (DB connection with `verify-full`, Upstash Redis TLS token, Supabase service-role key, worker token secret).
+3. **Scanner Image Builds & Certification:**
+   - Execute the ARM64 image build pipeline (`scripts/scanners/build-images.sh`) on an ARM64 runner or via Docker buildx.
+   - Publish built images to GHCR (`ghcr.io/inkesk-dozing/scanner-zap`, `ghcr.io/inkesk-dozing/scanner-nuclei`).
+   - Record verifiable SHA256 digests in `deploy/scanners/images.lock.json` and change status from `not-released` to `certified`.
+4. **Service Activation & Smoke Test:**
+   - Run `scripts/deploy/staging-deploy.sh` to compile the binary, start `kelvin-worker.service`, and verify end-to-end task execution against an authorized staging target.

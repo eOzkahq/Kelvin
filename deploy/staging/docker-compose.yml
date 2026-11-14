@@ -83,9 +83,11 @@ services:
       - kelvin-staging-net
 
   # ----------------------------------------------------------------------------
-  # KELVIN Scanner Execution Worker (Execution Plane - Explicit Profile)
-  # In staging API-only mode, worker is disabled by default to preserve control plane stability.
-  # Run with '--profile worker' only when an approved execution environment is available.
+  # KELVIN Scanner Execution Worker (Execution Plane - Containerized Profile)
+  # NOTE: As per ADR-0008, the authoritative staging scanner execution plane
+  # runs as an unprivileged host service managed by systemd ('kelvin-worker.service')
+  # utilizing rootless Podman and crun. This containerized worker definition is
+  # preserved behind the 'worker' profile and does NOT run during standard API deployment.
   # ----------------------------------------------------------------------------
   worker:
     build:

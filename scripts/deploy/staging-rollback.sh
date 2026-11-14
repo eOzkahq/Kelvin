@@ -1,40 +1,46 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Kelvin Staging Rollback Automation (EXEC-031)
-# Restores previous known-good worker state on deployment failure
+# Kelvin Staging Rollback Automation (ADR-0008 Host Worker Architecture)
+# Restores previous known-good host worker binary on deployment failure
 # ==============================================================================
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+BIN_DEST="/opt/kelvin/bin/kelvin-worker"
+BIN_PREV="/opt/kelvin/bin/kelvin-worker.prev"
 
-echo "==> [Kelvin Staging Rollback] Initiating worker rollback..."
+echo "==> [Kelvin Staging Rollback] Initiating host worker rollback..."
 
 # 1. Stop active worker service immediately to prevent uncertified scans
-echo "Stopping active staging worker..."
-docker compose -f "$REPO_ROOT/deploy/staging/docker-compose.yml" --profile worker stop worker || true
-docker rm -f kelvin-staging-worker 2>/dev/null || true
+echo "Stopping active kelvin-worker service..."
+systemctl stop kelvin-worker.service || true
 
-# 2. Check if a previous known-good worker image was recorded
-PREV_IMAGE=""
-if [[ -f "$REPO_ROOT/artifacts/previous-worker-image.txt" ]]; then
-  PREV_IMAGE="$(cat "$REPO_ROOT/artifacts/previous-worker-image.txt")"
-fi
-
-if [[ -n "$PREV_IMAGE" && "$PREV_IMAGE" != "none" ]]; then
-  echo "Restoring previous worker image: $PREV_IMAGE"
-  # Update image tag or restart with previous image
-  docker compose -f "$REPO_ROOT/deploy/staging/docker-compose.yml" --profile worker up -d worker
+# 2. Check if a previous known-good worker binary was preserved
+if [[ -f "$BIN_PREV" ]]; then
+  echo "Restoring previous known-good worker binary from $BIN_PREV..."
+  cp -fp "$BIN_PREV" "$BIN_DEST"
+  chmod 0755 "$BIN_DEST"
+  
+  echo "Restarting kelvin-worker service with restored binary..."
+  systemctl start kelvin-worker.service
+  
+  sleep 2
+  if systemctl is-active --quiet kelvin-worker.service; then
+    echo "Restored worker service is ACTIVE and operational."
+  else
+    echo "ERROR: Restored worker failed to activate; inspect journalctl -u kelvin-worker -n 50" >&2
+    exit 1
+  fi
 else
-  echo "No prior worker image recorded. Worker stopped safely. API remains active."
+  echo "No previous worker binary found at $BIN_PREV."
+  echo "Worker service has been stopped safely. No uncertified scans can execute."
 fi
 
-# 3. Verify API gateway stability remains intact
-echo "Verifying API gateway status..."
+# 3. Verify API Gateway Stability Remains Intact
+echo "Verifying API gateway operational status..."
 if curl -sf http://127.0.0.1:8080/healthz >/dev/null 2>&1; then
-  echo "API Gateway remains operational and stable."
+  echo "API Gateway remains operational and healthy."
 else
-  echo "WARNING: API Gateway not responding on loopback; inspect logs with: docker compose logs api" >&2
+  echo "WARNING: API Gateway not responding on loopback; inspect: docker compose logs api" >&2
 fi
 
 echo "==> [Kelvin Staging Rollback] Rollback procedure finished."

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ type RuntimeMetadata struct {
 	Version       string `json:"version,omitempty"`
 	Architecture  string `json:"architecture,omitempty"`
 	CgroupVersion string `json:"cgroup_version,omitempty"`
+	OCIRuntime    string `json:"oci_runtime,omitempty"`
 	Rootless      bool   `json:"rootless,omitempty"`
 }
 
@@ -40,6 +42,12 @@ func (e *OCIExecutor) RuntimePath() string {
 }
 
 func NewOCIExecutor() (*OCIExecutor, error) {
+	if explicit := os.Getenv("KELVIN_OCI_RUNTIME"); explicit != "" {
+		if path, err := exec.LookPath(explicit); err == nil {
+			return &OCIExecutor{runtime: path}, nil
+		}
+		return nil, fmt.Errorf("sandbox: specified KELVIN_OCI_RUNTIME %q not found", explicit)
+	}
 	for _, candidate := range []string{"podman", "docker"} {
 		if path, err := exec.LookPath(candidate); err == nil {
 			return &OCIExecutor{runtime: path}, nil
@@ -48,11 +56,27 @@ func NewOCIExecutor() (*OCIExecutor, error) {
 	return nil, errors.New("sandbox: no OCI runtime (podman/docker) found")
 }
 
+type podmanInfoOutput struct {
+	Host struct {
+		Arch          string `json:"arch"`
+		CgroupVersion string `json:"cgroupVersion"`
+		OCIRuntime    struct {
+			Name string `json:"name"`
+			Path string `json:"path"`
+		} `json:"ociRuntime"`
+		Security struct {
+			Rootless bool `json:"rootless"`
+		} `json:"security"`
+	} `json:"host"`
+}
+
 // VerifyRuntime probes the discovered OCI runtime binary to verify that the
 // container engine daemon/socket is responsive.
 func (e *OCIExecutor) VerifyRuntime(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
+
+	// 1. First probe: check responsiveness
 	cmd := exec.CommandContext(ctx, e.runtime, "info")
 	cmd.Env = runtimeEnvironment()
 	out, err := cmd.CombinedOutput()
@@ -62,18 +86,53 @@ func (e *OCIExecutor) VerifyRuntime(ctx context.Context) error {
 
 	cgroupVersion := "v2"
 	arch := ""
-	for _, line := range strings.Split(string(out), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "Cgroup Version:") {
-			parts := strings.Split(trimmed, ":")
-			if len(parts) >= 2 {
-				cgroupVersion = strings.TrimSpace(parts[1])
+	ociRuntime := ""
+	rootless := false
+
+	// 2. Try JSON inspect for structured Podman metadata
+	jsonCmd := exec.CommandContext(ctx, e.runtime, "info", "--format", "json")
+	jsonCmd.Env = runtimeEnvironment()
+	if jsonOut, jsonErr := jsonCmd.Output(); jsonErr == nil {
+		var pInfo podmanInfoOutput
+		if json.Unmarshal(jsonOut, &pInfo) == nil {
+			if pInfo.Host.CgroupVersion != "" {
+				cgroupVersion = pInfo.Host.CgroupVersion
 			}
+			if pInfo.Host.Arch != "" {
+				arch = pInfo.Host.Arch
+			}
+			if pInfo.Host.OCIRuntime.Name != "" {
+				ociRuntime = pInfo.Host.OCIRuntime.Name
+			}
+			rootless = pInfo.Host.Security.Rootless
 		}
-		if strings.HasPrefix(trimmed, "Architecture:") {
-			parts := strings.Split(trimmed, ":")
-			if len(parts) >= 2 {
-				arch = strings.TrimSpace(parts[1])
+	}
+
+	// 3. Fallback: Parse line-by-line if JSON did not populate all fields
+	if arch == "" || ociRuntime == "" {
+		for _, line := range strings.Split(string(out), "\n") {
+			trimmed := strings.TrimSpace(line)
+			lower := strings.ToLower(trimmed)
+			if strings.HasPrefix(lower, "cgroup version:") || strings.HasPrefix(lower, "cgroupversion:") {
+				parts := strings.Split(trimmed, ":")
+				if len(parts) >= 2 {
+					cgroupVersion = strings.TrimSpace(parts[1])
+				}
+			}
+			if strings.HasPrefix(lower, "architecture:") || strings.HasPrefix(lower, "arch:") {
+				parts := strings.Split(trimmed, ":")
+				if len(parts) >= 2 {
+					arch = strings.TrimSpace(parts[1])
+				}
+			}
+			if strings.HasPrefix(lower, "rootless:") {
+				parts := strings.Split(trimmed, ":")
+				if len(parts) >= 2 && strings.TrimSpace(parts[1]) == "true" {
+					rootless = true
+				}
+			}
+			if strings.HasPrefix(lower, "name:") && strings.Contains(lower, "crun") {
+				ociRuntime = "crun"
 			}
 		}
 	}
@@ -82,6 +141,48 @@ func (e *OCIExecutor) VerifyRuntime(ctx context.Context) error {
 		Executable:    e.runtime,
 		CgroupVersion: cgroupVersion,
 		Architecture:  arch,
+		OCIRuntime:    ociRuntime,
+		Rootless:      rootless,
+	}
+	return nil
+}
+
+// VerifyRootlessPodman verifies that the runtime is specifically unprivileged Rootless Podman
+// backed by crun and cgroups v2 on the target architecture, as mandated by ADR-0008.
+func (e *OCIExecutor) VerifyRootlessPodman(ctx context.Context) error {
+	if err := e.VerifyRuntime(ctx); err != nil {
+		return err
+	}
+	base := strings.ToLower(filepath.Base(e.runtime))
+	if !strings.Contains(base, "podman") {
+		return fmt.Errorf("sandbox: ADR-0008 requires rootless podman; discovered runtime is %q", e.runtime)
+	}
+	if !e.meta.Rootless {
+		return fmt.Errorf("sandbox: ADR-0008 requires rootless container execution; podman is running as root")
+	}
+	if e.meta.CgroupVersion != "v2" && e.meta.CgroupVersion != "2" {
+		return fmt.Errorf("sandbox: ADR-0008 requires cgroups v2; runtime reported cgroups %q", e.meta.CgroupVersion)
+	}
+	if e.meta.OCIRuntime != "" && e.meta.OCIRuntime != "crun" {
+		return fmt.Errorf("sandbox: ADR-0008 requires crun OCI runtime; runtime reported %q", e.meta.OCIRuntime)
+	}
+	return nil
+}
+
+// VerifyScannerNetwork verifies that the dedicated internal scanner network exists and is reachable.
+func (e *OCIExecutor) VerifyScannerNetwork(ctx context.Context, networkName string) error {
+	if networkName == "" {
+		networkName = os.Getenv("KELVIN_SCANNER_NETWORK")
+		if networkName == "" {
+			networkName = "kelvin-scanner-net"
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, e.runtime, "network", "inspect", networkName)
+	cmd.Env = runtimeEnvironment()
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("sandbox: internal scanner network %q is unavailable or does not exist: %w", networkName, err)
 	}
 	return nil
 }

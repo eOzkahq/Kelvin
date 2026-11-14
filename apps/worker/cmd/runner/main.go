@@ -12,6 +12,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/config"
 	"github.com/kelvin/kelvin/apps/worker/internal/daemon"
 	"github.com/kelvin/kelvin/apps/worker/internal/limits"
+	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
@@ -56,11 +57,40 @@ func main() {
 			log.Warn("OCI container runtime verification failed, falling back to simulated sandbox", zap.Error(err))
 			executor = sandbox.NewFake()
 		} else {
+			if cfg.Env == config.EnvProduction || cfg.Env == config.EnvStaging {
+				if err := ociExec.VerifyRootlessPodman(ctx); err != nil {
+					if os.Getenv("KELVIN_ALLOW_INSECURE_RUNTIME") != "true" {
+						log.Fatal("ADR-0008 runtime verification failed: rootless podman and cgroups v2 are required", zap.Error(err))
+					}
+					log.Warn("running with non-compliant runtime because KELVIN_ALLOW_INSECURE_RUNTIME is set", zap.Error(err))
+				}
+				if err := ociExec.VerifyScannerNetwork(ctx, ""); err != nil {
+					if os.Getenv("KELVIN_ALLOW_INSECURE_RUNTIME") != "true" {
+						log.Fatal("ADR-0008 network verification failed: internal scanner network is required", zap.Error(err))
+					}
+					log.Warn("internal scanner network verification failed", zap.Error(err))
+				}
+			}
 			log.Info("OCI container runtime verified",
 				zap.String("runtime", ociExec.RuntimePath()),
-				zap.String("cgroups", ociExec.Metadata().CgroupVersion))
+				zap.String("cgroups", ociExec.Metadata().CgroupVersion),
+				zap.Bool("rootless", ociExec.Metadata().Rootless),
+				zap.String("oci_runtime", ociExec.Metadata().OCIRuntime))
 			executor = ociExec
 		}
+	}
+
+	// 1.1 Verify Scanner Image Release Status (Fail-Closed Governance)
+	canonicalLockPath := "deploy/scanners/images.lock.json"
+	if lock, err := manifest.LoadCanonicalLock(canonicalLockPath); err == nil {
+		log.Info("scanner release manifest loaded",
+			zap.String("status", lock.Status),
+			zap.String("schema_version", lock.SchemaVersion))
+		if (cfg.Env == config.EnvProduction || cfg.Env == config.EnvStaging) && lock.Status == manifest.StatusNotReleased {
+			log.Warn("ATTENTION: Scanner images are currently marked NOT-RELEASED. Any execution attempt for unreleased container images will fail closed until verified images are released and certified.")
+		}
+	} else {
+		log.Warn("release manifest not found at canonical path, skipping pre-flight release check", zap.Error(err))
 	}
 
 	// 2. Register MVP scanner adapters into registry
