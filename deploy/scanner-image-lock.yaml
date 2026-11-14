@@ -1,7 +1,8 @@
 schema_version: "1.0"
-generated_at: "2026-11-10T21:49:00Z"
+generated_at: "2026-11-14T17:30:00Z"
 target_platform: "linux/arm64,linux/amd64"
-status: "locked"
+status: "not-released"
+release_note: "Scanner images are pending Phase 3 ARM64 builds and GHCR certification. No unreleased image may execute in production."
 
 scanners:
   zap:
@@ -29,7 +30,7 @@ scanners:
     image_reference: "projectdiscovery/nuclei:v3.3.7"
     image_digest: "sha256:bb1a9829910d9faef8dcf16ad8dc94c50be4ce9356ef30ef834c2b9fae068b55"
     template_catalog_version: "kelvin.safe.web.v1"
-    template_catalog_digest: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    template_catalog_digest: "sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2"
     executable: "/nuclei"
     user: "10001:10001"
     security_options:
