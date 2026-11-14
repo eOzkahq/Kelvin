@@ -15,7 +15,7 @@ const (
 	PinnedNucleiImageReference         = "projectdiscovery/nuclei:v3.3.7@sha256:bb1a9829910d9faef8dcf16ad8dc94c50be4ce9356ef30ef834c2b9fae068b55"
 	PinnedNucleiImageDigest            = "sha256:bb1a9829910d9faef8dcf16ad8dc94c50be4ce9356ef30ef834c2b9fae068b55"
 	PinnedNucleiTemplateCatalogVersion = "kelvin.safe.web.v1"
-	PinnedNucleiTemplateCatalogDigest  = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	PinnedNucleiTemplateCatalogDigest  = "sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2"
 
 	PinnedZAPScannerVersion = "2.15.0"
 	PinnedZAPAdapterVersion = "1.0.0"

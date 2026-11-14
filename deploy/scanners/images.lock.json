@@ -18,7 +18,7 @@
       "kelvin_image": null,
       "kelvin_digest": null,
       "template_catalog_id": "kelvin.safe.web.v1",
-      "template_catalog_digest": null
+      "template_catalog_digest": "sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2"
     }
   },
   "release_note": "Populate only from a reviewed build workflow run. No scanner image or template catalog is certified by this manifest."
