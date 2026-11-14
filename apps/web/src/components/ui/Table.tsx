@@ -5,7 +5,7 @@ export const Table: React.FC<React.TableHTMLAttributes<HTMLTableElement>> = ({
   children,
   ...props
 }) => (
-  <div className="w-full overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/60">
+  <div className="w-full overflow-x-auto rounded-xl border border-zinc-800/80 bg-zinc-900/60 backdrop-blur-xs">
     <table className={`w-full text-left text-sm text-zinc-300 ${className}`} {...props}>
       {children}
     </table>
@@ -17,7 +17,7 @@ export const TableHeader: React.FC<React.HTMLAttributes<HTMLTableSectionElement>
   children,
   ...props
 }) => (
-  <thead className={`bg-zinc-900/90 text-xs uppercase font-medium text-zinc-400 border-b border-zinc-800 ${className}`} {...props}>
+  <thead className={`bg-zinc-950/90 text-[11px] uppercase font-mono font-medium text-zinc-400 border-b border-zinc-800/80 ${className}`} {...props}>
     {children}
   </thead>
 );

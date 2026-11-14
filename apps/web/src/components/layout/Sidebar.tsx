@@ -53,15 +53,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       aria-label="Main Navigation"
     >
       {/* Brand Header */}
-      <div className="flex h-14 items-center justify-between px-3 border-b border-zinc-800">
+      <div className="flex h-14 items-center justify-between px-3 border-b border-zinc-800/80">
         {!isCollapsed && (
-          <div className="flex items-center gap-2">
-            <span className="h-6 w-6 rounded bg-gradient-to-br from-cyan-500 to-cyan-700 flex items-center justify-center font-bold text-xs text-black">
+          <div className="flex items-center gap-2.5">
+            <span className="h-7 w-7 rounded-lg bg-gradient-to-br from-[#f0eeea] via-[#d4c9a8] to-[#936e1f] flex items-center justify-center font-bold text-xs text-[#0c0c0c] shadow-[0_0_12px_rgba(212,201,168,0.3)]">
               K
             </span>
-            <span className="font-bold tracking-tight text-zinc-100 text-sm">
-              KELVIN <span className="text-[10px] text-cyan-400 font-mono font-normal">v1.0</span>
-            </span>
+            <div className="flex flex-col">
+              <span className="font-bold tracking-tight text-zinc-100 text-sm font-sans flex items-center gap-1.5 leading-none">
+                KELVIN <span className="text-[9px] text-cyan-400 font-mono font-medium tracking-wider">v1.0</span>
+              </span>
+              <span className="text-[8.5px] font-mono tracking-widest uppercase text-zinc-400 mt-1">Augmenting-SecOps</span>
+            </div>
           </div>
         )}
         <button
@@ -78,7 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex-1 overflow-y-auto px-2 py-3 space-y-6">
         <div>
           {!isCollapsed && (
-            <h4 className="px-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+            <h4 className="px-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2 font-mono">
               Assessment Engine
             </h4>
           )}
@@ -88,10 +91,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  `flex items-center gap-3 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${
                     isActive
-                      ? "bg-cyan-950/60 text-cyan-300 border border-cyan-800/40"
-                      : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+                      ? "bg-cyan-950/50 text-cyan-300 border border-cyan-800/50 shadow-[0_0_15px_rgba(212,201,168,0.06)]"
+                      : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-100 border border-transparent"
                   }`
                 }
               >
@@ -107,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {visibleAdminItems.length > 0 && (
           <div>
             {!isCollapsed && (
-              <h4 className="px-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">
+              <h4 className="px-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2 font-mono">
                 Administration
               </h4>
             )}
@@ -117,10 +120,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={item.to}
                   to={item.to}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    `flex items-center gap-3 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${
                       isActive
-                        ? "bg-cyan-950/60 text-cyan-300 border border-cyan-800/40"
-                        : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+                        ? "bg-cyan-950/50 text-cyan-300 border border-cyan-800/50 shadow-[0_0_15px_rgba(212,201,168,0.06)]"
+                        : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-100 border border-transparent"
                     }`
                   }
                 >

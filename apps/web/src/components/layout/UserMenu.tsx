@@ -30,9 +30,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="true"
-        className="flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-800 p-1 text-xs text-zinc-200 hover:border-zinc-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+        className="flex items-center gap-2 rounded-full border border-zinc-700/80 bg-zinc-800/80 p-0.5 text-xs text-zinc-200 hover:border-[#d4c9a8]/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-cyan-900/80 font-semibold text-cyan-200 text-xs">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#f0eeea] via-[#d4c9a8] to-[#936e1f] font-bold text-[#0c0c0c] text-xs shadow-sm">
           {user.name.charAt(0)}
         </span>
       </button>

@@ -120,7 +120,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl shadow-cyan-950/20"
+        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-900/95 shadow-2xl shadow-black/80 backdrop-blur-md"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >

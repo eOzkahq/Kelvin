@@ -13,15 +13,15 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-cyan-600 hover:bg-cyan-500 text-white font-medium shadow-sm shadow-cyan-950/50 border border-cyan-500/40 focus-visible:ring-cyan-500",
+    "bg-[#f0eeea] hover:bg-[#d4c9a8] text-[#0c0c0c] font-bold tracking-wider uppercase shadow-[0_0_20px_rgba(212,201,168,0.15)] border border-[#d4c9a8] focus-visible:ring-[#d4c9a8]",
   secondary:
-    "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-medium border border-zinc-700 focus-visible:ring-zinc-400",
+    "bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 font-semibold tracking-wider uppercase border border-zinc-700/80 hover:border-[#d4c9a8]/50 focus-visible:ring-[#d4c9a8]",
   danger:
-    "bg-red-950/80 hover:bg-red-900 text-red-200 font-medium border border-red-800 focus-visible:ring-red-500",
+    "bg-red-950/80 hover:bg-red-900 text-red-200 font-semibold tracking-wider uppercase border border-red-800 focus-visible:ring-red-500",
   ghost:
-    "bg-transparent hover:bg-zinc-800 text-zinc-300 hover:text-white border-transparent focus-visible:ring-zinc-400",
+    "bg-transparent hover:bg-zinc-800/60 text-zinc-300 hover:text-[#d4c9a8] border border-transparent focus-visible:ring-[#d4c9a8]",
   outline:
-    "bg-transparent hover:bg-zinc-800/60 text-cyan-400 border border-cyan-800 hover:border-cyan-600 focus-visible:ring-cyan-500",
+    "bg-transparent hover:bg-[#d4c9a8]/10 text-[#d4c9a8] border border-[#d4c9a8]/60 hover:border-[#d4c9a8] font-semibold tracking-wider uppercase focus-visible:ring-[#d4c9a8]",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {

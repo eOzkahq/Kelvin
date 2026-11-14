@@ -38,12 +38,12 @@ export const TenantSwitcher: React.FC = () => {
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="true"
-        className="flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900/80 px-2.5 py-1.5 text-xs font-medium text-zinc-200 hover:border-zinc-700 hover:bg-zinc-800/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+        className="flex items-center gap-2 rounded-md border border-zinc-800/80 bg-zinc-900/80 px-2.5 py-1.5 text-xs font-medium text-zinc-200 hover:border-[#d4c9a8]/40 hover:bg-zinc-800/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
       >
-        <span className="h-2 w-2 rounded-full bg-cyan-400" aria-hidden="true" />
+        <span className="h-2 w-2 rounded-full bg-[#d4c9a8]" aria-hidden="true" />
         <div className="flex flex-col text-left">
           <span className="font-semibold text-zinc-100">{selectedWs.orgName}</span>
-          <span className="text-[10px] text-zinc-400">{selectedWs.name}</span>
+          <span className="text-[10px] text-zinc-400 font-mono">{selectedWs.name}</span>
         </div>
         <span className="text-zinc-500 ml-1">▾</span>
       </button>

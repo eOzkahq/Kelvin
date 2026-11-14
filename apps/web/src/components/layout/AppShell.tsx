@@ -3,6 +3,7 @@ import { Sidebar } from "./Sidebar";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { TenantSwitcher } from "./TenantSwitcher";
 import { UserMenu } from "./UserMenu";
+import { CustomCursor, BackgroundParticles } from "../ui";
 import { isDemoMode } from "../../config/env";
 
 export interface AppShellProps {
@@ -15,15 +16,57 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
     return localStorage.getItem("kelvin_sidebar_collapsed") === "true";
   });
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   useEffect(() => {
     localStorage.setItem("kelvin_sidebar_collapsed", String(isCollapsed));
   }, [isCollapsed]);
 
+  useEffect(() => {
+    let saved = null;
+    try {
+      saved = localStorage.getItem("kelvin_theme");
+    } catch {
+      // ignore
+    }
+    const htmlEl = document.documentElement;
+    if (saved === "light") {
+      htmlEl.setAttribute("data-theme", "light");
+      setTheme("light");
+    } else {
+      htmlEl.removeAttribute("data-theme");
+      setTheme("dark");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const htmlEl = document.documentElement;
+    if (theme === "light") {
+      htmlEl.removeAttribute("data-theme");
+      try {
+        localStorage.setItem("kelvin_theme", "dark");
+      } catch {
+        // ignore
+      }
+      setTheme("dark");
+    } else {
+      htmlEl.setAttribute("data-theme", "light");
+      try {
+        localStorage.setItem("kelvin_theme", "light");
+      } catch {
+        // ignore
+      }
+      setTheme("light");
+    }
+  };
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans">
+    <div className="relative flex h-screen w-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans">
+      <BackgroundParticles />
+      <CustomCursor />
+
       {/* Desktop Sidebar (hidden on screens < 768px) */}
-      <div className="hidden md:flex flex-shrink-0">
+      <div className="hidden md:flex flex-shrink-0 z-20">
         <Sidebar
           isCollapsed={isCollapsed}
           onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
@@ -53,13 +96,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
       )}
 
       {/* Main Column */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden z-10">
         {/* Persistent Demo Warning Banner */}
         {isDemoMode() && (
           <aside
             role="status"
             aria-label="Demo Mode Active"
-            className="bg-amber-500 text-black px-4 py-1.5 text-center font-bold text-xs tracking-wider flex items-center justify-center gap-2 select-none shadow-md z-30"
+            className="bg-[#d4c9a8] text-[#0c0c0c] px-4 py-1.5 text-center font-bold text-xs tracking-wider flex items-center justify-center gap-2 select-none shadow-md z-30"
           >
             <span>⚠️</span>
             <span>DEMO DATA — NOT LIVE SECURITY RESULTS</span>
@@ -70,7 +113,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
         )}
 
         {/* Top Header */}
-        <header className="flex h-14 items-center justify-between border-b border-zinc-800 bg-zinc-900/60 px-4 backdrop-blur">
+        <header className="flex h-14 items-center justify-between border-b border-zinc-800/80 bg-zinc-950/80 px-4 backdrop-blur-md">
           <div className="flex items-center gap-3">
             {/* Mobile Hamburger Button */}
             <button
@@ -84,7 +127,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
 
             {/* Mobile Logo */}
             <div className="flex items-center gap-2 md:hidden">
-              <span className="h-6 w-6 rounded bg-gradient-to-br from-cyan-500 to-cyan-700 flex items-center justify-center font-bold text-xs text-black">
+              <span className="h-6 w-6 rounded bg-gradient-to-br from-[#f0eeea] via-[#d4c9a8] to-[#936e1f] flex items-center justify-center font-bold text-xs text-[#0c0c0c]">
                 K
               </span>
               <span className="font-bold tracking-tight text-sm text-zinc-100">KELVIN</span>
@@ -95,11 +138,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
           </div>
 
           {/* Right Header Controls */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {/* Quick Omnibar search trigger */}
             <button
               type="button"
-              className="hidden sm:flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-700 hover:text-zinc-200 transition-colors"
+              className="hidden sm:flex items-center gap-2 rounded-md border border-zinc-800/80 bg-zinc-900/80 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-700 hover:text-zinc-200 transition-colors"
               aria-label="Search assets, findings, and documentation (Ctrl+K)"
             >
               <span>Search platform...</span>
@@ -108,10 +151,37 @@ export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdm
               </kbd>
             </button>
 
+            {/* Theme Toggle Button matching EOZKA */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="rounded-md border border-zinc-800/80 bg-zinc-900/60 p-1.5 text-zinc-400 hover:border-zinc-700 hover:text-[#d4c9a8] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+              title={theme === "light" ? "Switch to Dark Theme" : "Switch to Light Theme"}
+              aria-label="Toggle Theme"
+            >
+              {theme === "light" ? (
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              ) : (
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              )}
+            </button>
+
             {/* Notification trigger */}
             <button
               type="button"
-              className="relative rounded p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+              className="relative rounded-md border border-zinc-800/80 bg-zinc-900/60 p-1.5 text-zinc-400 hover:border-zinc-700 hover:text-zinc-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
               aria-label="View notifications"
             >
               🔔

@@ -34,16 +34,18 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 py-12">
       <div className="w-full max-w-md space-y-6">
         {/* Brand Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-700 font-bold text-xl text-black shadow-lg shadow-cyan-950/60">
+        <div className="text-center space-y-3">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#f0eeea] via-[#d4c9a8] to-[#936e1f] font-bold text-2xl text-[#0c0c0c] shadow-[0_0_30px_rgba(212,201,168,0.25)]">
             K
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-100">
-            Sign in to KELVIN
-          </h1>
-          <p className="text-xs text-zinc-400">
-            Enterprise Security Assessment & Vulnerability Platform
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-sans">
+              Sign in to KELVIN
+            </h1>
+            <p className="text-xs text-zinc-400 font-mono tracking-wider uppercase mt-1">
+              Augmenting-SecOps • Security Platform
+            </p>
+          </div>
         </div>
 
         {/* Card */}
