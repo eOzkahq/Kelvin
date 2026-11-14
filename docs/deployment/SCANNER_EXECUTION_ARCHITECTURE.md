@@ -3,7 +3,8 @@
 **Document Version:** 1.0.0-staging  
 **Classification:** Engineering Architecture & Security Specification  
 **Status:** Approved for PRE-09 Release Gate  
-**Reference Issues:** PRE-09, INFRA-01, SEC-01  
+**Reference Issues:** PRE-09, INFRA-01, SEC-01, Issue 001 (EXEC-001)  
+**Governing Architecture Decision:** [ADR-0008: Secure OCI Execution Architecture](../architecture/decisions/ADR-0008.md)  
 
 ---
 
