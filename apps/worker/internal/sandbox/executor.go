@@ -132,6 +132,10 @@ var approvedScanners = map[string]string{
 	"nuclei":       "/nuclei",
 	"zap":          "/zap/zap-baseline.py",
 	"zap-baseline": "/zap/zap-baseline.py",
+	"sslscan":      "/usr/bin/sslscan",
+	"nmap":         "/usr/bin/nmap",
+	"whatweb":      "/usr/bin/whatweb",
+	"subfinder":    "/usr/bin/subfinder",
 }
 
 // ScannerID resolves the effective scanner identity from Spec.Scanner or Spec.Labels["scanner"].
