@@ -26,6 +26,9 @@ RestartSec=5s
 TimeoutStopSec=30s
 KillMode=control-group
 
+# Enable cgroups v2 resource delegation to rootless containers (ADR-0008)
+Delegate=yes
+
 # Resource bounds on host daemon
 LimitNOFILE=65535
 

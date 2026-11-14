@@ -20,12 +20,14 @@ if [[ "$(id -u)" -ne 0 ]]; then
   exit 1
 fi
 
-# 2. Verify Architecture
+# 2. Verify Architecture (Strictly require aarch64/arm64)
 ARCH="$(uname -m)"
 echo "Host architecture detected: $ARCH"
 if [[ "$ARCH" != "aarch64" && "$ARCH" != "arm64" ]]; then
-  echo "WARNING: Host architecture is $ARCH. Production staging is certified for aarch64/arm64."
+  echo "ERROR: Unsupported host architecture '$ARCH'. Oracle Linux staging strictly requires aarch64 or arm64 per ADR-0008." >&2
+  exit 1
 fi
+echo "Verified host architecture: $ARCH"
 
 # 3. Verify cgroups v2 and controllers
 if [[ ! -f /sys/fs/cgroup/cgroup.controllers ]]; then
@@ -78,14 +80,40 @@ else
   echo "User kelvin-worker (UID 10001) verified."
 fi
 
-# 6. Configure subuid and subgid for rootless container user namespaces
+# 6. Configure subuid and subgid for rootless container user namespaces (100000:65536)
 echo "Configuring /etc/subuid and /etc/subgid for kelvin-worker..."
-if ! grep -q "^kelvin-worker:" /etc/subuid 2>/dev/null; then
-  echo "kelvin-worker:100000:65536" >> /etc/subuid
-fi
-if ! grep -q "^kelvin-worker:" /etc/subgid 2>/dev/null; then
-  echo "kelvin-worker:100000:65536" >> /etc/subgid
-fi
+validate_or_add_subid() {
+  local id_file="$1"
+  local expected="kelvin-worker:100000:65536"
+
+  if [[ ! -f "$id_file" ]]; then
+    touch "$id_file"
+  fi
+
+  local existing_lines
+  existing_lines="$(grep "^kelvin-worker:" "$id_file" 2>/dev/null || true)"
+
+  if [[ -z "$existing_lines" ]]; then
+    echo "Adding '$expected' to $id_file..."
+    echo "$expected" >> "$id_file"
+  else
+    local count
+    count="$(echo "$existing_lines" | wc -l)"
+    if [[ "$count" -eq 1 && "$existing_lines" == "$expected" ]]; then
+      echo "Verified existing subordinate ID mapping in $id_file ($expected)."
+    else
+      echo "ERROR: Conflicting subordinate ID configuration found in $id_file for kelvin-worker." >&2
+      echo "Found:" >&2
+      echo "$existing_lines" >&2
+      echo "Expected exactly: '$expected'" >&2
+      echo "Automatic overwrite or appending conflicting mappings is prohibited. Remediate manually." >&2
+      exit 1
+    fi
+  fi
+}
+
+validate_or_add_subid "/etc/subuid"
+validate_or_add_subid "/etc/subgid"
 
 # 7. Enable systemd user session lingering
 echo "Enabling systemd linger for kelvin-worker..."
@@ -128,19 +156,66 @@ fi
 # 10. Provision dedicated internal scanner network in rootless Podman
 echo "Provisioning and validating internal scanner network (kelvin-scanner-net) as kelvin-worker..."
 runuser -u kelvin-worker -- bash -c '
+  set -euo pipefail
   export XDG_RUNTIME_DIR="/run/user/10001"
-  if podman network exists kelvin-scanner-net 2>/dev/null; then
-    IS_INTERNAL="$(podman network inspect kelvin-scanner-net --format "{{.Internal}}" 2>/dev/null || echo "false")"
-    if [[ "$IS_INTERNAL" != "true" ]]; then
-      echo "Network kelvin-scanner-net exists but is not internal. Recreating..."
-      podman network rm -f kelvin-scanner-net
-      podman network create --internal --gateway 10.89.10.1 --subnet 10.89.10.0/24 kelvin-scanner-net
+  NET_NAME="kelvin-scanner-net"
+  REQ_INTERNAL="true"
+  REQ_SUBNET="10.89.10.0/24"
+  REQ_GATEWAY="10.89.10.1"
+
+  inspect_and_validate_network() {
+    local net_name="$1"
+    local name internal subnets mismatches=()
+
+    name="$(podman network inspect "$net_name" --format "{{.Name}}" 2>/dev/null || echo "")"
+    internal="$(podman network inspect "$net_name" --format "{{.Internal}}" 2>/dev/null || echo "")"
+    subnets="$(podman network inspect "$net_name" --format "{{range .Subnets}}{{.Subnet}} {{.Gateway}}{{end}}" 2>/dev/null || echo "")"
+
+    if [[ "$name" != "$net_name" ]]; then
+      mismatches+=("name=\x27$name\x27 (expected \x27$net_name\x27)")
+    fi
+    if [[ "$internal" != "$REQ_INTERNAL" ]]; then
+      mismatches+=("internal=\x27$internal\x27 (expected \x27$REQ_INTERNAL\x27)")
+    fi
+    if ! echo "$subnets" | grep -qw "$REQ_SUBNET"; then
+      mismatches+=("subnet missing \x27$REQ_SUBNET\x27 (got \x27$subnets\x27)")
+    fi
+    if ! echo "$subnets" | grep -qw "$REQ_GATEWAY"; then
+      mismatches+=("gateway missing \x27$REQ_GATEWAY\x27 (got \x27$subnets\x27)")
+    fi
+
+    if [[ ${#mismatches[@]} -gt 0 ]]; then
+      echo "${mismatches[*]}"
+      return 1
+    fi
+    return 0
+  }
+
+  if podman network exists "$NET_NAME" 2>/dev/null; then
+    echo "Network $NET_NAME exists. Inspecting all four properties..."
+    if errs="$(inspect_and_validate_network "$NET_NAME")"; then
+      echo "Network $NET_NAME verified untouched: internal=true, subnet=$REQ_SUBNET, gateway=$REQ_GATEWAY."
     else
-      echo "Network kelvin-scanner-net verified with internal=true."
+      echo "ERROR: Network $NET_NAME exists but is misconfigured: $errs" >&2
+      echo "ERROR: Automatic removal or recreation of existing network is strictly prohibited." >&2
+      echo "Please resolve the network configuration manually." >&2
+      exit 1
     fi
   else
-    podman network create --internal --gateway 10.89.10.1 --subnet 10.89.10.0/24 kelvin-scanner-net
-    echo "Created internal network kelvin-scanner-net."
+    echo "Network $NET_NAME does not exist. Creating with internal=true, subnet=$REQ_SUBNET, gateway=$REQ_GATEWAY..."
+    podman network create \
+      --internal \
+      --gateway "$REQ_GATEWAY" \
+      --subnet "$REQ_SUBNET" \
+      "$NET_NAME"
+
+    echo "Verifying network configuration after creation..."
+    if errs="$(inspect_and_validate_network "$NET_NAME")"; then
+      echo "Network $NET_NAME created and verified successfully."
+    else
+      echo "ERROR: Network verification failed immediately after creation: $errs" >&2
+      exit 1
+    fi
   fi
 '
 

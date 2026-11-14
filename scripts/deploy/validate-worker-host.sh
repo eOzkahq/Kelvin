@@ -48,7 +48,7 @@ echo "Architecture: $ARCH"
 if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
   check_pass "CPU architecture is ARM64 ($ARCH)"
 else
-  check_warn "CPU architecture is $ARCH (staging certified for aarch64)"
+  check_fail "CPU architecture is '$ARCH'; staging requires aarch64 or arm64 per ADR-0008"
 fi
 
 # 3. Kernel cgroups v2 and Controllers
@@ -82,18 +82,35 @@ else
   check_fail "User kelvin-worker does not exist. Run scripts/deploy/setup-rootless-podman.sh."
 fi
 
-# 5. Subuid and Subgid Configuration
-if [[ -f /etc/subuid ]] && grep -q "^kelvin-worker:" /etc/subuid; then
-  check_pass "/etc/subuid configured for kelvin-worker: $(grep '^kelvin-worker:' /etc/subuid)"
-else
-  check_fail "/etc/subuid missing configuration for kelvin-worker"
-fi
+# 5. Subuid and Subgid Configuration (100000:65536)
+validate_subid_mapping() {
+  local id_file="$1"
+  local id_type="$2"
+  local expected="kelvin-worker:100000:65536"
 
-if [[ -f /etc/subgid ]] && grep -q "^kelvin-worker:" /etc/subgid; then
-  check_pass "/etc/subgid configured for kelvin-worker: $(grep '^kelvin-worker:' /etc/subgid)"
-else
-  check_fail "/etc/subgid missing configuration for kelvin-worker"
-fi
+  if [[ ! -f "$id_file" ]]; then
+    check_fail "$id_file does not exist"
+    return
+  fi
+
+  local existing_lines
+  existing_lines="$(grep "^kelvin-worker:" "$id_file" 2>/dev/null || true)"
+
+  if [[ -z "$existing_lines" ]]; then
+    check_fail "$id_file missing configuration for kelvin-worker (expected $expected)"
+  else
+    local count
+    count="$(echo "$existing_lines" | wc -l)"
+    if [[ "$count" -eq 1 && "$existing_lines" == "$expected" ]]; then
+      check_pass "$id_file configured with required mapping ($expected)"
+    else
+      check_fail "Conflicting subordinate $id_type mapping in $id_file for kelvin-worker (found: '$existing_lines', expected: '$expected')"
+    fi
+  fi
+}
+
+validate_subid_mapping "/etc/subuid" "UID"
+validate_subid_mapping "/etc/subgid" "GID"
 
 # 6. Systemd User Session Linger
 if command -v loginctl >/dev/null 2>&1; then
@@ -127,15 +144,34 @@ fi
 # 8. Internal Scanner Network (kelvin-scanner-net) Properties
 NETWORK_CHECK_CMD='
   export XDG_RUNTIME_DIR="/run/user/10001"
-  if podman network inspect kelvin-scanner-net >/dev/null 2>&1; then
-    IS_INTERNAL="$(podman network inspect kelvin-scanner-net --format "{{.Internal}}" 2>/dev/null || echo "false")"
-    SUBNETS="$(podman network inspect kelvin-scanner-net --format "{{range .Subnets}}{{.Subnet}} {{.Gateway}}{{end}}" 2>/dev/null || echo "")"
-    if [[ "$IS_INTERNAL" == "true" ]] && echo "$SUBNETS" | grep -q "10.89.10.0/24" && echo "$SUBNETS" | grep -q "10.89.10.1"; then
+  NET_NAME="kelvin-scanner-net"
+  REQ_INTERNAL="true"
+  REQ_SUBNET="10.89.10.0/24"
+  REQ_GATEWAY="10.89.10.1"
+
+  if podman network exists "$NET_NAME" >/dev/null 2>&1; then
+    name="$(podman network inspect "$NET_NAME" --format "{{.Name}}" 2>/dev/null || echo "")"
+    internal="$(podman network inspect "$NET_NAME" --format "{{.Internal}}" 2>/dev/null || echo "")"
+    subnets="$(podman network inspect "$NET_NAME" --format "{{range .Subnets}}{{.Subnet}} {{.Gateway}}{{end}}" 2>/dev/null || echo "")"
+
+    mismatches=()
+    if [[ "$name" != "$NET_NAME" ]]; then
+      mismatches+=("name=\x27$name\x27 (expected \x27$NET_NAME\x27)")
+    fi
+    if [[ "$internal" != "$REQ_INTERNAL" ]]; then
+      mismatches+=("internal=\x27$internal\x27 (expected \x27$REQ_INTERNAL\x27)")
+    fi
+    if ! echo "$subnets" | grep -qw "$REQ_SUBNET"; then
+      mismatches+=("subnet missing \x27$REQ_SUBNET\x27 (got \x27$subnets\x27)")
+    fi
+    if ! echo "$subnets" | grep -qw "$REQ_GATEWAY"; then
+      mismatches+=("gateway missing \x27$REQ_GATEWAY\x27 (got \x27$subnets\x27)")
+    fi
+
+    if [[ ${#mismatches[@]} -eq 0 ]]; then
       echo "NET_OK"
-    elif [[ "$IS_INTERNAL" != "true" ]]; then
-      echo "NET_NOT_INTERNAL"
     else
-      echo "NET_SUBNET_MISMATCH:$SUBNETS"
+      echo "NET_MISCONFIGURED:${mismatches[*]}"
     fi
   else
     echo "NET_NOT_FOUND"
@@ -153,13 +189,10 @@ if id -u kelvin-worker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; the
 
   case "$NET_RESULT" in
     "NET_OK")
-      check_pass "Internal scanner network kelvin-scanner-net exists with internal=true, subnet 10.89.10.0/24, gateway 10.89.10.1"
+      check_pass "Internal scanner network kelvin-scanner-net verified (name=kelvin-scanner-net, internal=true, subnet=10.89.10.0/24, gateway=10.89.10.1)"
       ;;
-    "NET_NOT_INTERNAL")
-      check_fail "Network kelvin-scanner-net exists but is NOT configured with internal=true"
-      ;;
-    NET_SUBNET_MISMATCH*)
-      check_fail "Network kelvin-scanner-net exists but subnet/gateway misconfigured ($NET_RESULT)"
+    NET_MISCONFIGURED*)
+      check_fail "Network kelvin-scanner-net exists but is misconfigured: ${NET_RESULT#NET_MISCONFIGURED:}"
       ;;
     "NET_NOT_FOUND")
       check_fail "Network kelvin-scanner-net not found. Run scripts/deploy/setup-rootless-podman.sh."

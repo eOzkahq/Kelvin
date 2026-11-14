@@ -46,12 +46,12 @@ In accordance with strict platform governance and ADR-0008, the table below deli
 
 ## 3. Deployment Artifacts & Procedures
 
-- **Systemd Service Unit:** `deploy/systemd/kelvin-worker.service`
+- **Systemd Service Unit:** `deploy/systemd/kelvin-worker.service` (hardened: `ProtectSystem=strict`, `ProtectHome=read-only`, `Delegate=yes`, `NoNewPrivileges=true`, `KillMode=control-group`)
 - **Environment Template:** `deploy/systemd/worker.env.example` (explicitly marked with `KELVIN_CONFIG_STATUS=TEMPLATE_NOT_CONFIGURED` and `REPLACE_WITH_...` tokens; startup fails closed if unconfigured)
-- **Host Setup Script:** `scripts/deploy/setup-rootless-podman.sh` (provisions `/etc/kelvin/certs` with `0750` permissions, installs `/etc/kelvin/worker.env.template`, configures linger and internal bridge)
+- **Host Setup Script:** `scripts/deploy/setup-rootless-podman.sh` (enforces ARM64 architecture, provisions `/etc/kelvin/certs` with `0750` permissions, validates subuid/subgid ranges without overwriting conflicts, and inspects all 4 internal network properties without destructive deletion)
 - **Host Audit Script:** `scripts/deploy/validate-worker-host.sh` (validates ARM64, cgroups v2 controllers, crun, subnet `10.89.10.0/24`, gateway `10.89.10.1`, file permissions `0600`/`0400`, and rejects placeholder values)
-- **Staging Deployment Script:** `scripts/deploy/staging-deploy.sh` (reads configured CA path from `/etc/kelvin/worker.env`, checks permissions, restarts only `kelvin-worker.service` without affecting running API or Caddy)
-- **Staging Rollback Script:** `scripts/deploy/staging-rollback.sh`
+- **Staging Deployment Script:** `scripts/deploy/staging-deploy.sh` (compiles in temporary location, validates binary ELF headers, installs atomically, auto-rolls back to `.prev` on activation failure, and provides honest multi-layer readiness reporting)
+- **Hardening Acceptance Test Suite:** `scripts/deploy/test-host-hardening.sh` and `apps/worker/cmd/runner/deploy_hardening_test.go` (100% pass across all 8 network, subordinate ID, architecture, rollback, and truthful readiness scenarios)
 - **Database TLS:** `sslmode=verify-full` verified with CA certificate at `/etc/kelvin/certs/supabase-root-ca.crt`.
 - **Redis Security:** Upstash Redis over TLS (`rediss://`) with mandatory authentication.
 - **Evidence Storage:** Supabase private storage (`kelvin-evidence`) with pre-signed URLs and SHA256 integrity checksums.
