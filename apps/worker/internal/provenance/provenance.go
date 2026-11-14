@@ -37,24 +37,27 @@ type DiagnosticEvent struct {
 
 // ExecutionProvenance captures complete runtime provenance for an individual scanner invocation.
 type ExecutionProvenance struct {
-	AssessmentID    string            `json:"assessment_id"`
-	TenantID        string            `json:"tenant_id"`
-	RunID           string            `json:"run_id"`
-	ScannerID       string            `json:"scanner_id"`
-	CorrelationID   string            `json:"correlation_id,omitempty"`
-	Attempt         int               `json:"attempt"`
-	CommandLine     []string          `json:"command_line"`
-	Environment     []string          `json:"environment"`
-	StartedAt       time.Time         `json:"started_at"`
-	CompletedAt     time.Time         `json:"completed_at"`
-	DurationMS      int64             `json:"duration_ms"`
-	ExitCode        int               `json:"exit_code"`
-	PeakMemoryBytes int64             `json:"peak_memory_bytes,omitempty"`
-	CPUUsageUserMS  int64             `json:"cpu_usage_user_ms,omitempty"`
-	CPUUsageSysMS   int64             `json:"cpu_usage_sys_ms,omitempty"`
-	NetworkTxBytes  int64             `json:"network_tx_bytes,omitempty"`
-	NetworkRxBytes  int64             `json:"network_rx_bytes,omitempty"`
-	Diagnostics     []DiagnosticEvent `json:"diagnostics"`
+	AssessmentID          string            `json:"assessment_id"`
+	TenantID              string            `json:"tenant_id"`
+	RunID                 string            `json:"run_id"`
+	ScannerID             string            `json:"scanner_id"`
+	CorrelationID         string            `json:"correlation_id,omitempty"`
+	ImageReference        string            `json:"image_reference,omitempty"`
+	ImageDigest           string            `json:"image_digest,omitempty"`
+	TemplateCatalogDigest string            `json:"template_catalog_digest,omitempty"`
+	Attempt               int               `json:"attempt"`
+	CommandLine           []string          `json:"command_line"`
+	Environment           []string          `json:"environment"`
+	StartedAt             time.Time         `json:"started_at"`
+	CompletedAt           time.Time         `json:"completed_at"`
+	DurationMS            int64             `json:"duration_ms"`
+	ExitCode              int               `json:"exit_code"`
+	PeakMemoryBytes       int64             `json:"peak_memory_bytes,omitempty"`
+	CPUUsageUserMS        int64             `json:"cpu_usage_user_ms,omitempty"`
+	CPUUsageSysMS         int64             `json:"cpu_usage_sys_ms,omitempty"`
+	NetworkTxBytes        int64             `json:"network_tx_bytes,omitempty"`
+	NetworkRxBytes        int64             `json:"network_rx_bytes,omitempty"`
+	Diagnostics           []DiagnosticEvent `json:"diagnostics"`
 }
 
 // Collector records, redacts, and exports provenance and operational diagnostics.
@@ -83,6 +86,15 @@ func NewCollector(tenantID, assessmentID, runID, scannerID, correlationID string
 			Diagnostics:   make([]DiagnosticEvent, 0),
 		},
 	}
+}
+
+// RecordImageMetadata stores immutable image and catalog digest information in provenance.
+func (c *Collector) RecordImageMetadata(ref, digest, catalogDigest string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.provenance.ImageReference = ref
+	c.provenance.ImageDigest = digest
+	c.provenance.TemplateCatalogDigest = catalogDigest
 }
 
 // RecordStart marks execution start, redacting sensitive command line flags and environment variables.
