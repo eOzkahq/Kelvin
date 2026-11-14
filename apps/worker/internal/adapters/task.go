@@ -43,6 +43,9 @@ type Task struct {
 	HardDeadline time.Duration
 	// Payload is scanner-specific input (raw JSON from the job envelope).
 	Payload json.RawMessage
+	// EgressProxy is the verified egress proxy endpoint URL (e.g. "http://10.89.10.1:8080").
+	// When non-empty, container networking is enabled and routed through this proxy.
+	EgressProxy string
 }
 
 // ValidateTask fails closed on any malformed or untrusted task input.

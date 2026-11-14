@@ -491,6 +491,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		_ = tracker.ReportProgress(execCtxWithReporter, progress.NewIndeterminateProgress(fmt.Sprintf("executing scanner %q", task.Scanner)))
 	}
 
+	provCollector.RecordImageMetadata(spec.Image, spec.ImageDigest, spec.TemplateCatalogDigest)
 	provCollector.RecordStart(spec.Invocation.Args, spec.Env)
 	result, execErr := cfg.Executor.Execute(execCtxWithReporter, spec)
 	if result != nil && result.OOMKilled {

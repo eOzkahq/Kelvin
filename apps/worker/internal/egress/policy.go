@@ -32,6 +32,10 @@ const (
 	ScannerZAPBaseline         = "zap_baseline"
 	ScannerZAP                 = "zap"
 	ScannerNuclei              = "nuclei"
+	ScannerSSLScan             = "sslscan"
+	ScannerNmap                = "nmap"
+	ScannerWhatWeb             = "whatweb"
+	ScannerSubfinder           = "subfinder"
 )
 
 var knownCallbackSuffixes = []string{
@@ -148,6 +152,26 @@ func PolicyForScanner(scanner, target string, scopePolicy scope.Policy) (*Scanne
 		policy.AllowedProtocols = []string{"http", "https"}
 		policy.RequiresProxy = true
 		policy.AllowedPorts = appendUniquePorts(allowedPorts, 80, 443)
+
+	case ScannerSSLScan:
+		policy.AllowedProtocols = []string{"tls", "tcp", "https"}
+		policy.RequiresProxy = false
+		policy.AllowedPorts = appendUniquePorts(allowedPorts, 443)
+
+	case ScannerNmap:
+		policy.AllowedProtocols = []string{"tcp"}
+		policy.RequiresProxy = false
+		policy.AllowedPorts = appendUniquePorts(allowedPorts, 80, 443)
+
+	case ScannerWhatWeb:
+		policy.AllowedProtocols = []string{"http", "https"}
+		policy.RequiresProxy = true
+		policy.AllowedPorts = appendUniquePorts(allowedPorts, 80, 443)
+
+	case ScannerSubfinder:
+		policy.AllowedProtocols = []string{"https"}
+		policy.RequiresProxy = true
+		policy.AllowedPorts = appendUniquePorts(allowedPorts, 443)
 
 	default:
 		return nil, fmt.Errorf("%w: %q", ErrUnknownScanner, scanner)
@@ -307,6 +331,14 @@ func canonicalizeScanner(name string) string {
 		return ScannerZAPBaseline
 	case ScannerNuclei:
 		return ScannerNuclei
+	case ScannerSSLScan:
+		return ScannerSSLScan
+	case ScannerNmap:
+		return ScannerNmap
+	case ScannerWhatWeb:
+		return ScannerWhatWeb
+	case ScannerSubfinder:
+		return ScannerSubfinder
 	default:
 		return ""
 	}

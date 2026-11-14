@@ -18,7 +18,26 @@ import (
 
 const maxCaptureBytes = outputcapture.DefaultMaxCaptureBytes
 
-type OCIExecutor struct{ runtime string }
+type RuntimeMetadata struct {
+	Executable    string `json:"executable"`
+	Version       string `json:"version,omitempty"`
+	Architecture  string `json:"architecture,omitempty"`
+	CgroupVersion string `json:"cgroup_version,omitempty"`
+	Rootless      bool   `json:"rootless,omitempty"`
+}
+
+type OCIExecutor struct {
+	runtime string
+	meta    RuntimeMetadata
+}
+
+func (e *OCIExecutor) Metadata() RuntimeMetadata {
+	return e.meta
+}
+
+func (e *OCIExecutor) RuntimePath() string {
+	return e.runtime
+}
 
 func NewOCIExecutor() (*OCIExecutor, error) {
 	for _, candidate := range []string{"podman", "docker"} {
@@ -36,8 +55,33 @@ func (e *OCIExecutor) VerifyRuntime(ctx context.Context) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, e.runtime, "info")
 	cmd.Env = runtimeEnvironment()
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		return fmt.Errorf("sandbox: OCI runtime %q daemon/socket is unavailable: %w (output: %s)", e.runtime, err, strings.TrimSpace(string(out)))
+	}
+
+	cgroupVersion := "v2"
+	arch := ""
+	for _, line := range strings.Split(string(out), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "Cgroup Version:") {
+			parts := strings.Split(trimmed, ":")
+			if len(parts) >= 2 {
+				cgroupVersion = strings.TrimSpace(parts[1])
+			}
+		}
+		if strings.HasPrefix(trimmed, "Architecture:") {
+			parts := strings.Split(trimmed, ":")
+			if len(parts) >= 2 {
+				arch = strings.TrimSpace(parts[1])
+			}
+		}
+	}
+
+	e.meta = RuntimeMetadata{
+		Executable:    e.runtime,
+		CgroupVersion: cgroupVersion,
+		Architecture:  arch,
 	}
 	return nil
 }
@@ -48,9 +92,9 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 	}
 	if err := ctx.Err(); err != nil {
 		if errors.Is(err, context.Canceled) {
-			return &Result{Cancelled: true, ExitCode: -1}, ErrCancelled
+			return &Result{Cancelled: true, ExitCode: -1, LifecycleState: StateFailed}, ErrCancelled
 		}
-		return &Result{DeadlineExceeded: true, ExitCode: -1}, ErrDeadlineExceeded
+		return &Result{DeadlineExceeded: true, ExitCode: -1, LifecycleState: StateFailed}, ErrDeadlineExceeded
 	}
 	start := time.Now()
 	var nonce [12]byte
@@ -80,14 +124,18 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 			StderrBytes:     stderr.TotalBytes(),
 			StdoutTruncated: stdout.Truncated(),
 			StderrTruncated: stderr.Truncated(),
+			ContainerName:   containerName,
+			LifecycleState:  StateStopped,
 		}
 		if spec.CaptureZAPReport {
 			if copyErr := e.captureZAPReport(containerName, result); copyErr != nil {
 				e.removeContainer(containerName)
+				result.LifecycleState = StateCleaned
 				return result, fmt.Errorf("sandbox: capture ZAP report: %w", copyErr)
 			}
 		}
 		e.removeContainer(containerName)
+		result.LifecycleState = StateCleaned
 		if err == nil {
 			return result, nil
 		}
@@ -98,6 +146,7 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 		} else {
 			result.ExitCode = -1
 		}
+		result.LifecycleState = StateFailed
 		return result, &ExitError{Spec: spec, Result: result, Err: err}
 	case <-ctx.Done():
 		cancelled := errors.Is(ctx.Err(), context.Canceled)
@@ -127,6 +176,8 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 			DeadlineExceeded: !cancelled,
 			Cancelled:        cancelled,
 			ExitCode:         -1,
+			ContainerName:    containerName,
+			LifecycleState:   StateCleaned,
 		}
 		cause := ErrDeadlineExceeded
 		if cancelled {
@@ -178,6 +229,12 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	}
 	if spec.NetworkDisabled {
 		args = append(args, "--network=none")
+	} else {
+		networkName := os.Getenv("KELVIN_SCANNER_NETWORK")
+		if networkName == "" {
+			networkName = "kelvin-scanner-net"
+		}
+		args = append(args, "--network="+networkName)
 	}
 	for _, opt := range spec.SecurityOpt {
 		args = append(args, "--security-opt="+opt)

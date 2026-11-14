@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,8 +45,16 @@ type Proxy struct {
 	closed bool
 }
 
-// NewProxy provisions and starts an ephemeral egress proxy bound to 127.0.0.1.
+// NewProxy provisions and starts an ephemeral egress proxy bound to the configured
+// address (defaults to KELVIN_EGRESS_PROXY_BIND_ADDR or 127.0.0.1:0).
 func NewProxy(policy *ScannerEgressPolicy, logger *zap.Logger, mr MetricsRecorder) (*Proxy, error) {
+	bindAddr := os.Getenv("KELVIN_EGRESS_PROXY_BIND_ADDR")
+	return NewProxyWithBindAddr(policy, bindAddr, logger, mr)
+}
+
+// NewProxyWithBindAddr provisions and starts an ephemeral egress proxy bound to bindAddr.
+// If bindAddr is empty, it falls back to "127.0.0.1:0".
+func NewProxyWithBindAddr(policy *ScannerEgressPolicy, bindAddr string, logger *zap.Logger, mr MetricsRecorder) (*Proxy, error) {
 	if policy == nil {
 		return nil, errors.New("egress: cannot start proxy with nil policy")
 	}
@@ -53,15 +62,30 @@ func NewProxy(policy *ScannerEgressPolicy, logger *zap.Logger, mr MetricsRecorde
 		logger = zap.NewNop()
 	}
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	bind := strings.TrimSpace(bindAddr)
+	if bind == "" {
+		bind = "127.0.0.1:0"
+	} else if !strings.Contains(bind, ":") {
+		bind = bind + ":0"
+	}
+
+	listener, err := net.Listen("tcp", bind)
 	if err != nil {
-		return nil, fmt.Errorf("egress: failed to bind local proxy listener: %w", err)
+		return nil, fmt.Errorf("egress: failed to bind local proxy listener on %q: %w", bind, err)
 	}
 
 	broadcaster := NewViolationBroadcaster()
 	dialer := &net.Dialer{
 		Timeout:   10 * time.Second,
 		KeepAlive: 30 * time.Second,
+	}
+
+	endpointHost := listener.Addr().String()
+	if adv := os.Getenv("KELVIN_EGRESS_PROXY_ADVERTISED_HOST"); adv != "" {
+		_, port, err := net.SplitHostPort(listener.Addr().String())
+		if err == nil {
+			endpointHost = net.JoinHostPort(adv, port)
+		}
 	}
 
 	p := &Proxy{
@@ -71,7 +95,7 @@ func NewProxy(policy *ScannerEgressPolicy, logger *zap.Logger, mr MetricsRecorde
 		metrics:     mr,
 		broadcaster: broadcaster,
 		dialer:      dialer,
-		endpoint:    fmt.Sprintf("http://%s", listener.Addr().String()),
+		endpoint:    fmt.Sprintf("http://%s", endpointHost),
 	}
 
 	// Transport configured with pinned dialer

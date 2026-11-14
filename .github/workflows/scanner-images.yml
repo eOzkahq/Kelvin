@@ -23,18 +23,33 @@ on:
         description: gcr.io/distroless/static-debian12:nonroot reference pinned with @sha256
         required: true
         type: string
+      publish:
+        description: Whether to push built images to GitHub Container Registry (ghcr.io)
+        required: false
+        default: false
+        type: boolean
+      enable_ci:
+        description: Explicitly permit CI workflow execution
+        required: false
+        default: true
+        type: boolean
+      platform:
+        description: Target platform architecture (e.g. linux/arm64 or linux/amd64)
+        required: false
+        default: linux/arm64
+        type: string
 
 permissions:
   contents: read
+  packages: write
 
 # CI Workflow Toggle: Set ENABLE_CI to 'true' (or repo var ENABLE_CI) to enable runs.
-# Currently set to 'false' (OFF) so no scanner workflow runs trigger automatically.
 env:
-  ENABLE_CI: 'false'
+  ENABLE_CI: 'true'
 
 jobs:
   build-scan:
-    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true'
+    if: inputs.enable_ci == true || env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true'
     name: Build and verify pinned scanner runtimes
     runs-on: ubuntu-latest
     steps:
@@ -47,6 +62,7 @@ jobs:
           NUCLEI_SOURCE_IMAGE: ${{ inputs.nuclei_source_image }}
           NUCLEI_VERSION: ${{ inputs.nuclei_version }}
           DISTROLESS_BASE_IMAGE: ${{ inputs.distroless_base_image }}
+          PLATFORM: ${{ inputs.platform || 'linux/arm64' }}
           OUT_DIR: artifacts/scanner-images
         run: bash scripts/scanners/build-images.sh
       - name: Scan ZAP image and write SBOM
@@ -83,6 +99,26 @@ jobs:
           printf 'ZAP_BASE_IMAGE=%s\nZAP_VERSION=%s\nNUCLEI_SOURCE_IMAGE=%s\nNUCLEI_VERSION=%s\nDISTROLESS_BASE_IMAGE=%s\n' \
             "$ZAP_BASE_IMAGE" "$ZAP_VERSION" "$NUCLEI_SOURCE_IMAGE" "$NUCLEI_VERSION" "$DISTROLESS_BASE_IMAGE" \
             > artifacts/scanner-images/build-inputs.txt
+      - name: Log in to GitHub Container Registry
+        if: ${{ inputs.publish == true }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag and push scanner images to GHCR
+        if: ${{ inputs.publish == true }}
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          ZAP_VERSION: ${{ inputs.zap_version }}
+          NUCLEI_VERSION: ${{ inputs.nuclei_version }}
+        run: |
+          REPO_LOWER=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
+          docker tag "kelvin/scanner-zap:$ZAP_VERSION" "ghcr.io/$REPO_LOWER/scanner-zap:$ZAP_VERSION"
+          docker tag "kelvin/scanner-nuclei:$NUCLEI_VERSION" "ghcr.io/$REPO_LOWER/scanner-nuclei:$NUCLEI_VERSION"
+          docker push "ghcr.io/$REPO_LOWER/scanner-zap:$ZAP_VERSION"
+          docker push "ghcr.io/$REPO_LOWER/scanner-nuclei:$NUCLEI_VERSION"
       - uses: actions/upload-artifact@v4
         with:
           name: scanner-runtime-image-evidence

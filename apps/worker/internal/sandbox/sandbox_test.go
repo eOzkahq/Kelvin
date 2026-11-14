@@ -555,3 +555,60 @@ func TestValidateSpec_TemplateCatalogValidation(t *testing.T) {
 	}
 }
 
+func TestOCIExecutorBuildArgsSecurityBounds(t *testing.T) {
+	spec := validSpec()
+	executor := &OCIExecutor{runtime: "podman"}
+	args := executor.buildArgs(spec)
+
+	hasArg := func(expected string) bool {
+		for _, a := range args {
+			if a == expected {
+				return true
+			}
+		}
+		return false
+	}
+
+	if !hasArg("--user") || !hasArg("10001:10001") {
+		t.Error("expected non-root user in args")
+	}
+	if !hasArg("--cap-drop=ALL") {
+		t.Error("expected cap-drop=ALL in args")
+	}
+	if !hasArg("--read-only") {
+		t.Error("expected --read-only in args")
+	}
+	if !hasArg("--pids-limit") || !hasArg("64") {
+		t.Error("expected --pids-limit 64 in args")
+	}
+	if !hasArg("--cpus=2") {
+		t.Error("expected --cpus=2 in args")
+	}
+	if !hasArg("--memory=512m") || !hasArg("--memory-swap=512m") {
+		t.Error("expected --memory and --memory-swap in args")
+	}
+	if !hasArg("--security-opt=no-new-privileges") {
+		t.Error("expected --security-opt=no-new-privileges in args")
+	}
+	if !hasArg("--env") || !hasArg("HTTP_PROXY=http://10.89.10.1:8080") {
+		t.Error("expected HTTP_PROXY env in args")
+	}
+	if !hasArg("--label") || !hasArg("scanner=nuclei") {
+		t.Error("expected scanner label in args")
+	}
+}
+
+func TestOCILifecycleStates(t *testing.T) {
+	result := &Result{
+		ExitCode:       0,
+		LifecycleState: StateCleaned,
+		ContainerName:  "kelvin-job-test1234",
+	}
+	if result.LifecycleState != StateCleaned {
+		t.Errorf("expected state %v, got %v", StateCleaned, result.LifecycleState)
+	}
+	if !strings.HasPrefix(result.ContainerName, "kelvin-job-") {
+		t.Errorf("expected container name to have prefix kelvin-job-, got %s", result.ContainerName)
+	}
+}
+

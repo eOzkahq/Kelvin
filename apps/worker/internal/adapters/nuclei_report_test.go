@@ -255,3 +255,29 @@ func TestNormalizeNucleiReportSingleStringClassification(t *testing.T) {
 		t.Errorf("expected [CVE-2020-0001], got %v", cves)
 	}
 }
+
+func TestNucleiAdapterRejectsUnapprovedTemplateCatalogDigest(t *testing.T) {
+	// Pinned policy expects PinnedNucleiTemplateCatalogDigest
+	policy := VersionPolicy{
+		ScannerVersion:         PinnedNucleiScannerVersion,
+		ImageReference:         PinnedNucleiImageReference,
+		ImageDigest:            PinnedNucleiImageDigest,
+		TemplateCatalogVersion: PinnedNucleiTemplateCatalogVersion,
+		TemplateCatalogDigest:  PinnedNucleiTemplateCatalogDigest,
+	}
+
+	// Mismatched catalog digest must be rejected by compareRuntimeVersion
+	mismatchedRuntime := RuntimeVersionInfo{
+		ScannerVersion:         PinnedNucleiScannerVersion,
+		AdapterVersion:         "1.0.0",
+		ImageReference:         PinnedNucleiImageReference,
+		ImageDigest:            PinnedNucleiImageDigest,
+		TemplateCatalogVersion: PinnedNucleiTemplateCatalogVersion,
+		TemplateCatalogDigest:  "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+	}
+
+	err := compareRuntimeVersion(ScannerNuclei, "1.0.0", policy, mismatchedRuntime)
+	if err == nil || !strings.Contains(err.Error(), "scanner template catalog does not match pinned policy") {
+		t.Fatalf("expected catalog mismatch error, got: %v", err)
+	}
+}

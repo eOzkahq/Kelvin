@@ -49,7 +49,18 @@ func main() {
 		log.Warn("no OCI container runtime found, falling back to simulated sandbox", zap.Error(err))
 		executor = sandbox.NewFake()
 	} else {
-		executor = ociExec
+		if err := ociExec.VerifyRuntime(ctx); err != nil {
+			if cfg.Env == config.EnvProduction || cfg.Env == config.EnvStaging {
+				log.Fatal("sandbox runtime verification failed", zap.Error(err))
+			}
+			log.Warn("OCI container runtime verification failed, falling back to simulated sandbox", zap.Error(err))
+			executor = sandbox.NewFake()
+		} else {
+			log.Info("OCI container runtime verified",
+				zap.String("runtime", ociExec.RuntimePath()),
+				zap.String("cgroups", ociExec.Metadata().CgroupVersion))
+			executor = ociExec
+		}
 	}
 
 	// 2. Register MVP scanner adapters into registry
