@@ -15,8 +15,11 @@ import (
 )
 
 func validSpec() Spec {
+	digest := strings.Repeat("a", 64)
 	return Spec{
-		Image:           "kelvin/scanner-nuclei:3.3.0@sha256:" + strings.Repeat("a", 64),
+		Scanner:         "nuclei",
+		Image:           "kelvin/scanner-nuclei:3.3.0@sha256:" + digest,
+		ImageDigest:     "sha256:" + digest,
 		Invocation:      ProcessInvocation{Executable: "/nuclei", Args: []string{"-u", "https://example.com"}},
 		User:            "10001:10001",
 		Env:             []string{"KELVIN_JOB_ID=job-1"},
@@ -29,6 +32,7 @@ func validSpec() Spec {
 		CapDrop:         []string{"ALL"},
 		CapAdd:          []string{},
 		NetworkDisabled: false,
+		EgressProxy:     "http://10.89.10.1:8080",
 		SecurityOpt:     []string{"no-new-privileges", "seccomp=scan.json", "apparmor=kelvin-scan"},
 		Deadline:        30 * time.Minute,
 		Labels:          map[string]string{"job_id": "job-1", "tenant_id": "tenant-a", "scanner": "nuclei"},
@@ -44,11 +48,14 @@ func TestValidateSpecAcceptsHardenedSpec(t *testing.T) {
 
 func TestZAPReportCaptureIsBoundToFixedZAPReportPath(t *testing.T) {
 	spec := validSpec()
+	spec.Scanner = "zap"
 	spec.Image = "registry.example/zap@sha256:" + strings.Repeat("a", 64)
+	spec.ImageDigest = "sha256:" + strings.Repeat("a", 64)
 	spec.Invocation = ProcessInvocation{Executable: "/zap/zap-baseline.py", Args: []string{"-t", "https://example.com", "-J", "/tmp/kelvin-zap-report.json"}}
 	spec.Labels["scanner"] = "zap"
 	spec.CaptureZAPReport = true
 	spec.NetworkDisabled = true
+	spec.EgressProxy = ""
 	if err := spec.Validate(); err != nil {
 		t.Fatalf("fixed ZAP report capture should validate: %v", err)
 	}
@@ -323,11 +330,14 @@ func TestRuntimeEnvironmentDropsUnapprovedVariables(t *testing.T) {
 
 func TestEgressProxySpecValidation(t *testing.T) {
 	spec := validSpec()
+	spec.Scanner = "zap"
 	spec.Image = "registry.example/zap@sha256:" + strings.Repeat("a", 64)
+	spec.ImageDigest = "sha256:" + strings.Repeat("a", 64)
 	spec.Invocation = ProcessInvocation{Executable: "/zap/zap-baseline.py", Args: []string{"-t", "https://example.com", "-J", "/tmp/kelvin-zap-report.json"}}
 	spec.Labels["scanner"] = "zap"
 	spec.CaptureZAPReport = true
 	spec.NetworkDisabled = false
+	spec.EgressProxy = ""
 
 	// Without egress proxy, network-enabled ZAP fails
 	if err := spec.Validate(); err == nil {
@@ -418,3 +428,130 @@ func TestOCIExecutor_VerifyRuntime_FailsWhenDaemonUnavailable(t *testing.T) {
 		t.Fatalf("unexpected error message: %v", err)
 	}
 }
+
+func TestValidateSpec_ScannerIdentity(t *testing.T) {
+	// 1. Missing scanner identity rejected
+	spec := validSpec()
+	spec.Scanner = ""
+	spec.Labels = nil
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "scanner identity is required") {
+		t.Fatalf("expected missing scanner identity to be rejected, got: %v", err)
+	}
+
+	// 2. Unknown scanner identity rejected
+	spec = validSpec()
+	spec.Scanner = "unknown-scanner"
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "unknown scanner identity") {
+		t.Fatalf("expected unknown scanner identity to be rejected, got: %v", err)
+	}
+
+	// 3. Executable mismatch rejected
+	spec = validSpec()
+	spec.Scanner = "nuclei"
+	spec.Invocation.Executable = "/zap/zap-baseline.py"
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "not approved for scanner") {
+		t.Fatalf("expected executable mismatch to be rejected, got: %v", err)
+	}
+}
+
+func TestValidateSpec_ImmutableImageReference(t *testing.T) {
+	// Mutable image tags without SHA256 digest are rejected
+	mutableImages := []string{
+		"kelvin/scanner-nuclei:latest",
+		"kelvin/scanner-nuclei:v3.3.0",
+		"projectdiscovery/nuclei",
+		"ghcr.io/zaproxy/zaproxy:stable",
+		"bad-image@sha256:not-hex-digest",
+		"bad-image@sha256:12345",
+	}
+	for _, img := range mutableImages {
+		spec := validSpec()
+		spec.Image = img
+		if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "immutable with a valid sha256 digest") {
+			t.Errorf("expected mutable/invalid image %q to be rejected, got err: %v", img, err)
+		}
+	}
+}
+
+func TestValidateSpec_ImageDigestMismatch(t *testing.T) {
+	spec := validSpec()
+	spec.ImageDigest = "sha256:" + strings.Repeat("b", 64)
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "digest does not match") {
+		t.Fatalf("expected image digest mismatch to be rejected, got: %v", err)
+	}
+
+	// Invalid digest format
+	spec = validSpec()
+	spec.ImageDigest = "md5:12345"
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "image digest must be a valid sha256 hash") {
+		t.Fatalf("expected invalid digest format to be rejected, got: %v", err)
+	}
+}
+
+func TestValidateSpec_NucleiRequiresEgressProxyWhenNetworkEnabled(t *testing.T) {
+	spec := validSpec()
+	spec.Scanner = "nuclei"
+	spec.NetworkDisabled = false
+	spec.EgressProxy = ""
+
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "network-enabled execution requires an enforced egress policy") {
+		t.Fatalf("expected network-enabled Nuclei without egress proxy to be rejected, got: %v", err)
+	}
+
+	// When egress proxy is supplied, validation passes
+	spec.EgressProxy = "http://10.89.10.1:8080"
+	if err := spec.Validate(); err != nil {
+		t.Fatalf("expected valid egress proxy to satisfy network policy, got: %v", err)
+	}
+}
+
+func TestValidateSpec_EnvironmentVariableAllowlist(t *testing.T) {
+	// Unknown environment variable is rejected
+	spec := validSpec()
+	spec.Env = append(spec.Env, "DATABASE_PASSWORD=supersecret")
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "unapproved variable") {
+		t.Fatalf("expected unknown env variable to be rejected, got: %v", err)
+	}
+
+	// Environment variable with CRLF injection is rejected
+	spec = validSpec()
+	spec.Env = []string{"KELVIN_JOB_ID=job-1\r\nINJECTED=bad"}
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "unapproved variable") {
+		t.Fatalf("expected CRLF in env variable to be rejected, got: %v", err)
+	}
+
+	// Valid environment variables are accepted
+	spec = validSpec()
+	spec.Env = []string{
+		"KELVIN_JOB_ID=job-1",
+		"KELVIN_TENANT_ID=tenant-1",
+		"KELVIN_ASSESSMENT_ID=assessment-1",
+		"HTTP_PROXY=http://10.89.10.1:8080",
+	}
+	if err := spec.Validate(); err != nil {
+		t.Fatalf("expected valid env allowlist to pass, got: %v", err)
+	}
+}
+
+func TestValidateSpec_TemplateCatalogValidation(t *testing.T) {
+	// Template catalog on non-nuclei scanner is rejected
+	spec := validSpec()
+	spec.Scanner = "zap"
+	spec.Image = "registry.example/zap@sha256:" + strings.Repeat("a", 64)
+	spec.ImageDigest = "sha256:" + strings.Repeat("a", 64)
+	spec.Invocation.Executable = "/zap/zap-baseline.py"
+	spec.Invocation.Args = []string{"-t", "https://example.com", "-J", "/tmp/kelvin-zap-report.json"}
+	spec.CaptureZAPReport = true
+	spec.TemplateCatalogID = "kelvin.safe.web.v1"
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "template catalog is only applicable to the Nuclei scanner") {
+		t.Fatalf("expected template catalog on ZAP to be rejected, got: %v", err)
+	}
+
+	// Invalid template catalog digest format is rejected
+	spec = validSpec()
+	spec.TemplateCatalogDigest = "sha1:invalidhash"
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "template catalog digest must be a valid sha256 hash") {
+		t.Fatalf("expected invalid template catalog digest format to be rejected, got: %v", err)
+	}
+}
+
