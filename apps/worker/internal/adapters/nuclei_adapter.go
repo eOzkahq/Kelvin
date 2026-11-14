@@ -71,6 +71,9 @@ func (a *NucleiAdapter) VerifyRuntimeVersion(ctx context.Context) (RuntimeVersio
 	if actual.TemplateCatalogVersion != "kelvin.safe.web.v1" || actual.TemplateCatalogDigest == "" {
 		return RuntimeVersionInfo{}, fmt.Errorf("adapters: Nuclei runtime did not report an approved template catalog identity")
 	}
+	if !digestPattern.MatchString(actual.TemplateCatalogDigest) {
+		return RuntimeVersionInfo{}, fmt.Errorf("adapters: Nuclei runtime reported an invalid template catalog digest")
+	}
 	return actual, nil
 }
 

@@ -31,6 +31,7 @@ require_version() {
 : "${NUCLEI_VERSION:?set NUCLEI_VERSION to the version verified from the selected image}"
 : "${DISTROLESS_BASE_IMAGE:?set DISTROLESS_BASE_IMAGE to a pinned distroless/static image}"
 OUT_DIR="${OUT_DIR:-artifacts/scanner-images}"
+PLATFORM="${PLATFORM:-linux/arm64}"
 
 require_digest_ref ZAP_BASE_IMAGE "$ZAP_BASE_IMAGE"
 require_digest_ref NUCLEI_SOURCE_IMAGE "$NUCLEI_SOURCE_IMAGE"
@@ -42,14 +43,14 @@ require_version ZAP_VERSION "$ZAP_VERSION"
 require_version NUCLEI_VERSION "$NUCLEI_VERSION"
 mkdir -p "$OUT_DIR"
 
-docker buildx build --platform linux/amd64 --load \
+docker buildx build --platform "$PLATFORM" --load \
   --metadata-file "$OUT_DIR/zap-build-metadata.json" \
   --build-arg "ZAP_BASE_IMAGE=$ZAP_BASE_IMAGE" \
   --build-arg "ZAP_VERSION=$ZAP_VERSION" \
   --tag "kelvin/scanner-zap:$ZAP_VERSION" \
   --file deploy/scanners/zap/Dockerfile .
 
-docker buildx build --platform linux/amd64 --load \
+docker buildx build --platform "$PLATFORM" --load \
   --metadata-file "$OUT_DIR/nuclei-build-metadata.json" \
   --build-arg "NUCLEI_SOURCE_IMAGE=$NUCLEI_SOURCE_IMAGE" \
   --build-arg "NUCLEI_VERSION=$NUCLEI_VERSION" \
@@ -63,7 +64,8 @@ jq -n \
   --arg zap_base_image "$ZAP_BASE_IMAGE" --arg zap_version "$ZAP_VERSION" --arg zap_digest "$zap_digest" \
   --arg nuclei_source_image "$NUCLEI_SOURCE_IMAGE" --arg nuclei_version "$NUCLEI_VERSION" --arg nuclei_digest "$nuclei_digest" \
   --arg distroless_base_image "$DISTROLESS_BASE_IMAGE" \
-  '{schema_version:"1", platform:"linux/amd64", images:{zap:{base_image:$zap_base_image,version:$zap_version,digest:$zap_digest},nuclei:{source_image:$nuclei_source_image,version:$nuclei_version,distroless_base_image:$distroless_base_image,digest:$nuclei_digest}}}' \
+  --arg platform "$PLATFORM" \
+  '{schema_version:"1", platform:$platform, images:{zap:{base_image:$zap_base_image,version:$zap_version,digest:$zap_digest},nuclei:{source_image:$nuclei_source_image,version:$nuclei_version,distroless_base_image:$distroless_base_image,digest:$nuclei_digest}}}' \
   > "$OUT_DIR/build-record.json"
 
 for image in "kelvin/scanner-zap:$ZAP_VERSION" "kelvin/scanner-nuclei:$NUCLEI_VERSION"; do
