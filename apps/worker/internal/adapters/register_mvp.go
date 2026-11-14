@@ -63,17 +63,20 @@ func NewOCINucleiRunner(executor sandbox.Executor) NucleiReportRunner {
 			return nil, errors.New("adapters: sandbox executor is unavailable")
 		}
 		spec := sandbox.Spec{
-			Image: PinnedNucleiImageReference,
+			Scanner:        "nuclei",
+			Image:          PinnedNucleiImageReference,
+			ImageDigest:    PinnedNucleiImageDigest,
 			Invocation: sandbox.ProcessInvocation{
 				Executable: "/nuclei",
 				Args:       []string{"-u", task.Target, "-jsonl", "-silent"},
 			},
-			Labels:         map[string]string{"scanner": "nuclei"},
-			User:           "10001:10001",
-			ReadOnlyRootfs: true,
-			SecurityOpt:    []string{"no-new-privileges"},
-			CapDrop:        []string{"ALL"},
-			Deadline:       task.HardDeadline,
+			Labels:          map[string]string{"scanner": "nuclei"},
+			User:            "10001:10001",
+			ReadOnlyRootfs:  true,
+			SecurityOpt:     []string{"no-new-privileges"},
+			CapDrop:         []string{"ALL"},
+			Deadline:        task.HardDeadline,
+			NetworkDisabled: true,
 		}
 		res, err := executor.Execute(ctx, spec)
 		if err != nil {
@@ -90,7 +93,9 @@ func NewOCIZAPRunner(executor sandbox.Executor) ZAPReportRunner {
 			return nil, errors.New("adapters: sandbox executor is unavailable")
 		}
 		spec := sandbox.Spec{
-			Image: PinnedZAPImageReference,
+			Scanner:          "zap",
+			Image:            PinnedZAPImageReference,
+			ImageDigest:      PinnedZAPImageDigest,
 			Invocation: sandbox.ProcessInvocation{
 				Executable: "/zap/zap-baseline.py",
 				Args:       []string{"-t", task.Target, "-J", "/tmp/kelvin-zap-report.json"},
@@ -102,6 +107,7 @@ func NewOCIZAPRunner(executor sandbox.Executor) ZAPReportRunner {
 			CapDrop:          []string{"ALL"},
 			CaptureZAPReport: true,
 			Deadline:         task.HardDeadline,
+			NetworkDisabled:  true,
 		}
 		res, err := executor.Execute(ctx, spec)
 		if err != nil {

@@ -75,50 +75,153 @@ func (p ProcessInvocation) Validate() error {
 }
 
 type Spec struct {
-	Image           string
-	Invocation      ProcessInvocation
-	Env             []string
-	WorkingDir      string
-	User            string
-	MemoryLimit     string
-	CPUQuota        string
-	PIDsLimit       int64
-	ReadOnlyRootfs  bool
-	TmpfsMounts     []string
-	CapDrop         []string
-	CapAdd          []string
+	// Scanner identifies the scanner type (e.g., "nuclei", "zap").
+	Scanner string
+	// Image specifies the immutable container image reference with SHA256 digest.
+	Image string
+	// ImageDigest optionally specifies the standalone expected SHA256 digest.
+	ImageDigest string
+	// ScannerVersion optionally specifies the expected scanner binary version.
+	ScannerVersion string
+	// TemplateCatalogID optionally specifies the Nuclei template catalog ID.
+	TemplateCatalogID string
+	// TemplateCatalogDigest optionally specifies the Nuclei template catalog SHA256 digest.
+	TemplateCatalogDigest string
+	// Invocation describes the exact binary and argv to execute.
+	Invocation ProcessInvocation
+	// Env specifies the strict allowlisted environment variables (KEY=VALUE).
+	Env []string
+	// WorkingDir specifies the container working directory.
+	WorkingDir string
+	// User specifies the non-root execution identity (UID:GID).
+	User string
+	// MemoryLimit specifies the memory cgroup ceiling (e.g., "512m").
+	MemoryLimit string
+	// CPUQuota specifies the CPU quota (e.g., "0.75" or "2").
+	CPUQuota string
+	// PIDsLimit specifies the maximum process count to prevent fork bombs.
+	PIDsLimit int64
+	// ReadOnlyRootfs enforces an immutable read-only root filesystem.
+	ReadOnlyRootfs bool
+	// TmpfsMounts specifies isolated in-memory scratch mounts.
+	TmpfsMounts []string
+	// CapDrop specifies Linux capabilities to drop.
+	CapDrop []string
+	// CapAdd specifies Linux capabilities to add (restricted).
+	CapAdd []string
+	// NetworkDisabled enforces complete network isolation when true.
 	NetworkDisabled bool
-	SecurityOpt     []string
-	Limits          limits.Limits
-	Deadline        time.Duration
-	Labels          map[string]string
+	// SecurityOpt specifies container security options (must include no-new-privileges).
+	SecurityOpt []string
+	// Limits specifies formal resource limits if set.
+	Limits limits.Limits
+	// Deadline specifies the hard wall-clock execution deadline.
+	Deadline time.Duration
+	// Labels specifies arbitrary execution tracking labels.
+	Labels map[string]string
 	// CaptureZAPReport asks the executor to copy the fixed baseline JSON report
 	// out of the still-running container before cleanup.
 	CaptureZAPReport bool
 	// WorkspaceMount specifies the host directory to bind-mount to /workspace in the container.
 	WorkspaceMount string
-	// EgressProxy specifies the local proxy URL to enforce scoped network egress.
+	// EgressProxy specifies the internal proxy URL to enforce scoped network egress.
 	EgressProxy string
+}
+
+var approvedScanners = map[string]string{
+	"nuclei":       "/nuclei",
+	"zap":          "/zap/zap-baseline.py",
+	"zap-baseline": "/zap/zap-baseline.py",
+}
+
+// ScannerID resolves the effective scanner identity from Spec.Scanner or Spec.Labels["scanner"].
+func (s Spec) ScannerID() string {
+	if s.Scanner != "" {
+		return s.Scanner
+	}
+	if s.Labels != nil {
+		return s.Labels["scanner"]
+	}
+	return ""
+}
+
+func isSHA256Digest(digest string) bool {
+	if !strings.HasPrefix(digest, "sha256:") {
+		return false
+	}
+	hash := strings.TrimPrefix(digest, "sha256:")
+	if len(hash) != 64 {
+		return false
+	}
+	for _, c := range hash {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
+func isImmutableImageReference(ref string) bool {
+	if ref == "" || strings.ContainsAny(ref, " \t\r\n\x00") {
+		return false
+	}
+	parts := strings.Split(ref, "@")
+	if len(parts) != 2 {
+		return false
+	}
+	return isSHA256Digest(parts[1])
 }
 
 func (s Spec) Validate() error {
 	var errs []string
-	if s.Image == "" {
-		errs = append(errs, "image must not be empty")
+
+	// 1. Scanner Identity & Executable Contract
+	scanner := s.ScannerID()
+	if scanner == "" {
+		errs = append(errs, "scanner identity is required and must not be empty")
+	} else if expected, ok := approvedScanners[scanner]; !ok {
+		errs = append(errs, fmt.Sprintf("unknown scanner identity %q is rejected", scanner))
+	} else if s.Invocation.Executable != expected {
+		errs = append(errs, fmt.Sprintf("scanner executable %q is not approved for scanner %q", s.Invocation.Executable, scanner))
 	}
+
+	// 2. Invocation argv validation
 	if err := s.Invocation.Validate(); err != nil {
 		errs = append(errs, err.Error())
 	}
-	scanner := s.Labels["scanner"]
-	allowedExecutables := map[string]string{"zap": "/zap/zap-baseline.py", "nuclei": "/nuclei"}
-	if expected, ok := allowedExecutables[scanner]; !ok || s.Invocation.Executable != expected {
-		errs = append(errs, "scanner executable is not in the worker allow-list")
+
+	// 3. Immutable Image Reference & Digest Contract
+	if s.Image == "" {
+		errs = append(errs, "image must not be empty")
+	} else if !isImmutableImageReference(s.Image) {
+		errs = append(errs, "image reference must be immutable with a valid sha256 digest (e.g. image@sha256:...)")
+	} else if s.ImageDigest != "" {
+		if !isSHA256Digest(s.ImageDigest) {
+			errs = append(errs, "image digest must be a valid sha256 hash")
+		} else {
+			_, refDigest, _ := strings.Cut(s.Image, "@")
+			if refDigest != s.ImageDigest {
+				errs = append(errs, "image reference digest does not match declared image digest")
+			}
+		}
 	}
-	if s.CaptureZAPReport && scanner != "zap" {
-		errs = append(errs, "ZAP report capture is only available to the ZAP scanner")
+
+	// 4. Template Catalog Validation (Nuclei)
+	if s.TemplateCatalogDigest != "" {
+		if !isSHA256Digest(s.TemplateCatalogDigest) {
+			errs = append(errs, "template catalog digest must be a valid sha256 hash")
+		}
+		if scanner != "nuclei" {
+			errs = append(errs, "template catalog digest is only applicable to the Nuclei scanner")
+		}
 	}
-	if scanner == "zap" && !s.NetworkDisabled && s.EgressProxy == "" {
-		errs = append(errs, "ZAP network access must remain disabled until scoped egress enforcement is configured")
+	if s.TemplateCatalogID != "" && scanner != "nuclei" {
+		errs = append(errs, "template catalog is only applicable to the Nuclei scanner")
+	}
+
+	// 5. Network Mode & Egress Enforcement
+	if !s.NetworkDisabled && s.EgressProxy == "" {
+		errs = append(errs, "network-enabled execution requires an enforced egress policy")
 	}
 	if s.EgressProxy != "" {
 		parsed, err := url.Parse(s.EgressProxy)
@@ -126,18 +229,29 @@ func (s Spec) Validate() error {
 			errs = append(errs, "egress proxy must be a valid http URL without control characters")
 		}
 	}
+
+	// 6. ZAP Specific Constraints
+	if s.CaptureZAPReport && scanner != "zap" && scanner != "zap-baseline" {
+		errs = append(errs, "ZAP report capture is only available to the ZAP scanner")
+	}
 	if s.CaptureZAPReport && !hasArgPair(s.Invocation.Args, "-J", "/tmp/kelvin-zap-report.json") {
 		errs = append(errs, "ZAP report capture requires the fixed report path")
 	}
-	if s.User == "" || s.User == "root" || s.User == "0" {
+
+	// 7. Non-Root Execution
+	if s.User == "" || s.User == "root" || s.User == "0" || strings.HasPrefix(s.User, "0:") {
 		errs = append(errs, "container must run as a non-root user")
 	}
+
+	// 8. Filesystem & Privilege Escalation
 	if !s.ReadOnlyRootfs {
 		errs = append(errs, "root filesystem must be read-only")
 	}
 	if !contains(s.SecurityOpt, "no-new-privileges") {
 		errs = append(errs, "no-new-privileges must be enabled")
 	}
+
+	// 9. Resource & Deadline Limits
 	if s.Limits != (limits.Limits{}) {
 		if err := s.Limits.Validate(); err != nil {
 			errs = append(errs, err.Error())
@@ -150,6 +264,8 @@ func (s Spec) Validate() error {
 			errs = append(errs, "hard execution deadline must be positive")
 		}
 	}
+
+	// 10. Prohibited Mounts & Capabilities
 	for _, mount := range s.TmpfsMounts {
 		if strings.Contains(mount, "/var/run/docker.sock") {
 			errs = append(errs, "docker socket mount is prohibited")
@@ -160,6 +276,8 @@ func (s Spec) Validate() error {
 			errs = append(errs, fmt.Sprintf("capability %q is prohibited", cap))
 		}
 	}
+
+	// 11. Strict Environment Variable Allowlist
 	allowedEnvKeys := map[string]bool{
 		"KELVIN_JOB_ID":         true,
 		"KELVIN_TENANT_ID":      true,
@@ -177,15 +295,18 @@ func (s Spec) Validate() error {
 	for _, entry := range s.Env {
 		key, _, ok := strings.Cut(entry, "=")
 		if !ok || !allowedEnvKeys[key] || strings.ContainsAny(entry, "\x00\r\n") {
-			errs = append(errs, "container environment contains an unapproved variable")
+			errs = append(errs, fmt.Sprintf("container environment contains an unapproved variable %q", key))
 			break
 		}
 	}
+
+	// 12. Workspace Path
 	if s.WorkspaceMount != "" {
 		if !filepath.IsAbs(s.WorkspaceMount) || strings.ContainsAny(s.WorkspaceMount, "\x00\r\n") {
 			errs = append(errs, "workspace mount must be an absolute path without control characters")
 		}
 	}
+
 	if len(errs) != 0 {
 		return fmt.Errorf("%w: %s", ErrSpecInvalid, strings.Join(errs, "; "))
 	}

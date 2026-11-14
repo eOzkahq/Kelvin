@@ -345,6 +345,7 @@ func specFromTask(task adapters.Task, imageReference string, invocation sandbox.
 		env = append(env, "KELVIN_WORKSPACE=/workspace")
 	}
 	return sandbox.Spec{
+		Scanner:         task.Scanner,
 		Image:           imageReference,
 		Invocation:      invocation,
 		User:            "10001:10001",
