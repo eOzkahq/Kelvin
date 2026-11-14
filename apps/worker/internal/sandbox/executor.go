@@ -331,6 +331,19 @@ func hasArgPair(args []string, flag, value string) bool {
 	return false
 }
 
+// LifecycleState describes explicit container execution states.
+type LifecycleState string
+
+const (
+	StateCreated  LifecycleState = "CREATED"
+	StateStarted  LifecycleState = "STARTED"
+	StateRunning  LifecycleState = "RUNNING"
+	StateStopping LifecycleState = "STOPPING"
+	StateStopped  LifecycleState = "STOPPED"
+	StateFailed   LifecycleState = "FAILED"
+	StateCleaned  LifecycleState = "CLEANED"
+)
+
 type Result struct {
 	ExitCode         int
 	Duration         time.Duration
@@ -345,6 +358,8 @@ type Result struct {
 	OOMKilled        bool
 	DeadlineExceeded bool
 	Cancelled        bool
+	LifecycleState   LifecycleState
+	ContainerName    string
 }
 
 type ExitError struct {

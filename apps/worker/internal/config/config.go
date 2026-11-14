@@ -282,6 +282,14 @@ func Load() (Config, error) {
 		},
 	}
 
+	if cfg.Database.SSLRootCert != "" {
+		if fi, err := os.Stat(cfg.Database.SSLRootCert); err != nil {
+			return Config{}, fmt.Errorf("database sslrootcert file %q is not accessible: %w", cfg.Database.SSLRootCert, err)
+		} else if fi.IsDir() {
+			return Config{}, fmt.Errorf("database sslrootcert path %q is a directory, expected file", cfg.Database.SSLRootCert)
+		}
+	}
+
 	if _, err := cfg.toLimits(); err != nil {
 		return Config{}, fmt.Errorf("invalid resource limits: %w", err)
 	}

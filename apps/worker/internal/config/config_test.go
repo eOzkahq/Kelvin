@@ -278,3 +278,38 @@ func TestWorkerDatabaseSSLMode_TableDriven(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkerDatabaseSSLRootCertValidation(t *testing.T) {
+	certPath := "ca-kelvin-test.crt"
+	if err := os.WriteFile(certPath, []byte("fake cert"), 0600); err != nil {
+		t.Fatalf("failed to create temp cert file: %v", err)
+	}
+	defer func() {
+		_ = os.Remove(certPath)
+	}()
+
+	os.Clearenv()
+	_ = os.Setenv("KELVIN_ENV", "staging")
+	_ = os.Setenv("KELVIN_WORKER_ID", "test-worker-01")
+	_ = os.Setenv("KELVIN_DATABASE_URL", "postgres://user:pass@db.internal:5432/kelvin?sslmode=verify-full")
+	_ = os.Setenv("KELVIN_REDIS_ADDR", "redis.internal:6379")
+	_ = os.Setenv("REDIS_TLS_ENABLED", "true")
+	_ = os.Setenv("KELVIN_DATABASE_SSL_ROOT_CERT", "/nonexistent/ca.crt")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error when SSL root cert file does not exist, got nil")
+	}
+	if !strings.Contains(err.Error(), "database sslrootcert file \"/nonexistent/ca.crt\" is not accessible") {
+		t.Errorf("expected missing cert error, got: %v", err)
+	}
+
+	_ = os.Setenv("KELVIN_DATABASE_SSL_ROOT_CERT", certPath)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected success with existing cert file, got: %v", err)
+	}
+	if cfg.Database.SSLRootCert != certPath {
+		t.Errorf("expected SSLRootCert %q, got %q", certPath, cfg.Database.SSLRootCert)
+	}
+}

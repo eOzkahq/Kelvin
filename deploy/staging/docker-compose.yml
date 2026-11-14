@@ -107,6 +107,8 @@ services:
       - ALL
     tmpfs:
       - /tmp:rw,nosuid,size=1024m
+    volumes:
+      - "${SUPABASE_CA_CERT_PATH}:${SUPABASE_CA_CERT_PATH}:ro"
     environment:
       KELVIN_ENV: staging
       KELVIN_WORKER_ID: staging-worker-arm64-01
@@ -165,6 +167,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    volumes:
+      - "${SUPABASE_CA_CERT_PATH}:${SUPABASE_CA_CERT_PATH}:ro"
     environment:
       KELVIN_ENV: staging
       KELVIN_DATABASE_URL: ${KELVIN_DATABASE_URL}
