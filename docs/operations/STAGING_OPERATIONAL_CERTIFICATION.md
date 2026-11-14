@@ -47,12 +47,12 @@ In accordance with strict platform governance and ADR-0008, the table below deli
 ## 3. Deployment Artifacts & Procedures
 
 - **Systemd Service Unit:** `deploy/systemd/kelvin-worker.service`
-- **Environment Template:** `deploy/systemd/worker.env.example`
-- **Host Setup Script:** `scripts/deploy/setup-rootless-podman.sh`
-- **Host Audit Script:** `scripts/deploy/validate-worker-host.sh`
-- **Staging Deployment Script:** `scripts/deploy/staging-deploy.sh`
+- **Environment Template:** `deploy/systemd/worker.env.example` (explicitly marked with `KELVIN_CONFIG_STATUS=TEMPLATE_NOT_CONFIGURED` and `REPLACE_WITH_...` tokens; startup fails closed if unconfigured)
+- **Host Setup Script:** `scripts/deploy/setup-rootless-podman.sh` (provisions `/etc/kelvin/certs` with `0750` permissions, installs `/etc/kelvin/worker.env.template`, configures linger and internal bridge)
+- **Host Audit Script:** `scripts/deploy/validate-worker-host.sh` (validates ARM64, cgroups v2 controllers, crun, subnet `10.89.10.0/24`, gateway `10.89.10.1`, file permissions `0600`/`0400`, and rejects placeholder values)
+- **Staging Deployment Script:** `scripts/deploy/staging-deploy.sh` (reads configured CA path from `/etc/kelvin/worker.env`, checks permissions, restarts only `kelvin-worker.service` without affecting running API or Caddy)
 - **Staging Rollback Script:** `scripts/deploy/staging-rollback.sh`
-- **Database TLS:** `sslmode=verify-full` verified with CA certificate volume mounting in `deploy/staging/docker-compose.yml`.
+- **Database TLS:** `sslmode=verify-full` verified with CA certificate at `/etc/kelvin/certs/supabase-root-ca.crt`.
 - **Redis Security:** Upstash Redis over TLS (`rediss://`) with mandatory authentication.
 - **Evidence Storage:** Supabase private storage (`kelvin-evidence`) with pre-signed URLs and SHA256 integrity checksums.
 

@@ -216,9 +216,14 @@ When deployed in API-Only mode:
 
 ## 7. Audit & Compliance Verification Checklist
 
-- [x] Host Docker socket `/var/run/docker.sock` is absent from all staging Compose configurations.
-- [x] API and worker containers run as non-root user `10001:10001` with `read_only: true` and `cap_drop: ALL`.
-- [x] Readiness probe reports `scannerRunner: "UNAVAILABLE"` when runner is unconfigured.
+- [x] Host Docker socket `/var/run/docker.sock` is absent from all staging Compose and systemd configurations.
+- [x] API container runs as non-root user `10001:10001` with `read_only: true` and `cap_drop: ALL`.
+- [x] Worker daemon runs on host as dedicated unprivileged user `kelvin-worker` (UID 10001) under systemd.
+- [x] Rootless Podman and `crun` runtime strictly validated on ARM64 with cgroups v2.
+- [x] Internal scanner network `kelvin-scanner-net` verified with `Internal=true`, subnet `10.89.10.0/24`, gateway `10.89.10.1`.
+- [x] Readiness probe reports `scannerRunner: "UNAVAILABLE"` when unreleased/uncertified or unconfigured.
+- [x] Deployment automation validates `/etc/kelvin/worker.env` permissions (`0600`/`0400`) and CA certificate at `/etc/kelvin/certs/supabase-root-ca.crt`.
+- [x] Setup fails safe with marked non-deployable template (`KELVIN_CONFIG_STATUS=TEMPLATE_NOT_CONFIGURED`) and rejects placeholder tokens.
 - [x] One-shot database migrations execute from identical image `kelvin-api:staging` with `sslmode=verify-full`.
 - [x] Resource limits enforced (API: 0.25 CPU / 1 GiB; Worker: 0.50 CPU / 2 GiB) leaving ~2.5 GiB headroom on Oracle Linux ARM64 VM.
 - [x] Scanner execution boundary specification documented and approved for PRE-09 release gate.

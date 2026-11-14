@@ -313,3 +313,87 @@ func TestWorkerDatabaseSSLRootCertValidation(t *testing.T) {
 		t.Errorf("expected SSLRootCert %q, got %q", certPath, cfg.Database.SSLRootCert)
 	}
 }
+
+func TestConfig_RejectsTemplateNotConfigured(t *testing.T) {
+	os.Clearenv()
+	_ = os.Setenv("KELVIN_CONFIG_STATUS", "TEMPLATE_NOT_CONFIGURED")
+	_ = os.Setenv("KELVIN_ENV", "staging")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error when KELVIN_CONFIG_STATUS=TEMPLATE_NOT_CONFIGURED, got nil")
+	}
+	if !strings.Contains(err.Error(), "TEMPLATE_NOT_CONFIGURED") {
+		t.Errorf("expected error mentioning TEMPLATE_NOT_CONFIGURED, got: %v", err)
+	}
+}
+
+func TestConfig_RejectsPlaceholderCredentialsInStagingProduction(t *testing.T) {
+	testCases := []struct {
+		name      string
+		envKey    string
+		envVal    string
+		errSubstr string
+	}{
+		{
+			name:      "Rejects REPLACE_WITH_ in database URL",
+			envKey:    "KELVIN_DATABASE_URL",
+			envVal:    "postgres://kelvin_worker:REPLACE_WITH_SUPABASE_PASSWORD@db.example.com:5432/kelvin?sslmode=verify-full",
+			errSubstr: "database URL contains unconfigured placeholder credentials",
+		},
+		{
+			name:      "Rejects your-project in database URL",
+			envKey:    "KELVIN_DATABASE_URL",
+			envVal:    "postgres://postgres.your-project:pass@aws-0-us-west-1.pooler.supabase.com:6543/postgres?sslmode=verify-full",
+			errSubstr: "database URL contains unconfigured placeholder credentials",
+		},
+		{
+			name:      "Rejects REPLACE_WITH_ in redis URL",
+			envKey:    "KELVIN_REDIS_URL",
+			envVal:    "rediss://default:REPLACE_WITH_PASSWORD@redis.example.com:6379",
+			errSubstr: "redis URL contains unconfigured placeholder credentials",
+		},
+		{
+			name:      "Rejects your-upstash in redis URL",
+			envKey:    "KELVIN_REDIS_URL",
+			envVal:    "rediss://default:pass@your-upstash.upstash.io:6379",
+			errSubstr: "redis URL contains unconfigured placeholder credentials",
+		},
+		{
+			name:      "Rejects REPLACE_WITH_ in redis password",
+			envKey:    "KELVIN_REDIS_PASSWORD",
+			envVal:    "REPLACE_WITH_ACTUAL_REDIS_PASSWORD",
+			errSubstr: "redis password contains unconfigured placeholder value",
+		},
+		{
+			name:      "Rejects REPLACE_WITH_ in worker token secret",
+			envKey:    "KELVIN_WORKER_TOKEN_SECRET",
+			envVal:    "REPLACE_WITH_HEX_OR_BASE64_AT_LEAST_32_BYTES_SECRET_TOKEN",
+			errSubstr: "worker token secret contains unconfigured placeholder value",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			os.Clearenv()
+			_ = os.Setenv("KELVIN_ENV", "staging")
+			_ = os.Setenv("KELVIN_WORKER_ID", "test-worker-01")
+			_ = os.Setenv("KELVIN_DATABASE_URL", "postgres://user:pass@db.internal:5432/kelvin?sslmode=verify-full")
+			_ = os.Setenv("KELVIN_REDIS_ADDR", "redis.internal:6379")
+			_ = os.Setenv("REDIS_TLS_ENABLED", "true")
+			_ = os.Setenv(tc.envKey, tc.envVal)
+
+			_, err := Load()
+			if err == nil {
+				t.Fatalf("expected error for placeholder %s, got nil", tc.name)
+			}
+			if !strings.Contains(err.Error(), tc.errSubstr) {
+				t.Errorf("expected error containing %q, got: %v", tc.errSubstr, err)
+			}
+			// Verify secret values are not leaked in error message
+			if strings.Contains(err.Error(), tc.envVal) {
+				t.Errorf("error leaked sensitive placeholder value: %v", err)
+			}
+		})
+	}
+}

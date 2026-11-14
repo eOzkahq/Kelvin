@@ -84,7 +84,7 @@ func (e *OCIExecutor) VerifyRuntime(ctx context.Context) error {
 		return fmt.Errorf("sandbox: OCI runtime %q daemon/socket is unavailable: %w (output: %s)", e.runtime, err, strings.TrimSpace(string(out)))
 	}
 
-	cgroupVersion := "v2"
+	cgroupVersion := ""
 	arch := ""
 	ociRuntime := ""
 	rootless := false
@@ -109,7 +109,7 @@ func (e *OCIExecutor) VerifyRuntime(ctx context.Context) error {
 	}
 
 	// 3. Fallback: Parse line-by-line if JSON did not populate all fields
-	if arch == "" || ociRuntime == "" {
+	if arch == "" || ociRuntime == "" || cgroupVersion == "" {
 		for _, line := range strings.Split(string(out), "\n") {
 			trimmed := strings.TrimSpace(line)
 			lower := strings.ToLower(trimmed)
@@ -131,7 +131,7 @@ func (e *OCIExecutor) VerifyRuntime(ctx context.Context) error {
 					rootless = true
 				}
 			}
-			if strings.HasPrefix(lower, "name:") && strings.Contains(lower, "crun") {
+			if (strings.HasPrefix(lower, "name:") || strings.HasPrefix(lower, "ociruntime:")) && strings.Contains(lower, "crun") {
 				ociRuntime = "crun"
 			}
 		}
@@ -161,15 +161,28 @@ func (e *OCIExecutor) VerifyRootlessPodman(ctx context.Context) error {
 		return fmt.Errorf("sandbox: ADR-0008 requires rootless container execution; podman is running as root")
 	}
 	if e.meta.CgroupVersion != "v2" && e.meta.CgroupVersion != "2" {
-		return fmt.Errorf("sandbox: ADR-0008 requires cgroups v2; runtime reported cgroups %q", e.meta.CgroupVersion)
+		return fmt.Errorf("sandbox: ADR-0008 requires cgroups v2; runtime reported cgroups %q (missing or unsupported)", e.meta.CgroupVersion)
 	}
-	if e.meta.OCIRuntime != "" && e.meta.OCIRuntime != "crun" {
-		return fmt.Errorf("sandbox: ADR-0008 requires crun OCI runtime; runtime reported %q", e.meta.OCIRuntime)
+	if e.meta.OCIRuntime != "crun" {
+		return fmt.Errorf("sandbox: ADR-0008 requires crun OCI runtime; runtime reported %q (missing or unsupported)", e.meta.OCIRuntime)
+	}
+	if os.Getuid() == 0 {
+		return fmt.Errorf("sandbox: worker daemon must not execute as root (UID 0); dedicated unprivileged user required")
 	}
 	return nil
 }
 
-// VerifyScannerNetwork verifies that the dedicated internal scanner network exists and is reachable.
+type networkInspectRecord struct {
+	Name     string `json:"name"`
+	Internal bool   `json:"internal"`
+	Subnets  []struct {
+		Subnet  string `json:"subnet"`
+		Gateway string `json:"gateway"`
+	} `json:"subnets"`
+}
+
+// VerifyScannerNetwork verifies that the dedicated internal scanner network exists and is configured
+// with internal=true, subnet 10.89.10.0/24, and gateway 10.89.10.1.
 func (e *OCIExecutor) VerifyScannerNetwork(ctx context.Context, networkName string) error {
 	if networkName == "" {
 		networkName = os.Getenv("KELVIN_SCANNER_NETWORK")
@@ -179,11 +192,59 @@ func (e *OCIExecutor) VerifyScannerNetwork(ctx context.Context, networkName stri
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, e.runtime, "network", "inspect", networkName)
+	cmd := exec.CommandContext(ctx, e.runtime, "network", "inspect", networkName, "--format", "json")
 	cmd.Env = runtimeEnvironment()
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("sandbox: internal scanner network %q is unavailable or does not exist: %w", networkName, err)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		// Fallback without --format json in case format flag varies
+		cmdFallback := exec.CommandContext(ctx, e.runtime, "network", "inspect", networkName)
+		cmdFallback.Env = runtimeEnvironment()
+		outFallback, errFallback := cmdFallback.CombinedOutput()
+		if errFallback != nil {
+			return fmt.Errorf("sandbox: internal scanner network %q is unavailable or does not exist: %w (output: %s)", networkName, err, strings.TrimSpace(string(out)))
+		}
+		out = outFallback
 	}
+
+	// Try JSON unmarshal (can be array or single object)
+	var records []networkInspectRecord
+	if err := json.Unmarshal(out, &records); err != nil {
+		var single networkInspectRecord
+		if errSingle := json.Unmarshal(out, &single); errSingle == nil {
+			records = []networkInspectRecord{single}
+		}
+	}
+
+	if len(records) > 0 {
+		rec := records[0]
+		if !rec.Internal {
+			return fmt.Errorf("sandbox: scanner network %q must have internal=true to prevent direct egress bypass", networkName)
+		}
+		hasSubnet := false
+		hasGateway := false
+		for _, s := range rec.Subnets {
+			if s.Subnet == "10.89.10.0/24" {
+				hasSubnet = true
+			}
+			if s.Gateway == "10.89.10.1" {
+				hasGateway = true
+			}
+		}
+		if !hasSubnet || !hasGateway {
+			return fmt.Errorf("sandbox: scanner network %q misconfigured: required subnet 10.89.10.0/24 and gateway 10.89.10.1 not found", networkName)
+		}
+		return nil
+	}
+
+	// String fallback validation
+	outStr := string(out)
+	if !strings.Contains(outStr, `"internal": true`) && !strings.Contains(outStr, `Internal: true`) && !strings.Contains(outStr, `"Internal": true`) {
+		return fmt.Errorf("sandbox: scanner network %q must have internal=true to prevent direct egress bypass", networkName)
+	}
+	if !strings.Contains(outStr, "10.89.10.0/24") || !strings.Contains(outStr, "10.89.10.1") {
+		return fmt.Errorf("sandbox: scanner network %q misconfigured: required subnet 10.89.10.0/24 and gateway 10.89.10.1 not found", networkName)
+	}
+
 	return nil
 }
 

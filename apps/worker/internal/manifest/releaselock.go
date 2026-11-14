@@ -288,8 +288,38 @@ func ValidateLockConsistency(yamlPath, jsonPath string) error {
 // ValidateReleaseStatusForExecution enforces that production/staging workers
 // reject running any scanner whose release status is not certified.
 func ValidateReleaseStatusForExecution(status, env string) error {
-	if (env == "production" || env == "staging") && status == StatusNotReleased {
+	if (env == "production" || env == "staging") && status != StatusCertified {
 		return ErrScannerNotReleased
+	}
+	return nil
+}
+
+// EnforceCertifiedReleaseForExecution checks the canonical release manifest on disk
+// and fails closed in staging and production if the manifest is missing, invalid,
+// or the scanner image is not certified.
+func EnforceCertifiedReleaseForExecution(manifestPath, scannerID, env string) error {
+	if env != "production" && env != "staging" {
+		return nil
+	}
+	if strings.TrimSpace(manifestPath) == "" {
+		manifestPath = "deploy/scanners/images.lock.json"
+	}
+	lock, err := LoadCanonicalLock(manifestPath)
+	if err != nil {
+		return fmt.Errorf("manifest: failed to load release manifest for execution gate: %w", err)
+	}
+	if lock.Status != StatusCertified {
+		return fmt.Errorf("%w: manifest release status is %q", ErrScannerNotReleased, lock.Status)
+	}
+	img, ok := lock.Images[scannerID]
+	if !ok {
+		return fmt.Errorf("%w: scanner %q not found in release manifest", ErrScannerNotReleased, scannerID)
+	}
+	if img.KelvinDigest == nil || *img.KelvinDigest == "" || *img.KelvinDigest == EmptySHA256Digest {
+		return fmt.Errorf("%w: scanner %q has missing or empty release digest", ErrScannerNotReleased, scannerID)
+	}
+	if !strings.HasPrefix(*img.KelvinDigest, "sha256:") || len(strings.TrimPrefix(*img.KelvinDigest, "sha256:")) != 64 {
+		return fmt.Errorf("%w: scanner %q has invalid release digest format %q", ErrScannerNotReleased, scannerID, *img.KelvinDigest)
 	}
 	return nil
 }

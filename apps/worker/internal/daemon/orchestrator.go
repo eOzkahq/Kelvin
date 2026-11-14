@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -483,6 +484,27 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		err = fmt.Errorf("sandbox spec violates isolation profile: %w", err)
 		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
 		return nil, err
+	}
+
+	// Enforce certified release gate in production and staging (fail-closed)
+	targetEnv := cfg.Env
+	if targetEnv == "" {
+		targetEnv = os.Getenv("KELVIN_ENV")
+	}
+	if targetEnv == "production" || targetEnv == "staging" {
+		lockPath := os.Getenv("KELVIN_RELEASE_LOCK_PATH")
+		if lockPath == "" {
+			lockPath = "deploy/scanners/images.lock.json"
+		}
+		if err := manifest.EnforceCertifiedReleaseForExecution(lockPath, task.Scanner, targetEnv); err != nil {
+			o.logger.Error("scanner container execution blocked by release governance",
+				zap.String("scanner", task.Scanner),
+				zap.String("job_id", task.JobID),
+				zap.Error(err),
+			)
+			_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+			return nil, err
+		}
 	}
 
 	_ = tracker.TransitionTo(ctx, progress.StageScannerExecution, "executing containerized scanner process")

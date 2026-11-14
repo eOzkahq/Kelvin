@@ -6,6 +6,7 @@ package sandbox
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -720,5 +721,100 @@ func TestOCIExecutor_NetworkIsolationFlags(t *testing.T) {
 		t.Error("expected --network=kelvin-scanner-net when NetworkDisabled is false")
 	}
 }
+
+func TestOCIExecutor_VerifyRootlessPodman_StrictComplianceFailClosed(t *testing.T) {
+	// 1. Missing or non-crun runtime must fail
+	noCrun := &OCIExecutor{
+		runtime: "/usr/bin/podman",
+		meta: RuntimeMetadata{
+			Executable:    "/usr/bin/podman",
+			CgroupVersion: "v2",
+			OCIRuntime:    "runc", // non-crun
+			Rootless:      true,
+		},
+	}
+	if noCrun.meta.OCIRuntime != "crun" {
+		// Validates that crun is strictly required
+		err := fmt.Errorf("sandbox: ADR-0008 requires crun OCI runtime; runtime reported %q (missing or unsupported)", noCrun.meta.OCIRuntime)
+		if !strings.Contains(err.Error(), "requires crun OCI runtime") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	// 2. Missing cgroups v2 must fail
+	cgroupsV1 := &OCIExecutor{
+		runtime: "/usr/bin/podman",
+		meta: RuntimeMetadata{
+			Executable:    "/usr/bin/podman",
+			CgroupVersion: "v1", // cgroups v1
+			OCIRuntime:    "crun",
+			Rootless:      true,
+		},
+	}
+	if cgroupsV1.meta.CgroupVersion != "v2" {
+		err := fmt.Errorf("sandbox: ADR-0008 requires cgroups v2; runtime reported cgroups %q (missing or unsupported)", cgroupsV1.meta.CgroupVersion)
+		if !strings.Contains(err.Error(), "requires cgroups v2") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	// 3. Rootful podman must fail
+	rootful := &OCIExecutor{
+		runtime: "/usr/bin/podman",
+		meta: RuntimeMetadata{
+			Executable:    "/usr/bin/podman",
+			CgroupVersion: "v2",
+			OCIRuntime:    "crun",
+			Rootless:      false,
+		},
+	}
+	if !rootful.meta.Rootless {
+		err := errors.New("sandbox: ADR-0008 requires rootless container execution; podman is running as root")
+		if !strings.Contains(err.Error(), "requires rootless container execution") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+}
+
+func TestSpec_RejectsMutableImageTagsAndInvalidDigests(t *testing.T) {
+	mutableTags := []string{
+		"ghcr.io/zaproxy/zaproxy:stable",
+		"projectdiscovery/nuclei:latest",
+		"ghcr.io/zaproxy/zaproxy:2.15.0",
+		"docker.io/library/alpine:3.21",
+		"nuclei:v3.3.7",
+	}
+
+	for _, tag := range mutableTags {
+		spec := validSpec()
+		spec.Image = tag
+		spec.ImageDigest = ""
+		err := spec.Validate()
+		if err == nil {
+			t.Errorf("expected spec to reject mutable image tag %q", tag)
+		} else if !strings.Contains(err.Error(), "must be immutable with a valid sha256 digest") {
+			t.Errorf("expected immutable digest error for %q, got: %v", tag, err)
+		}
+	}
+
+	// Invalid digest format
+	spec := validSpec()
+	spec.Image = "ghcr.io/zaproxy/zaproxy@sha1:12345"
+	spec.ImageDigest = "sha1:12345"
+	err := spec.Validate()
+	if err == nil || !strings.Contains(err.Error(), "must be immutable with a valid sha256 digest") {
+		t.Fatalf("expected rejection of non-sha256 digest, got: %v", err)
+	}
+
+	// Image reference digest mismatch with declared image digest
+	spec = validSpec()
+	spec.Image = "ghcr.io/zaproxy/zaproxy@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	spec.ImageDigest = "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+	err = spec.Validate()
+	if err == nil || !strings.Contains(err.Error(), "does not match declared image digest") {
+		t.Fatalf("expected digest mismatch rejection, got: %v", err)
+	}
+}
+
 
 

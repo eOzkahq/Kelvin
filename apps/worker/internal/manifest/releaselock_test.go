@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,3 +105,60 @@ func TestValidateActualProjectLocksAreConsistent(t *testing.T) {
 		t.Fatalf("repository release locks must be consistent: %v", err)
 	}
 }
+
+func TestEnforceCertifiedReleaseForExecution_FailClosed(t *testing.T) {
+	dir := t.TempDir()
+
+	// 1. Missing manifest fails closed in production
+	err := EnforceCertifiedReleaseForExecution(filepath.Join(dir, "nonexistent.json"), "nuclei", "production")
+	if err == nil || !strings.Contains(err.Error(), "failed to load release manifest") {
+		t.Fatalf("expected missing manifest to fail closed in production, got: %v", err)
+	}
+
+	// 2. Not-released manifest fails closed in staging and production
+	notReleasedPath := filepath.Join(dir, "not-released.json")
+	notReleasedJSON := `{"schema_version": "1.0", "status": "not-released", "images": {}}`
+	if err := os.WriteFile(notReleasedPath, []byte(notReleasedJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	err = EnforceCertifiedReleaseForExecution(notReleasedPath, "nuclei", "staging")
+	if err == nil || !errors.Is(err, ErrScannerNotReleased) {
+		t.Fatalf("expected not-released manifest to fail closed in staging, got: %v", err)
+	}
+	err = EnforceCertifiedReleaseForExecution(notReleasedPath, "nuclei", "production")
+	if err == nil || !errors.Is(err, ErrScannerNotReleased) {
+		t.Fatalf("expected not-released manifest to fail closed in production, got: %v", err)
+	}
+
+	// 3. Not-released is permitted in development
+	err = EnforceCertifiedReleaseForExecution(notReleasedPath, "nuclei", "development")
+	if err != nil {
+		t.Fatalf("unreleased manifest should not block development: %v", err)
+	}
+
+	// 4. Certified manifest with missing scanner fails closed
+	certifiedPath := filepath.Join(dir, "certified.json")
+	certifiedJSON := `{
+		"schema_version": "1.0",
+		"status": "certified",
+		"images": {
+			"nuclei": {
+				"kelvin_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+			}
+		}
+	}`
+	if err := os.WriteFile(certifiedPath, []byte(certifiedJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	err = EnforceCertifiedReleaseForExecution(certifiedPath, "zap", "production")
+	if err == nil || !errors.Is(err, ErrScannerNotReleased) {
+		t.Fatalf("expected unlisted scanner to fail closed, got: %v", err)
+	}
+
+	// 5. Certified manifest with valid digest succeeds in production
+	err = EnforceCertifiedReleaseForExecution(certifiedPath, "nuclei", "production")
+	if err != nil {
+		t.Fatalf("expected certified scanner to succeed, got: %v", err)
+	}
+}
+

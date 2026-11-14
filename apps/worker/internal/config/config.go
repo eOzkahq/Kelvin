@@ -172,6 +172,11 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "storage.evidence_bucket", "MINIO_BUCKET_EVIDENCE")
 	bindEnvWithFallback(v, "storage.evidence_bucket", "SUPABASE_STORAGE_BUCKET_EVIDENCE")
 
+	configStatus := os.Getenv("KELVIN_CONFIG_STATUS")
+	if strings.EqualFold(strings.TrimSpace(configStatus), "TEMPLATE_NOT_CONFIGURED") {
+		return Config{}, errors.New("environment configuration is marked TEMPLATE_NOT_CONFIGURED; copy /etc/kelvin/worker.env.template to /etc/kelvin/worker.env and configure production credentials before starting worker")
+	}
+
 	envStr := v.GetString("env")
 	env := Environment(strings.ToLower(envStr))
 	if !env.Valid() {
@@ -235,6 +240,28 @@ func Load() (Config, error) {
 	}
 
 	if env == EnvStaging || env == EnvProduction {
+		if isPlaceholder(dbURL) {
+			return Config{}, errors.New("database URL contains unconfigured placeholder credentials; verified credentials are required in staging/production")
+		}
+		if isPlaceholder(v.GetString("database.sslrootcert")) {
+			return Config{}, errors.New("database sslrootcert contains unconfigured placeholder path")
+		}
+		if isPlaceholder(redisURL) {
+			return Config{}, errors.New("redis URL contains unconfigured placeholder credentials; verified credentials are required in staging/production")
+		}
+		if isPlaceholder(redisAddr) {
+			return Config{}, errors.New("redis addr contains unconfigured placeholder value")
+		}
+		if isPlaceholder(v.GetString("redis.password")) {
+			return Config{}, errors.New("redis password contains unconfigured placeholder value")
+		}
+		if isPlaceholder(workerTokenSecret) {
+			return Config{}, errors.New("worker token secret contains unconfigured placeholder value")
+		}
+		if isPlaceholder(v.GetString("storage.access_key")) || isPlaceholder(v.GetString("storage.secret_key")) {
+			return Config{}, errors.New("storage credentials contain unconfigured placeholder values")
+		}
+
 		if redisURL != "" && strings.HasPrefix(redisURL, "redis://") {
 			return Config{}, fmt.Errorf("insecure plaintext Redis URL (%s) is prohibited in %s; rediss:// TLS scheme is strictly required", redactURL(redisURL), env)
 		}
@@ -320,4 +347,26 @@ func redactURL(raw string) string {
 		u.User = url.UserPassword(u.User.Username(), "REDACTED")
 	}
 	return u.String()
+}
+
+func isPlaceholder(val string) bool {
+	if val == "" {
+		return false
+	}
+	lower := strings.ToLower(val)
+	placeholders := []string{
+		"replace_with_",
+		"replace-with-",
+		"[replace_with_",
+		"your-project",
+		"your-password",
+		"your-upstash",
+		"template_not_configured",
+	}
+	for _, p := range placeholders {
+		if strings.Contains(lower, p) {
+			return true
+		}
+	}
+	return false
 }

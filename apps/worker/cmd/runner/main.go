@@ -82,15 +82,25 @@ func main() {
 
 	// 1.1 Verify Scanner Image Release Status (Fail-Closed Governance)
 	canonicalLockPath := "deploy/scanners/images.lock.json"
-	if lock, err := manifest.LoadCanonicalLock(canonicalLockPath); err == nil {
+	yamlLockPath := "deploy/scanner-image-lock.yaml"
+	lock, err := manifest.LoadCanonicalLock(canonicalLockPath)
+	if err != nil {
+		if cfg.Env == config.EnvProduction || cfg.Env == config.EnvStaging {
+			log.Fatal("missing or invalid release manifest in production/staging environment", zap.Error(err))
+		}
+		log.Warn("release manifest not found at canonical path, skipping pre-flight release check in dev", zap.Error(err))
+	} else {
 		log.Info("scanner release manifest loaded",
 			zap.String("status", lock.Status),
 			zap.String("schema_version", lock.SchemaVersion))
-		if (cfg.Env == config.EnvProduction || cfg.Env == config.EnvStaging) && lock.Status == manifest.StatusNotReleased {
-			log.Warn("ATTENTION: Scanner images are currently marked NOT-RELEASED. Any execution attempt for unreleased container images will fail closed until verified images are released and certified.")
+		if (cfg.Env == config.EnvProduction || cfg.Env == config.EnvStaging) {
+			if err := manifest.ValidateLockConsistency(yamlLockPath, canonicalLockPath); err != nil {
+				log.Fatal("release manifests are inconsistent", zap.Error(err))
+			}
+			if lock.Status != manifest.StatusCertified {
+				log.Warn("ATTENTION: Scanner images are currently marked NOT-RELEASED. Execution of unreleased container images will fail closed until verified images are released and certified.")
+			}
 		}
-	} else {
-		log.Warn("release manifest not found at canonical path, skipping pre-flight release check", zap.Error(err))
 	}
 
 	// 2. Register MVP scanner adapters into registry
@@ -153,6 +163,7 @@ func main() {
 	// 4. Run Daemon loop with concurrency and resource bounds
 	err = daemon.Run(ctx, log, daemon.Config{
 		WorkerID:     cfg.WorkerID,
+		Env:          string(cfg.Env),
 		PollInterval: cfg.PollInterval,
 		Executor:     executor,
 		Limits:       limits.DefaultLimits(),

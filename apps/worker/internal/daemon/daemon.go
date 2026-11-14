@@ -24,6 +24,7 @@ import (
 
 type Config struct {
 	WorkerID         string
+	Env              string
 	PollInterval     time.Duration
 	HeartbeatEvery   time.Duration
 	Executor         sandbox.Executor

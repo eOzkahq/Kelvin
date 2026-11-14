@@ -2,6 +2,8 @@ package readiness
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -76,3 +78,39 @@ func TestExecutionCorrelationIDTracking(t *testing.T) {
 		t.Fatal("empty correlation ID")
 	}
 }
+
+func TestReleaseManifestProbe_KeepsPlatformUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	lockPath := filepath.Join(dir, "images.lock.json")
+
+	// 1. In staging, not-released manifest must yield StatusUnavailable
+	notReleased := `{"schema_version": "1.0", "status": "not-released", "images": {}}`
+	if err := os.WriteFile(lockPath, []byte(notReleased), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	probeStaging := NewReleaseManifestProbe("nuclei", lockPath, "staging")
+	resStaging := probeStaging.Check(context.Background())
+	if resStaging.Status != StatusUnavailable {
+		t.Fatalf("expected StatusUnavailable in staging for unreleased manifest, got: %s", resStaging.Status)
+	}
+
+	// 2. In production, not-released manifest must yield StatusUnavailable
+	probeProd := NewReleaseManifestProbe("nuclei", lockPath, "production")
+	resProd := probeProd.Check(context.Background())
+	if resProd.Status != StatusUnavailable {
+		t.Fatalf("expected StatusUnavailable in production for unreleased manifest, got: %s", resProd.Status)
+	}
+
+	// 3. In staging, certified manifest must yield StatusReady
+	certified := `{"schema_version": "1.0", "status": "certified", "images": {}}`
+	if err := os.WriteFile(lockPath, []byte(certified), 0644); err != nil {
+		t.Fatal(err)
+	}
+	probeCertified := NewReleaseManifestProbe("nuclei", lockPath, "staging")
+	resCertified := probeCertified.Check(context.Background())
+	if resCertified.Status != StatusReady {
+		t.Fatalf("expected StatusReady for certified manifest, got: %s", resCertified.Status)
+	}
+}
+

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
+	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 )
 
@@ -431,3 +432,75 @@ func (p *ScannerAdapterProbe) Check(ctx context.Context) ProbeResult {
 		},
 	}
 }
+
+// ReleaseManifestProbe checks the authoritative scanner release manifest.
+// In staging and production, if the manifest is missing, invalid, or marked "not-released",
+// the probe reports StatusUnavailable, keeping the scanner execution plane unavailable.
+type ReleaseManifestProbe struct {
+	scannerID string
+	lockPath  string
+	env       string
+}
+
+func NewReleaseManifestProbe(scannerID, lockPath, env string) *ReleaseManifestProbe {
+	if lockPath == "" {
+		lockPath = "deploy/scanners/images.lock.json"
+	}
+	return &ReleaseManifestProbe{
+		scannerID: scannerID,
+		lockPath:  lockPath,
+		env:       env,
+	}
+}
+
+func (p *ReleaseManifestProbe) Name() string   { return p.scannerID + "_release_manifest" }
+func (p *ReleaseManifestProbe) Target() string { return p.scannerID }
+
+func (p *ReleaseManifestProbe) Check(ctx context.Context) ProbeResult {
+	start := time.Now()
+	isProdLike := p.env == "staging" || p.env == "production"
+
+	lock, err := manifest.LoadCanonicalLock(p.lockPath)
+	if err != nil {
+		status := StatusDegraded
+		if isProdLike {
+			status = StatusUnavailable
+		}
+		return ProbeResult{
+			Name:      p.Name(),
+			Target:    p.Target(),
+			Status:    status,
+			Message:   fmt.Sprintf("failed to load release manifest from %s", p.lockPath),
+			Error:     err.Error(),
+			CheckedAt: start,
+			Duration:  time.Since(start),
+		}
+	}
+
+	if isProdLike && lock.Status != manifest.StatusCertified {
+		return ProbeResult{
+			Name:      p.Name(),
+			Target:    p.Target(),
+			Status:    StatusUnavailable,
+			Message:   fmt.Sprintf("scanner %s is not certified (manifest status: %s)", p.scannerID, lock.Status),
+			Error:     "manifest: scanner is not certified or released for production execution",
+			CheckedAt: start,
+			Duration:  time.Since(start),
+			Diagnostics: map[string]string{
+				"status":     lock.Status,
+				"lock_path":  p.lockPath,
+				"schema_ver": lock.SchemaVersion,
+			},
+		}
+	}
+
+	return ProbeResult{
+		Name:      p.Name(),
+		Target:    p.Target(),
+		Status:    StatusReady,
+		Message:   fmt.Sprintf("scanner %s release manifest verified (status: %s)", p.scannerID, lock.Status),
+		CheckedAt: start,
+		Duration:  time.Since(start),
+	}
+}
+

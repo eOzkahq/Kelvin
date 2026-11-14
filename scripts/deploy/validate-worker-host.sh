@@ -51,14 +51,19 @@ else
   check_warn "CPU architecture is $ARCH (staging certified for aarch64)"
 fi
 
-# 3. Kernel cgroups v2
+# 3. Kernel cgroups v2 and Controllers
 if [[ -f /sys/fs/cgroup/cgroup.controllers ]]; then
   CONTROLLERS="$(cat /sys/fs/cgroup/cgroup.controllers)"
   echo "Available cgroup controllers: $CONTROLLERS"
-  if echo "$CONTROLLERS" | grep -qw "cpu" && echo "$CONTROLLERS" | grep -qw "memory" && echo "$CONTROLLERS" | grep -qw "pids"; then
-    check_pass "Cgroups v2 active with cpu, memory, and pids controllers"
-  else
-    check_fail "Cgroups v2 missing required controllers: $CONTROLLERS"
+  MISSING_CTRL=0
+  for ctrl in cpu memory pids; do
+    if ! echo "$CONTROLLERS" | grep -qw "$ctrl"; then
+      check_fail "cgroups v2 missing mandatory controller: $ctrl"
+      MISSING_CTRL=1
+    fi
+  done
+  if [[ $MISSING_CTRL -eq 0 ]]; then
+    check_pass "cgroups v2 active with cpu, memory, and pids controllers"
   fi
 else
   check_fail "cgroups v2 not active (/sys/fs/cgroup/cgroup.controllers missing)"
@@ -116,18 +121,21 @@ if command -v crun >/dev/null 2>&1; then
   CRUN_VER="$(crun --version 2>/dev/null | head -n 1 || echo 'unknown')"
   check_pass "crun runtime available: $CRUN_BIN ($CRUN_VER)"
 else
-  check_warn "crun binary not found in PATH (ensure default OCI runtime is crun)"
+  check_fail "crun binary not found in PATH (mandatory OCI runtime per ADR-0008)"
 fi
 
-# 8. Internal Scanner Network (kelvin-scanner-net)
+# 8. Internal Scanner Network (kelvin-scanner-net) Properties
 NETWORK_CHECK_CMD='
   export XDG_RUNTIME_DIR="/run/user/10001"
   if podman network inspect kelvin-scanner-net >/dev/null 2>&1; then
     IS_INTERNAL="$(podman network inspect kelvin-scanner-net --format "{{.Internal}}" 2>/dev/null || echo "false")"
-    if [[ "$IS_INTERNAL" == "true" ]]; then
-      echo "NET_INTERNAL_OK"
+    SUBNETS="$(podman network inspect kelvin-scanner-net --format "{{range .Subnets}}{{.Subnet}} {{.Gateway}}{{end}}" 2>/dev/null || echo "")"
+    if [[ "$IS_INTERNAL" == "true" ]] && echo "$SUBNETS" | grep -q "10.89.10.0/24" && echo "$SUBNETS" | grep -q "10.89.10.1"; then
+      echo "NET_OK"
+    elif [[ "$IS_INTERNAL" != "true" ]]; then
+      echo "NET_NOT_INTERNAL"
     else
-      echo "NET_EXISTS_NOT_INTERNAL"
+      echo "NET_SUBNET_MISMATCH:$SUBNETS"
     fi
   else
     echo "NET_NOT_FOUND"
@@ -144,11 +152,14 @@ if id -u kelvin-worker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; the
   fi
 
   case "$NET_RESULT" in
-    "NET_INTERNAL_OK")
-      check_pass "Internal scanner network kelvin-scanner-net exists with internal=true"
+    "NET_OK")
+      check_pass "Internal scanner network kelvin-scanner-net exists with internal=true, subnet 10.89.10.0/24, gateway 10.89.10.1"
       ;;
-    "NET_EXISTS_NOT_INTERNAL")
+    "NET_NOT_INTERNAL")
       check_fail "Network kelvin-scanner-net exists but is NOT configured with internal=true"
+      ;;
+    NET_SUBNET_MISMATCH*)
+      check_fail "Network kelvin-scanner-net exists but subnet/gateway misconfigured ($NET_RESULT)"
       ;;
     "NET_NOT_FOUND")
       check_fail "Network kelvin-scanner-net not found. Run scripts/deploy/setup-rootless-podman.sh."
@@ -159,24 +170,42 @@ if id -u kelvin-worker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; the
   esac
 fi
 
-# 9. Database CA Certificate
-CA_PATH="${SUPABASE_CA_CERT_PATH:-/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem}"
-if [[ -f "$CA_PATH" && -r "$CA_PATH" ]]; then
-  check_pass "Database CA certificate verified and readable at $CA_PATH"
-else
-  check_fail "Database CA certificate missing or unreadable at $CA_PATH"
-fi
-
-# 10. Worker Environment File Permissions
-if [[ -f /etc/kelvin/worker.env ]]; then
-  PERMS="$(stat -c '%a' /etc/kelvin/worker.env 2>/dev/null || stat -f '%Lp' /etc/kelvin/worker.env 2>/dev/null || echo 'unknown')"
+# 9. Worker Environment File Permissions & Placeholder Validation
+ENV_FILE="/etc/kelvin/worker.env"
+if [[ -f "$ENV_FILE" ]]; then
+  PERMS="$(stat -c '%a' "$ENV_FILE" 2>/dev/null || stat -f '%Lp' "$ENV_FILE" 2>/dev/null || echo 'unknown')"
+  OWNER="$(stat -c '%U:%G' "$ENV_FILE" 2>/dev/null || echo 'unknown')"
   if [[ "$PERMS" == "600" || "$PERMS" == "400" ]]; then
-    check_pass "Worker configuration /etc/kelvin/worker.env has strict permissions ($PERMS)"
+    check_pass "Worker configuration $ENV_FILE has strict permissions ($PERMS)"
   else
-    check_warn "Worker configuration /etc/kelvin/worker.env has permissions $PERMS (recommend 0600)"
+    check_fail "Worker configuration $ENV_FILE has unsafe permissions ($PERMS; strictly require 0600 or 0400)"
+  fi
+  if [[ "$OWNER" == "kelvin-worker:kelvin-worker" || "$OWNER" == "10001:10001" ]]; then
+    check_pass "Worker configuration $ENV_FILE owned by kelvin-worker"
+  else
+    check_warn "Worker configuration $ENV_FILE owned by $OWNER (expected kelvin-worker:kelvin-worker)"
+  fi
+
+  # Validate against placeholder strings
+  if grep -q "TEMPLATE_NOT_CONFIGURED" "$ENV_FILE"; then
+    check_fail "$ENV_FILE contains KELVIN_CONFIG_STATUS=TEMPLATE_NOT_CONFIGURED marker. Real credentials required."
+  fi
+  if grep -q "REPLACE_WITH_" "$ENV_FILE"; then
+    check_fail "$ENV_FILE contains REPLACE_WITH_ placeholder values. Real credentials required."
+  fi
+
+  # 10. Database CA Certificate Path from Config
+  CA_PATH="$(grep -E '^(SUPABASE_CA_CERT_PATH|KELVIN_DATABASE_SSL_ROOT_CERT)=' "$ENV_FILE" | head -n 1 | cut -d'=' -f2- | tr -d '"'"'"' || echo '')"
+  if [[ -z "$CA_PATH" ]]; then
+    CA_PATH="/etc/kelvin/certs/supabase-root-ca.crt"
+  fi
+  if [[ -f "$CA_PATH" && -r "$CA_PATH" ]]; then
+    check_pass "Database CA certificate verified and readable at $CA_PATH"
+  else
+    check_fail "Database CA certificate missing or unreadable at configured path: $CA_PATH"
   fi
 else
-  check_warn "/etc/kelvin/worker.env does not yet exist. Copy deploy/systemd/worker.env.example."
+  check_fail "$ENV_FILE does not exist. Populate from deploy/systemd/worker.env.example."
 fi
 
 # 11. Systemd Service Unit File
