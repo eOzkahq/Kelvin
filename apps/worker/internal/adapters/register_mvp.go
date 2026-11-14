@@ -78,6 +78,10 @@ func NewOCINucleiRunner(executor sandbox.Executor) NucleiReportRunner {
 			Deadline:        task.HardDeadline,
 			NetworkDisabled: true,
 		}
+		if task.EgressProxy != "" {
+			spec.NetworkDisabled = false
+			spec.EgressProxy = task.EgressProxy
+		}
 		res, err := executor.Execute(ctx, spec)
 		if err != nil {
 			return nil, err
@@ -108,6 +112,10 @@ func NewOCIZAPRunner(executor sandbox.Executor) ZAPReportRunner {
 			CaptureZAPReport: true,
 			Deadline:         task.HardDeadline,
 			NetworkDisabled:  true,
+		}
+		if task.EgressProxy != "" {
+			spec.NetworkDisabled = false
+			spec.EgressProxy = task.EgressProxy
 		}
 		res, err := executor.Execute(ctx, spec)
 		if err != nil {

@@ -229,6 +229,12 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	}
 	if spec.NetworkDisabled {
 		args = append(args, "--network=none")
+	} else {
+		networkName := os.Getenv("KELVIN_SCANNER_NETWORK")
+		if networkName == "" {
+			networkName = "kelvin-scanner-net"
+		}
+		args = append(args, "--network="+networkName)
 	}
 	for _, opt := range spec.SecurityOpt {
 		args = append(args, "--security-opt="+opt)
