@@ -663,6 +663,25 @@ sys.exit(1)
   else
     test_fail "Scenario 16i: Invalid or corrupted action commit SHA detected in $workflow_file"
   fi
+
+  # 16j: Exact verified immutable commit SHA for aquasecurity/trivy-action (v0.31.0) and rejection of v0.29.0
+  if python -c "
+import sys
+with open('$workflow_file', 'r') as f:
+    content = f.read()
+
+trivy_valid = 'aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37' in content
+trivy_invalid = '18f2510ee396bbf400402947b394f2dd8c87dbb0' in content
+trivy_count = content.count('aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37')
+
+if trivy_valid and trivy_count == 2 and not trivy_invalid:
+    sys.exit(0)
+sys.exit(1)
+"; then
+    test_pass "Scenario 16j: Exact verified action commit SHA for Trivy (v0.31.0) confirmed across both scan steps and v0.29.0 rejected"
+  else
+    test_fail "Scenario 16j: Trivy action commit SHA verification failed in $workflow_file"
+  fi
 fi
 
 # ------------------------------------------------------------------------------
