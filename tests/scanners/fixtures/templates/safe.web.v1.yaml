@@ -1,0 +1,18 @@
+id: kelvin-safe-web-fixture
+info:
+  name: Kelvin Safe Web Fixture Template
+  author: Kelvin Security Engineering
+  severity: low
+  description: Verifies HTTP connectivity and non-intrusive banner disclosure
+  tags: kelvin,safe,web,fixture
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/"
+    matchers:
+      - type: status
+        status:
+          - 200
+          - 301
+          - 302
