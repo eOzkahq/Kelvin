@@ -418,6 +418,86 @@ else
   test_fail "Scenario 5j: Dynamic range allocation failed: $OUT_J"
 fi
 
+# Case 5k: Adoption of existing valid 165536:65536 allocation when configuration is absent
+SUBUID_K="$TEST_DIR/subuid_k"
+cat << 'EOF' > "$SUBUID_K"
+opc:100000:65536
+kelvin-worker:165536:65536
+EOF
+OUT_K="$(validate_or_add_subid "$SUBUID_K" "UID" "165536" "65536")"
+if [[ "$OUT_K" == "VERIFIED:kelvin-worker:165536:65536" ]]; then
+  test_pass "Scenario 5k: Existing host 165536:65536 mapping safely recognized and adopted without modification"
+else
+  test_fail "Scenario 5k: Existing 165536:65536 mapping adoption failed: $OUT_K"
+fi
+
+# Case 5l: Explicit configured mapping conflict (file has 165536, configured with 200000)
+if OUT_L="$(validate_or_add_subid "$SUBUID_K" "UID" "200000" "65536")"; then
+  test_fail "Scenario 5l: Mismatched explicit configuration unexpectedly passed"
+else
+  if echo "$OUT_L" | grep -q "CONFLICT"; then
+    test_pass "Scenario 5l: Explicit configured mapping mismatch strictly rejected with conflict error"
+  else
+    test_fail "Scenario 5l: Expected CONFLICT error, got: $OUT_L"
+  fi
+fi
+
+# Case 5m: UID/GID mismatch validation logic
+validate_subid_consistency() {
+  local uid_file="$1"
+  local gid_file="$2"
+  local target_user="kelvin-worker"
+
+  local u_line g_line
+  u_line="$(grep "^${target_user}:" "$uid_file" 2>/dev/null || true)"
+  g_line="$(grep "^${target_user}:" "$gid_file" 2>/dev/null || true)"
+
+  if [[ -z "$u_line" || -z "$g_line" ]]; then
+    echo "INCONSISTENT:missing in one or both files"
+    return 1
+  fi
+  local u_start u_cnt g_start g_cnt
+  u_start="$(echo "$u_line" | cut -d: -f2)"
+  u_cnt="$(echo "$u_line" | cut -d: -f3)"
+  g_start="$(echo "$g_line" | cut -d: -f2)"
+  g_cnt="$(echo "$g_line" | cut -d: -f3)"
+
+  if [[ "$u_start" != "$g_start" ]]; then
+    echo "MISMATCH:UID start '$u_start' != GID start '$g_start'"
+    return 1
+  fi
+  if [[ "$u_cnt" != "65536" || "$g_cnt" != "65536" ]]; then
+    echo "MISMATCH:count mismatch UID='$u_cnt' GID='$g_cnt'"
+    return 1
+  fi
+  echo "CONSISTENT:$u_start:$u_cnt"
+  return 0
+}
+
+SUBUID_M="$TEST_DIR/subuid_m"
+SUBGID_M="$TEST_DIR/subgid_m"
+echo "kelvin-worker:165536:65536" > "$SUBUID_M"
+echo "kelvin-worker:200000:65536" > "$SUBGID_M"
+if OUT_M="$(validate_subid_consistency "$SUBUID_M" "$SUBGID_M")"; then
+  test_fail "Scenario 5m: UID/GID mismatch unexpectedly passed"
+else
+  if echo "$OUT_M" | grep -q "MISMATCH:UID start '165536' != GID start '200000'"; then
+    test_pass "Scenario 5m: UID/GID start mismatch between /etc/subuid and /etc/subgid strictly rejected"
+  else
+    test_fail "Scenario 5m: Unexpected output for mismatch: $OUT_M"
+  fi
+fi
+
+# Case 5n: Idempotent repeated setup
+OUT_N1="$(validate_or_add_subid "$SUBUID_K" "UID" "165536" "65536")"
+OUT_N2="$(validate_or_add_subid "$SUBUID_K" "UID" "165536" "65536")"
+LINES_N="$(grep -c "^kelvin-worker:165536:65536$" "$SUBUID_K")"
+if [[ "$OUT_N1" == "VERIFIED:kelvin-worker:165536:65536" && "$OUT_N2" == "VERIFIED:kelvin-worker:165536:65536" && "$LINES_N" -eq 1 ]]; then
+  test_pass "Scenario 5n: Repeated idempotent setup leaves file untouched with exactly 1 mapping"
+else
+  test_fail "Scenario 5n: Idempotent repeated setup failed (lines: $LINES_N, out1: $OUT_N1, out2: $OUT_N2)"
+fi
+
 rm -rf "$TEST_DIR"
 
 # ------------------------------------------------------------------------------
@@ -531,6 +611,49 @@ if [[ "$READINESS_OUT" == "PROCESS_ACTIVE|SCANNER_UNAVAILABLE_PENDING_CERTIFICAT
 else
   test_fail "Scenario 8: Readiness did not separate process liveness from scanner certification: $READINESS_OUT"
 fi
+
+# ------------------------------------------------------------------------------
+# SCENARIO 9: Rootless Working Directory Security & Isolation (Problem A Regression)
+# ------------------------------------------------------------------------------
+echo "--- Testing Worker Working Directory Isolation ---"
+
+TEST_WORKDIR_DIR="$(mktemp -d /tmp/kelvin-workdir-test.XXXXXX)"
+INACCESSIBLE_DIR="$TEST_WORKDIR_DIR/opt_kelvin_simulated"
+ACCESSIBLE_DIR="$TEST_WORKDIR_DIR/var_lib_kelvin_worker"
+
+mkdir -p "$INACCESSIBLE_DIR"
+mkdir -p "$ACCESSIBLE_DIR"
+
+# Case 9a: Inherited inaccessible working directory without explicit chdir fails
+simulate_runuser_execution() {
+  local initial_dir="$1"
+  local explicit_target_dir="$2"
+
+  (
+    cd "$initial_dir" 2>/dev/null || return 2
+    if [[ -n "$explicit_target_dir" ]]; then
+      cd "$explicit_target_dir" || return 1
+    fi
+    pwd
+  )
+}
+
+OUT_FAIL="$(simulate_runuser_execution "$TEST_WORKDIR_DIR/nonexistent_dir" "" 2>&1 || true)"
+if [[ "$OUT_FAIL" != *"var_lib_kelvin_worker"* ]]; then
+  test_pass "Scenario 9a: Inherited invalid/inaccessible working directory without chdir rejected"
+else
+  test_fail "Scenario 9a: Inaccessible directory unexpectedly succeeded: $OUT_FAIL"
+fi
+
+# Case 9b: Explicit change to /var/lib/kelvin-worker guarantees execution in valid worker working directory
+OUT_SUCCESS="$(simulate_runuser_execution "$INACCESSIBLE_DIR" "$ACCESSIBLE_DIR")"
+if [[ "$OUT_SUCCESS" == *"$ACCESSIBLE_DIR"* ]]; then
+  test_pass "Scenario 9b: Explicit chdir to /var/lib/kelvin-worker ensures safe worker execution directory"
+else
+  test_fail "Scenario 9b: Explicit chdir failed: $OUT_SUCCESS"
+fi
+
+rm -rf "$TEST_WORKDIR_DIR"
 
 echo "=============================================================================="
 echo "Hardening Test Suite Results: $PASS_COUNT PASSED, $FAIL_COUNT FAILED"

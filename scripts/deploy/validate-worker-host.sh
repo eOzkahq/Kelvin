@@ -84,28 +84,85 @@ fi
 
 # 5. Subuid and Subgid Configuration & Range Collision Audit
 # Audits /etc/subuid and /etc/subgid independently, rejects malformed/overflow entries,
-# and verifies the exact non-overlapping range allocated for kelvin-worker.
+# and verifies or safely adopts the non-overlapping range allocated for kelvin-worker.
+SUBID_ENV_FILE="${KELVIN_SUBID_ENV_FILE:-/etc/kelvin/subid.env}"
 ENV_FILE="${KELVIN_ENV_FILE:-/etc/kelvin/worker.env}"
-if [[ -f "$ENV_FILE" ]]; then
-  cfg_subuid="$(grep -E '^KELVIN_SUBUID_START=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
-  cfg_subgid="$(grep -E '^KELVIN_SUBGID_START=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
-  cfg_subid="$(grep -E '^KELVIN_SUBID_START=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
-  cfg_count="$(grep -E '^KELVIN_SUBID_COUNT=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
 
-  cfg_subuid="${cfg_subuid//\"/}"; cfg_subuid="${cfg_subuid//\'/}"
-  cfg_subgid="${cfg_subgid//\"/}"; cfg_subgid="${cfg_subgid//\'/}"
-  cfg_subid="${cfg_subid//\"/}"; cfg_subid="${cfg_subid//\'/}"
-  cfg_count="${cfg_count//\"/}"; cfg_count="${cfg_count//\'/}"
+load_subid_config_from_file() {
+  local f="$1"
+  if [[ -f "$f" ]]; then
+    local s_uid s_gid s_id s_cnt
+    s_uid="$(grep -E '^KELVIN_SUBUID_START=' "$f" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
+    s_gid="$(grep -E '^KELVIN_SUBGID_START=' "$f" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
+    s_id="$(grep -E '^KELVIN_SUBID_START=' "$f" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
+    s_cnt="$(grep -E '^KELVIN_SUBID_COUNT=' "$f" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
 
-  [[ -z "${KELVIN_SUBUID_START:-}" && -n "$cfg_subuid" ]] && KELVIN_SUBUID_START="$cfg_subuid"
-  [[ -z "${KELVIN_SUBGID_START:-}" && -n "$cfg_subgid" ]] && KELVIN_SUBGID_START="$cfg_subgid"
-  [[ -z "${KELVIN_SUBID_START:-}" && -n "$cfg_subid" ]] && KELVIN_SUBID_START="$cfg_subid"
-  [[ -z "${KELVIN_SUBID_COUNT:-}" && -n "$cfg_count" ]] && KELVIN_SUBID_COUNT="$cfg_count"
-fi
+    s_uid="${s_uid//\"/}"; s_uid="${s_uid//\'/}"
+    s_gid="${s_gid//\"/}"; s_gid="${s_gid//\'/}"
+    s_id="${s_id//\"/}"; s_id="${s_id//\'/}"
+    s_cnt="${s_cnt//\"/}"; s_cnt="${s_cnt//\'/}"
+
+    [[ -z "${KELVIN_SUBUID_START:-}" && -n "$s_uid" ]] && KELVIN_SUBUID_START="$s_uid"
+    [[ -z "${KELVIN_SUBGID_START:-}" && -n "$s_gid" ]] && KELVIN_SUBGID_START="$s_gid"
+    [[ -z "${KELVIN_SUBID_START:-}" && -n "$s_id" ]] && KELVIN_SUBID_START="$s_id"
+    [[ -z "${KELVIN_SUBID_COUNT:-}" && -n "$s_cnt" ]] && KELVIN_SUBID_COUNT="$s_cnt"
+  fi
+}
+
+load_subid_config_from_file "$SUBID_ENV_FILE"
+load_subid_config_from_file "$ENV_FILE"
 
 KELVIN_SUBID_COUNT="${KELVIN_SUBID_COUNT:-65536}"
-KELVIN_SUBUID_START="${KELVIN_SUBUID_START:-${KELVIN_SUBID_START:-200000}}"
-KELVIN_SUBGID_START="${KELVIN_SUBGID_START:-${KELVIN_SUBID_START:-200000}}"
+
+is_subid_explicit=0
+if [[ -n "${KELVIN_SUBUID_START:-}" || -n "${KELVIN_SUBGID_START:-}" || -n "${KELVIN_SUBID_START:-}" ]]; then
+  is_subid_explicit=1
+  KELVIN_SUBUID_START="${KELVIN_SUBUID_START:-${KELVIN_SUBID_START:-}}"
+  KELVIN_SUBGID_START="${KELVIN_SUBGID_START:-${KELVIN_SUBID_START:-}}"
+fi
+
+if [[ $is_subid_explicit -eq 0 ]]; then
+  existing_u="$(grep "^kelvin-worker:" /etc/subuid 2>/dev/null || true)"
+  existing_g="$(grep "^kelvin-worker:" /etc/subgid 2>/dev/null || true)"
+
+  if [[ -n "$existing_u" || -n "$existing_g" ]]; then
+    count_u="$(echo "$existing_u" | grep -c "^kelvin-worker:" || true)"
+    count_g="$(echo "$existing_g" | grep -c "^kelvin-worker:" || true)"
+
+    if [[ "$count_u" -gt 1 ]]; then
+      check_fail "Multiple conflicting subordinate UID mappings found for kelvin-worker in /etc/subuid"
+    fi
+    if [[ "$count_g" -gt 1 ]]; then
+      check_fail "Multiple conflicting subordinate GID mappings found for kelvin-worker in /etc/subgid"
+    fi
+    if [[ "$count_u" -ne 1 || "$count_g" -ne 1 ]]; then
+      check_fail "Inconsistent subordinate ID configuration: mapping exists in one file but is missing in the other"
+    else
+      u_start="$(echo "$existing_u" | cut -d: -f2)"
+      u_count="$(echo "$existing_u" | cut -d: -f3)"
+      g_start="$(echo "$existing_g" | cut -d: -f2)"
+      g_count="$(echo "$existing_g" | cut -d: -f3)"
+
+      if [[ "$u_start" != "$g_start" ]]; then
+        check_fail "Subordinate UID/GID allocation mismatch: UID start '$u_start' does not match GID start '$g_start'"
+      fi
+      if [[ "$u_count" != "$KELVIN_SUBID_COUNT" || "$g_count" != "$KELVIN_SUBID_COUNT" ]]; then
+        check_fail "Subordinate ID range size mismatch: found count UID='$u_count'/GID='$g_count', expected '$KELVIN_SUBID_COUNT'"
+      fi
+
+      KELVIN_SUBUID_START="$u_start"
+      KELVIN_SUBGID_START="$g_start"
+    fi
+  else
+    check_fail "Missing subordinate ID mapping for kelvin-worker in /etc/subuid and /etc/subgid"
+    KELVIN_SUBUID_START=""
+    KELVIN_SUBGID_START=""
+  fi
+else
+  if [[ "$KELVIN_SUBUID_START" != "$KELVIN_SUBGID_START" ]]; then
+    check_fail "Subordinate UID/GID allocation mismatch in configuration: UID start '$KELVIN_SUBUID_START' does not match GID start '$KELVIN_SUBGID_START'"
+  fi
+fi
 
 validate_subid_mapping() {
   local id_file="$1"
@@ -171,7 +228,7 @@ validate_subid_mapping() {
   actual_start="$(echo "$existing_lines" | cut -d: -f2)"
   actual_count="$(echo "$existing_lines" | cut -d: -f3)"
 
-  if [[ "$configured_start" != "auto" && "$actual_start" != "$configured_start" ]]; then
+  if [[ -n "$configured_start" && "$configured_start" != "auto" && "$actual_start" != "$configured_start" ]]; then
     check_fail "Conflicting subordinate $id_type mapping in $id_file for $target_user (found: '$existing_lines', expected: '$target_user:$configured_start:$target_count')"
     return
   fi
@@ -246,6 +303,9 @@ fi
 
 # 8. Internal Scanner Network (kelvin-scanner-net) Properties
 NETWORK_CHECK_CMD='
+  set -euo pipefail
+  cd /var/lib/kelvin-worker 2>/dev/null || true
+  export HOME="/var/lib/kelvin-worker"
   export XDG_RUNTIME_DIR="/run/user/10001"
   NET_NAME="kelvin-scanner-net"
   REQ_INTERNAL="true"
@@ -348,9 +408,9 @@ except Exception as e:
 
 if id -u kelvin-worker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
   if [[ "$(id -u)" -eq 0 ]]; then
-    NET_RESULT="$(runuser -u kelvin-worker -- bash -c "$NETWORK_CHECK_CMD" 2>/dev/null || echo "NET_CHECK_ERROR")"
+    NET_RESULT="$( (cd /var/lib/kelvin-worker 2>/dev/null || true; runuser -u kelvin-worker -- bash -c "$NETWORK_CHECK_CMD" 2>/dev/null || echo "NET_CHECK_ERROR") )"
   elif [[ "$(id -u)" -eq 10001 ]]; then
-    NET_RESULT="$(eval "$NETWORK_CHECK_CMD")"
+    NET_RESULT="$( (cd /var/lib/kelvin-worker 2>/dev/null || true; eval "$NETWORK_CHECK_CMD") )"
   else
     NET_RESULT="CANNOT_RUN_AS_WORKER"
   fi
