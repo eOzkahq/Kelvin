@@ -88,6 +88,7 @@ jobs:
           image-ref: kelvin/scanner-zap:${{ inputs.zap_version }}
           format: cyclonedx
           output: artifacts/scanner-images/zap.cdx.json
+          trivyignores: deploy/scanners/zap/.trivyignore
           scanners: vuln
           severity: HIGH,CRITICAL
           exit-code: "1"
@@ -102,6 +103,7 @@ jobs:
           image-ref: kelvin/scanner-nuclei:${{ inputs.nuclei_version }}
           format: cyclonedx
           output: artifacts/scanner-images/nuclei.cdx.json
+          trivyignores: deploy/scanners/nuclei/.trivyignore
           scanners: vuln
           severity: HIGH,CRITICAL
           exit-code: "1"
