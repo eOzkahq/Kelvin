@@ -79,7 +79,9 @@ jobs:
         run: bash scripts/scanners/build-images.sh
 
       - name: Scan ZAP image for vulnerabilities & generate CycloneDX SBOM
+        id: scan_zap
         uses: aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37 # v0.31.0
+        continue-on-error: true
         with:
           version: v0.70.0
           scan-type: image
@@ -91,7 +93,9 @@ jobs:
           exit-code: "1"
 
       - name: Scan Nuclei image for vulnerabilities & generate CycloneDX SBOM
+        id: scan_nuclei
         uses: aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37 # v0.31.0
+        continue-on-error: true
         with:
           version: v0.70.0
           scan-type: image
@@ -101,6 +105,44 @@ jobs:
           scanners: vuln
           severity: HIGH,CRITICAL
           exit-code: "1"
+
+      - name: Generate human-readable vulnerability diagnostic reports
+        shell: bash
+        run: |
+          python - <<'EOF'
+          import json, os, sys
+
+          def generate_report(sbom_path, output_path, scanner_name):
+              if not os.path.exists(sbom_path):
+                  print(f"WARNING: SBOM file not found at {sbom_path}", file=sys.stderr)
+                  return 0
+              with open(sbom_path, "r", encoding="utf-8") as f:
+                  data = json.load(f)
+              vulns = data.get("vulnerabilities", [])
+              lines = [
+                  f"=== Kelvin Scanner Vulnerability Diagnostic Report: {scanner_name} ===",
+                  f"Total HIGH/CRITICAL Vulnerabilities: {len(vulns)}\n",
+                  f"{'Vulnerability ID':<20} | {'Severity':<10} | {'Component':<45} | {'Recommendation'}",
+                  "-" * 110
+              ]
+              for v in vulns:
+                  vid = v.get("id", "UNKNOWN")
+                  ratings = v.get("ratings", [])
+                  sev = ratings[0].get("severity", "UNKNOWN").upper() if ratings else "UNKNOWN"
+                  affects = v.get("affects", [])
+                  ref = affects[0].get("ref", "UNKNOWN") if affects else "UNKNOWN"
+                  rec = v.get("recommendation", v.get("description", ""))[:50]
+                  lines.append(f"{vid:<20} | {sev:<10} | {ref:<45} | {rec}")
+              report_text = "\n".join(lines)
+              with open(output_path, "w", encoding="utf-8") as f:
+                  f.write(report_text + "\n")
+              print(report_text)
+              return len(vulns)
+
+          zap_count = generate_report("artifacts/scanner-images/zap.cdx.json", "artifacts/scanner-images/zap-vulnerabilities.txt", "OWASP ZAP")
+          nuclei_count = generate_report("artifacts/scanner-images/nuclei.cdx.json", "artifacts/scanner-images/nuclei-vulnerabilities.txt", "ProjectDiscovery Nuclei")
+          print(f"\nVulnerability diagnostic report generation completed: ZAP ({zap_count} findings), Nuclei ({nuclei_count} findings)")
+          EOF
 
       - name: Record image inspection and metadata
         shell: bash
@@ -139,12 +181,29 @@ jobs:
           retention-days: 1
 
       - name: Upload scanner runtime image evidence
+        if: always()
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: scanner-runtime-image-evidence
           path: artifacts/scanner-images/
           if-no-files-found: error
           retention-days: 90
+
+      - name: Enforce vulnerability scan security gate
+        shell: bash
+        run: |
+          echo "=============================================================================="
+          echo "Kelvin Vulnerability Scan Security Gate Enforcement"
+          echo "=============================================================================="
+          zap_outcome="${{ steps.scan_zap.outcome }}"
+          nuclei_outcome="${{ steps.scan_nuclei.outcome }}"
+          echo "ZAP scan step outcome:    $zap_outcome"
+          echo "Nuclei scan step outcome: $nuclei_outcome"
+          if [[ "$zap_outcome" != "success" || "$nuclei_outcome" != "success" ]]; then
+            echo "SECURITY GATE FAILED: Scanner image vulnerability scans detected HIGH/CRITICAL findings or failed." >&2
+            exit 1
+          fi
+          echo "SECURITY GATE PASSED: Both scanner images passed HIGH/CRITICAL vulnerability scans."
 
   publish-and-sign:
     name: Publish, sign and attest scanner images

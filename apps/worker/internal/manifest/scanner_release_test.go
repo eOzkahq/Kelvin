@@ -615,6 +615,24 @@ func TestScannerReleaseGate_WorkflowPermissionBoundariesAndGating(t *testing.T) 
 	if count := strings.Count(content, "version: v0.70.0"); count != 2 {
 		t.Errorf("expected exactly 2 occurrences of 'version: v0.70.0' for Trivy scan steps, got %d", count)
 	}
+
+	// 10. Assert independent scanner execution, diagnostic collection, and fail-closed gate enforcement
+	if !strings.Contains(content, "id: scan_zap") {
+		t.Errorf("workflow missing id: scan_zap for ZAP scan step")
+	}
+	if !strings.Contains(content, "id: scan_nuclei") {
+		t.Errorf("workflow missing id: scan_nuclei for Nuclei scan step")
+	}
+	if count := strings.Count(content, "continue-on-error: true"); count < 2 {
+		t.Errorf("expected at least 2 occurrences of 'continue-on-error: true' for independent scans, got %d", count)
+	}
+	if !strings.Contains(content, "Enforce vulnerability scan security gate") {
+		t.Errorf("workflow missing 'Enforce vulnerability scan security gate' step")
+	}
+	if !strings.Contains(content, "steps.scan_zap.outcome") || !strings.Contains(content, "steps.scan_nuclei.outcome") {
+		t.Errorf("security gate must check both scan_zap and scan_nuclei step outcomes")
+	}
+
 	for _, invalidSHA := range invalidLegacySHAs {
 		if strings.Contains(content, invalidSHA) {
 			t.Errorf("workflow contains invalid legacy action SHA %q", invalidSHA)
