@@ -338,5 +338,34 @@ class TestWaiverGovernance(unittest.TestCase):
                 if os.path.exists(p):
                     os.remove(p)
 
+    def test_invalid_component_purl_rejected(self):
+        """Component string not adhering to pkg:<type>/<name>@<version> must fail closed."""
+        w = copy.deepcopy(self.base_valid_approved_waiver)
+        w["component"] = "libtest" # missing purl scheme and version
+        with self.assertRaises(vw.ValidationError) as ctx:
+            vw.validate_waiver(w, TEST_DATE, AUTHORIZED_MAINTAINERS, self.ttl_config)
+        self.assertIn("canonical Package URL", str(ctx.exception))
+
+    def test_unapproved_advisory_tracking_rejected(self):
+        """Tracking reference not from approved advisory databases must fail closed."""
+        w = copy.deepcopy(self.base_valid_approved_waiver)
+        w["tracking_reference"] = "https://untrusted-blog.com/exploit"
+        with self.assertRaises(vw.ValidationError) as ctx:
+            vw.validate_waiver(w, TEST_DATE, AUTHORIZED_MAINTAINERS, self.ttl_config)
+        self.assertIn("does not match an approved security advisory source", str(ctx.exception))
+
+    def test_short_or_placeholder_justification_rejected(self):
+        """Short justifications or placeholder text must fail validation."""
+        w = copy.deepcopy(self.base_valid_approved_waiver)
+        w["technical_justification"] = "short"
+        with self.assertRaises(vw.ValidationError) as ctx:
+            vw.validate_waiver(w, TEST_DATE, AUTHORIZED_MAINTAINERS, self.ttl_config)
+        self.assertIn("informative explanation", str(ctx.exception))
+
+        w["technical_justification"] = "TODO: add explanation later"
+        with self.assertRaises(vw.ValidationError) as ctx:
+            vw.validate_waiver(w, TEST_DATE, AUTHORIZED_MAINTAINERS, self.ttl_config)
+        self.assertIn("forbidden placeholder", str(ctx.exception))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
