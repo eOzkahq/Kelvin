@@ -2,7 +2,6 @@
 # Kelvin Hermetic Multi-Stage Source Build for ProjectDiscovery Nuclei
 # Policy: ADR-0008 (Zero Build Tools in Distroless Runtime, Non-Root UID 10001)
 # Pinned to Nuclei v3.11.1 @ commit a8c88feb4a1c8e961b7902534ce3af97e9d524a4
-# Toolchain: golang:1.26.10-alpine (Remediates 11 Go standard library CVEs)
 # ==============================================================================
 
 # Global build arguments
@@ -13,7 +12,7 @@ ARG NUCLEI_VERSION=3.11.1
 ARG NUCLEI_COMMIT=a8c88feb4a1c8e961b7902534ce3af97e9d524a4
 
 # ------------------------------------------------------------------------------
-# Stage 1: Hermetic Multi-Stage Source Builder (Go 1.26.10)
+# Stage 1: Hermetic Multi-Stage Source Builder
 # ------------------------------------------------------------------------------
 FROM ${GO_BUILDER_IMAGE} AS builder
 
