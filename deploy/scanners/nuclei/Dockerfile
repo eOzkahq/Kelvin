@@ -29,12 +29,19 @@ ENV CGO_ENABLED=0 \
 
 WORKDIR /src
 
-# Hermetic build from pinned source tree with hardened flags
+# Copy dependency security patches
+COPY deploy/scanners/nuclei/patches /src/patches
+
+# Hermetic build from pinned source tree with hardened flags and patched dependencies
 RUN apk add --no-cache git ca-certificates tzdata && \
     git init && \
     git remote add origin https://github.com/projectdiscovery/nuclei.git && \
     git fetch --depth 1 origin "${NUCLEI_COMMIT}" && \
     git checkout FETCH_HEAD && \
+    if [ -f /src/patches/go-git.patch ]; then \
+      git apply /src/patches/go-git.patch || go mod edit -replace github.com/go-git/go-git/v5=github.com/go-git/go-git/v5@v5.14.0; \
+    fi && \
+    go mod download && \
     go build -v -trimpath \
       -ldflags="-s -w -buildid= -X github.com/projectdiscovery/nuclei/v3/internal/runner.Version=v${NUCLEI_VERSION}" \
       -o /artifacts/nuclei ./cmd/nuclei
