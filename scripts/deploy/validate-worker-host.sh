@@ -82,18 +82,109 @@ else
   check_fail "User kelvin-worker does not exist. Run scripts/deploy/setup-rootless-podman.sh."
 fi
 
-# 5. Subuid and Subgid Configuration (100000:65536) & Range Collision Audit
+# 5. Subuid and Subgid Configuration & Range Collision Audit
+# Audits /etc/subuid and /etc/subgid independently, rejects malformed/overflow entries,
+# and verifies the exact non-overlapping range allocated for kelvin-worker.
+ENV_FILE="${KELVIN_ENV_FILE:-/etc/kelvin/worker.env}"
+if [[ -f "$ENV_FILE" ]]; then
+  cfg_subuid="$(grep -E '^KELVIN_SUBUID_START=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
+  cfg_subgid="$(grep -E '^KELVIN_SUBGID_START=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
+  cfg_subid="$(grep -E '^KELVIN_SUBID_START=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
+  cfg_count="$(grep -E '^KELVIN_SUBID_COUNT=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
+
+  cfg_subuid="${cfg_subuid//\"/}"; cfg_subuid="${cfg_subuid//\'/}"
+  cfg_subgid="${cfg_subgid//\"/}"; cfg_subgid="${cfg_subgid//\'/}"
+  cfg_subid="${cfg_subid//\"/}"; cfg_subid="${cfg_subid//\'/}"
+  cfg_count="${cfg_count//\"/}"; cfg_count="${cfg_count//\'/}"
+
+  [[ -z "${KELVIN_SUBUID_START:-}" && -n "$cfg_subuid" ]] && KELVIN_SUBUID_START="$cfg_subuid"
+  [[ -z "${KELVIN_SUBGID_START:-}" && -n "$cfg_subgid" ]] && KELVIN_SUBGID_START="$cfg_subgid"
+  [[ -z "${KELVIN_SUBID_START:-}" && -n "$cfg_subid" ]] && KELVIN_SUBID_START="$cfg_subid"
+  [[ -z "${KELVIN_SUBID_COUNT:-}" && -n "$cfg_count" ]] && KELVIN_SUBID_COUNT="$cfg_count"
+fi
+
+KELVIN_SUBID_COUNT="${KELVIN_SUBID_COUNT:-65536}"
+KELVIN_SUBUID_START="${KELVIN_SUBUID_START:-${KELVIN_SUBID_START:-200000}}"
+KELVIN_SUBGID_START="${KELVIN_SUBGID_START:-${KELVIN_SUBID_START:-200000}}"
+
 validate_subid_mapping() {
   local id_file="$1"
-  local id_type="$2"
+  local id_type="$2" # UID or GID
+  local configured_start="$3"
+  local target_count="${4:-65536}"
   local target_user="kelvin-worker"
-  local target_start=100000
-  local target_count=65536
-  local target_end=$((target_start + target_count - 1)) # 165535
-  local expected="$target_user:$target_start:$target_count"
+  local max_id=4294967295
 
   if [[ ! -f "$id_file" ]]; then
     check_fail "$id_file does not exist"
+    return
+  fi
+
+  # Audit existing entries in the file for malformed lines and integer overflow
+  local line_num=0
+  local file_has_errors=0
+  while IFS=: read -r user start count extra || [[ -n "${user:-}" ]]; do
+    line_num=$((line_num + 1))
+    local raw_line="${user:-}:${start:-}:${count:-}${extra:+:$extra}"
+    user="$(echo "${user:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [[ -z "$user" || "$user" =~ ^# ]] && continue
+
+    start="$(echo "${start:-}" | tr -d ' ')"
+    count="$(echo "${count:-}" | tr -d ' ')"
+
+    # Malformed check: must have user, start, count
+    if [[ -z "$start" || -z "$count" || -n "${extra:-}" || ! "$start" =~ ^[0-9]+$ || ! "$count" =~ ^[0-9]+$ || "$count" -le 0 ]]; then
+      check_fail "Malformed subordinate $id_type entry in $id_file at line $line_num: '$raw_line'"
+      file_has_errors=1
+      continue
+    fi
+
+    # Integer overflow check
+    if (( start > max_id || count > max_id || start + count - 1 > max_id || start + count - 1 < start )); then
+      check_fail "Subordinate $id_type entry integer overflow in $id_file at line $line_num: '$raw_line'"
+      file_has_errors=1
+      continue
+    fi
+  done < "$id_file"
+
+  if [[ $file_has_errors -eq 1 ]]; then
+    return
+  fi
+
+  # Check kelvin-worker's mapping
+  local existing_lines
+  existing_lines="$(grep "^${target_user}:" "$id_file" 2>/dev/null || true)"
+
+  if [[ -z "$existing_lines" ]]; then
+    check_fail "$id_file missing configuration for $target_user"
+    return
+  fi
+
+  local count_lines
+  count_lines="$(echo "$existing_lines" | wc -l)"
+  if [[ "$count_lines" -ne 1 ]]; then
+    check_fail "Multiple conflicting subordinate $id_type mappings in $id_file for $target_user (found: '$existing_lines')"
+    return
+  fi
+
+  local actual_start actual_count
+  actual_start="$(echo "$existing_lines" | cut -d: -f2)"
+  actual_count="$(echo "$existing_lines" | cut -d: -f3)"
+
+  if [[ "$configured_start" != "auto" && "$actual_start" != "$configured_start" ]]; then
+    check_fail "Conflicting subordinate $id_type mapping in $id_file for $target_user (found: '$existing_lines', expected: '$target_user:$configured_start:$target_count')"
+    return
+  fi
+
+  if [[ "$actual_count" != "$target_count" ]]; then
+    check_fail "Subordinate $id_type range size mismatch in $id_file for $target_user (found count $actual_count, expected $target_count)"
+    return
+  fi
+
+  local target_start="$actual_start"
+  local target_end=$((target_start + target_count - 1))
+  if (( target_start > max_id || target_end > max_id || target_end < target_start )); then
+    check_fail "Subordinate $id_type range integer overflow for $target_user: $target_start:$target_count exceeds max ID $max_id"
     return
   fi
 
@@ -101,9 +192,7 @@ validate_subid_mapping() {
   local collision_found=0
   while IFS=: read -r user start count extra || [[ -n "${user:-}" ]]; do
     user="$(echo "${user:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-    if [[ -z "$user" || "$user" =~ ^# ]]; then
-      continue
-    fi
+    [[ -z "$user" || "$user" =~ ^# ]] && continue
     start="$(echo "${start:-}" | tr -d ' ')"
     count="$(echo "${count:-}" | tr -d ' ')"
 
@@ -111,35 +200,20 @@ validate_subid_mapping() {
       local other_end=$((start + count - 1))
       if [[ "$user" != "$target_user" ]]; then
         if (( start <= target_end && other_end >= target_start )); then
-          check_fail "Subordinate $id_type range collision in $id_file: user '$user' ($start:$count [$start-$other_end]) overlaps with required $target_user ($target_start:$target_count [$target_start-$target_end])"
+          check_fail "Subordinate $id_type range collision in $id_file: user '$user' ($start:$count [$start-$other_end]) overlaps with $target_user ($target_start:$target_count [$target_start-$target_end])"
           collision_found=1
         fi
       fi
     fi
   done < "$id_file"
 
-  if [[ $collision_found -eq 1 ]]; then
-    return
-  fi
-
-  local existing_lines
-  existing_lines="$(grep "^${target_user}:" "$id_file" 2>/dev/null || true)"
-
-  if [[ -z "$existing_lines" ]]; then
-    check_fail "$id_file missing configuration for $target_user (expected $expected)"
-  else
-    local count
-    count="$(echo "$existing_lines" | wc -l)"
-    if [[ "$count" -eq 1 && "$existing_lines" == "$expected" ]]; then
-      check_pass "$id_file configured with required non-overlapping mapping ($expected)"
-    else
-      check_fail "Conflicting subordinate $id_type mapping in $id_file for $target_user (found: '$existing_lines', expected: '$expected')"
-    fi
+  if [[ $collision_found -eq 0 ]]; then
+    check_pass "$id_file configured with verified non-overlapping $id_type mapping ($existing_lines)"
   fi
 }
 
-validate_subid_mapping "/etc/subuid" "UID"
-validate_subid_mapping "/etc/subgid" "GID"
+validate_subid_mapping "/etc/subuid" "UID" "$KELVIN_SUBUID_START" "$KELVIN_SUBID_COUNT"
+validate_subid_mapping "/etc/subgid" "GID" "$KELVIN_SUBGID_START" "$KELVIN_SUBID_COUNT"
 
 # 6. Systemd User Session Linger
 if command -v loginctl >/dev/null 2>&1; then

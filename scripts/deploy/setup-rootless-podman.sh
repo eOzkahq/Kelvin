@@ -80,27 +80,157 @@ else
   echo "User kelvin-worker (UID 10001) verified."
 fi
 
-# 6. Configure subuid and subgid for rootless container user namespaces (100000:65536)
-# Checks for subordinate range collisions across all existing users before appending.
+# 6. Configure subuid and subgid for rootless container user namespaces
+# Resolves subordinate ID range conflicts (e.g. with opc:100000:65536 on Oracle Linux).
+# Audits /etc/subuid and /etc/subgid independently, rejects malformed/overflow entries,
+# and allocates an explicitly configured or dynamically discovered non-overlapping range of 65,536 IDs.
 echo "Configuring /etc/subuid and /etc/subgid for kelvin-worker..."
+
+ENV_FILE="${KELVIN_ENV_FILE:-/etc/kelvin/worker.env}"
+if [[ -f "$ENV_FILE" ]]; then
+  cfg_subuid="$(grep -E '^KELVIN_SUBUID_START=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
+  cfg_subgid="$(grep -E '^KELVIN_SUBGID_START=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
+  cfg_subid="$(grep -E '^KELVIN_SUBID_START=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
+  cfg_count="$(grep -E '^KELVIN_SUBID_COUNT=' "$ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- || true)"
+
+  cfg_subuid="${cfg_subuid//\"/}"; cfg_subuid="${cfg_subuid//\'/}"
+  cfg_subgid="${cfg_subgid//\"/}"; cfg_subgid="${cfg_subgid//\'/}"
+  cfg_subid="${cfg_subid//\"/}"; cfg_subid="${cfg_subid//\'/}"
+  cfg_count="${cfg_count//\"/}"; cfg_count="${cfg_count//\'/}"
+
+  [[ -z "${KELVIN_SUBUID_START:-}" && -n "$cfg_subuid" ]] && KELVIN_SUBUID_START="$cfg_subuid"
+  [[ -z "${KELVIN_SUBGID_START:-}" && -n "$cfg_subgid" ]] && KELVIN_SUBGID_START="$cfg_subgid"
+  [[ -z "${KELVIN_SUBID_START:-}" && -n "$cfg_subid" ]] && KELVIN_SUBID_START="$cfg_subid"
+  [[ -z "${KELVIN_SUBID_COUNT:-}" && -n "$cfg_count" ]] && KELVIN_SUBID_COUNT="$cfg_count"
+fi
+
+KELVIN_SUBID_COUNT="${KELVIN_SUBID_COUNT:-65536}"
+KELVIN_SUBUID_START="${KELVIN_SUBUID_START:-${KELVIN_SUBID_START:-200000}}"
+KELVIN_SUBGID_START="${KELVIN_SUBGID_START:-${KELVIN_SUBID_START:-200000}}"
+
+find_available_subid_range() {
+  local id_file="$1"
+  local target_count="$2"
+  local min_start="${3:-100000}"
+  local max_id=4294967295
+
+  local ranges=()
+  while IFS=: read -r user start count extra || [[ -n "${user:-}" ]]; do
+    user="$(echo "${user:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [[ -z "$user" || "$user" =~ ^# ]] && continue
+    start="$(echo "${start:-}" | tr -d ' ')"
+    count="$(echo "${count:-}" | tr -d ' ')"
+    if [[ "$start" =~ ^[0-9]+$ && "$count" =~ ^[0-9]+$ ]]; then
+      local other_end=$((start + count - 1))
+      ranges+=("$start:$other_end")
+    fi
+  done < "$id_file"
+
+  local candidate="$min_start"
+  local changed=1
+  while [[ $changed -eq 1 ]]; do
+    changed=0
+    local cand_end=$((candidate + target_count - 1))
+    if (( candidate > max_id || cand_end > max_id || cand_end < candidate )); then
+      return 1
+    fi
+    for r in "${ranges[@]}"; do
+      local r_start="${r%%:*}"
+      local r_end="${r##*:}"
+      if (( candidate <= r_end && r_start <= cand_end )); then
+        candidate=$((r_end + 1))
+        changed=1
+        break
+      fi
+    done
+  done
+
+  local cand_end=$((candidate + target_count - 1))
+  if (( candidate > max_id || cand_end > max_id || cand_end < candidate )); then
+    return 1
+  fi
+  echo "$candidate"
+  return 0
+}
+
 validate_or_add_subid() {
   local id_file="$1"
+  local id_type="$2" # UID or GID
+  local configured_start="$3"
+  local target_count="${4:-65536}"
   local target_user="kelvin-worker"
-  local target_start=100000
-  local target_count=65536
-  local target_end=$((target_start + target_count - 1)) # 165535
-  local expected="$target_user:$target_start:$target_count"
+  local max_id=4294967295
 
   if [[ ! -f "$id_file" ]]; then
     touch "$id_file"
   fi
 
-  # Check every existing line for range collisions
+  # Validate target_count parameter
+  if [[ ! "$target_count" =~ ^[0-9]+$ ]] || (( target_count <= 0 || target_count > max_id )); then
+    echo "ERROR: Invalid subordinate $id_type count: '$target_count'." >&2
+    exit 1
+  fi
+
+  # Audit existing entries in the file for malformed lines and integer overflow
+  local line_num=0
+  while IFS=: read -r user start count extra || [[ -n "${user:-}" ]]; do
+    line_num=$((line_num + 1))
+    local raw_line="${user:-}:${start:-}:${count:-}${extra:+:$extra}"
+    user="$(echo "${user:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [[ -z "$user" || "$user" =~ ^# ]] && continue
+
+    start="$(echo "${start:-}" | tr -d ' ')"
+    count="$(echo "${count:-}" | tr -d ' ')"
+
+    # Malformed check: must have user, start, count
+    if [[ -z "$start" || -z "$count" || -n "${extra:-}" ]]; then
+      echo "ERROR: Malformed subordinate $id_type entry in $id_file at line $line_num: '$raw_line'." >&2
+      exit 1
+    fi
+
+    if [[ ! "$start" =~ ^[0-9]+$ || ! "$count" =~ ^[0-9]+$ ]]; then
+      echo "ERROR: Malformed subordinate $id_type entry (non-numeric values) in $id_file at line $line_num: '$raw_line'." >&2
+      exit 1
+    fi
+
+    if (( count <= 0 )); then
+      echo "ERROR: Malformed subordinate $id_type entry (non-positive count) in $id_file at line $line_num: '$raw_line'." >&2
+      exit 1
+    fi
+
+    # Integer overflow check
+    if (( start > max_id || count > max_id || start + count - 1 > max_id || start + count - 1 < start )); then
+      echo "ERROR: Subordinate $id_type entry integer overflow in $id_file at line $line_num: '$raw_line'." >&2
+      exit 1
+    fi
+  done < "$id_file"
+
+  # Determine target start
+  local target_start
+  if [[ "$configured_start" == "auto" ]]; then
+    if ! target_start="$(find_available_subid_range "$id_file" "$target_count" 100000)"; then
+      echo "ERROR: No available contiguous subordinate $id_type range of size $target_count exists in $id_file." >&2
+      exit 1
+    fi
+  else
+    if [[ ! "$configured_start" =~ ^[0-9]+$ ]]; then
+      echo "ERROR: Configured subordinate $id_type start is invalid: '$configured_start'." >&2
+      exit 1
+    fi
+    target_start="$configured_start"
+  fi
+
+  local target_end=$((target_start + target_count - 1))
+  if (( target_start > max_id || target_end > max_id || target_end < target_start )); then
+    echo "ERROR: Subordinate $id_type range integer overflow: $target_start:$target_count exceeds max ID $max_id." >&2
+    exit 1
+  fi
+  local expected="$target_user:$target_start:$target_count"
+
+  # Audit for range collisions with other users
   while IFS=: read -r user start count extra || [[ -n "${user:-}" ]]; do
     user="$(echo "${user:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-    if [[ -z "$user" || "$user" =~ ^# ]]; then
-      continue
-    fi
+    [[ -z "$user" || "$user" =~ ^# ]] && continue
     start="$(echo "${start:-}" | tr -d ' ')"
     count="$(echo "${count:-}" | tr -d ' ')"
 
@@ -108,7 +238,7 @@ validate_or_add_subid() {
       local other_end=$((start + count - 1))
       if [[ "$user" != "$target_user" ]]; then
         if (( start <= target_end && other_end >= target_start )); then
-          echo "ERROR: Subordinate ID range collision in $id_file:" >&2
+          echo "ERROR: Subordinate $id_type range collision in $id_file:" >&2
           echo "User '$user' has range $start:$count [$start-$other_end] which overlaps with required $target_user range $target_start:$target_count [$target_start-$target_end]." >&2
           echo "Aborting setup to prevent container user namespace collision." >&2
           exit 1
@@ -128,9 +258,9 @@ validate_or_add_subid() {
     local count_lines
     count_lines="$(echo "$existing_lines" | wc -l)"
     if [[ "$count_lines" -eq 1 && "$existing_lines" == "$expected" ]]; then
-      echo "Verified existing subordinate ID mapping in $id_file ($expected)."
+      echo "Verified existing subordinate $id_type mapping in $id_file ($expected)."
     else
-      echo "ERROR: Conflicting subordinate ID configuration found in $id_file for $target_user." >&2
+      echo "ERROR: Conflicting subordinate $id_type configuration found in $id_file for $target_user." >&2
       echo "Found: '$existing_lines'" >&2
       echo "Expected exactly: '$expected'" >&2
       echo "Automatic overwrite or appending conflicting mappings is prohibited. Remediate manually." >&2
@@ -139,8 +269,8 @@ validate_or_add_subid() {
   fi
 }
 
-validate_or_add_subid "/etc/subuid"
-validate_or_add_subid "/etc/subgid"
+validate_or_add_subid "/etc/subuid" "UID" "$KELVIN_SUBUID_START" "$KELVIN_SUBID_COUNT"
+validate_or_add_subid "/etc/subgid" "GID" "$KELVIN_SUBGID_START" "$KELVIN_SUBID_COUNT"
 
 # 7. Enable systemd user session lingering
 echo "Enabling systemd linger for kelvin-worker..."

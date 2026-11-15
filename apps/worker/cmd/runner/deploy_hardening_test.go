@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -151,121 +153,266 @@ func TestNetworkValidation_ExtraSubnetRejected(t *testing.T) {
 }
 
 // 5. Test conflicting subordinate UID/GID ranges & collision checks
-func validateOrAddSubidContent(content string) (newContent string, err string) {
-	targetUser := "kelvin-worker"
-	targetStart := 100000
-	targetCount := 65536
-	targetEnd := targetStart + targetCount - 1 // 165535
-	expected := "kelvin-worker:100000:65536"
+const maxSubID uint64 = 4294967295
 
-	// Check collision with other users
-	for _, line := range strings.Split(content, "\n") {
+type subIDRange struct {
+	user  string
+	start uint64
+	end   uint64
+	count uint64
+}
+
+func parseSubIDLine(line string) (*subIDRange, error) {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		return nil, nil
+	}
+	parts := strings.Split(trimmed, ":")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("malformed subordinate ID entry: expected 3 colon-separated fields, got %d", len(parts))
+	}
+	user := strings.TrimSpace(parts[0])
+	if user == "" {
+		return nil, fmt.Errorf("malformed subordinate ID entry: missing username")
+	}
+
+	start, err := strconv.ParseUint(strings.TrimSpace(parts[1]), 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("malformed subordinate ID entry: invalid start '%s'", parts[1])
+	}
+	count, err := strconv.ParseUint(strings.TrimSpace(parts[2]), 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("malformed subordinate ID entry: invalid count '%s'", parts[2])
+	}
+	if count == 0 {
+		return nil, fmt.Errorf("malformed subordinate ID entry: count must be > 0")
+	}
+
+	if start > maxSubID || count > maxSubID || start+count-1 > maxSubID {
+		return nil, fmt.Errorf("subordinate ID entry integer overflow: %d:%d exceeds max ID %d", start, count, maxSubID)
+	}
+
+	return &subIDRange{
+		user:  user,
+		start: start,
+		count: count,
+		end:   start + count - 1,
+	}, nil
+}
+
+func findAvailableSubIDRange(ranges []subIDRange, targetCount uint64, minStart uint64) (uint64, error) {
+	candidate := minStart
+	changed := true
+	for changed {
+		changed = false
+		candEnd := candidate + targetCount - 1
+		if candidate > maxSubID || candEnd > maxSubID || candEnd < candidate {
+			return 0, fmt.Errorf("no available contiguous subordinate ID range of size %d exists", targetCount)
+		}
+		for _, r := range ranges {
+			if candidate <= r.end && r.start <= candEnd {
+				candidate = r.end + 1
+				changed = true
+				break
+			}
+		}
+	}
+	if candidate+targetCount-1 > maxSubID {
+		return 0, fmt.Errorf("no available contiguous subordinate ID range of size %d exists", targetCount)
+	}
+	return candidate, nil
+}
+
+func validateOrAddSubidContentConfigurable(content string, idType string, configuredStart string, targetCount uint64) (newContent string, err string) {
+	targetUser := "kelvin-worker"
+	if targetCount == 0 || targetCount > maxSubID {
+		return "", fmt.Sprintf("invalid subordinate %s count: %d", idType, targetCount)
+	}
+
+	var existingRanges []subIDRange
+	var kelvinLines []string
+
+	lines := strings.Split(content, "\n")
+	for lineIdx, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		parts := strings.Split(trimmed, ":")
-		if len(parts) >= 3 && parts[0] != targetUser {
-			var start, count int
-			_, errStart := strings.NewReader(parts[1]).Read(nil)
-			_, errCount := strings.NewReader(parts[2]).Read(nil)
-			if errStart == nil && errCount == nil {
-				start = parseSubidInt(parts[1])
-				count = parseSubidInt(parts[2])
-				if start > 0 && count > 0 {
-					otherEnd := start + count - 1
-					if start <= targetEnd && otherEnd >= targetStart {
-						return "", "subordinate ID range collision: user '" + parts[0] + "' overlaps with kelvin-worker"
-					}
-				}
+		entry, parseErr := parseSubIDLine(trimmed)
+		if parseErr != nil {
+			return "", fmt.Sprintf("line %d: %s", lineIdx+1, parseErr.Error())
+		}
+		if entry != nil {
+			existingRanges = append(existingRanges, *entry)
+			if entry.user == targetUser {
+				kelvinLines = append(kelvinLines, trimmed)
 			}
 		}
 	}
 
-	var existingLines []string
-	for _, line := range strings.Split(content, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "kelvin-worker:") {
-			existingLines = append(existingLines, trimmed)
+	var targetStart uint64
+	if configuredStart == "auto" {
+		discovered, discErr := findAvailableSubIDRange(existingRanges, targetCount, 100000)
+		if discErr != nil {
+			return "", discErr.Error()
+		}
+		targetStart = discovered
+	} else {
+		parsedStart, parseErr := strconv.ParseUint(configuredStart, 10, 64)
+		if parseErr != nil {
+			return "", fmt.Sprintf("invalid configured %s start '%s'", idType, configuredStart)
+		}
+		if parsedStart > maxSubID || parsedStart+targetCount-1 > maxSubID {
+			return "", fmt.Sprintf("subordinate %s range integer overflow: %d:%d exceeds max ID %d", idType, parsedStart, targetCount, maxSubID)
+		}
+		targetStart = parsedStart
+	}
+
+	targetEnd := targetStart + targetCount - 1
+	expected := fmt.Sprintf("%s:%d:%d", targetUser, targetStart, targetCount)
+
+	// Check collision with other users
+	for _, r := range existingRanges {
+		if r.user != targetUser {
+			if targetStart <= r.end && r.start <= targetEnd {
+				return "", fmt.Sprintf("subordinate %s range collision: user '%s' (%d:%d [%d-%d]) overlaps with %s (%d:%d [%d-%d])",
+					idType, r.user, r.start, r.count, r.start, r.end, targetUser, targetStart, targetCount, targetStart, targetEnd)
+			}
 		}
 	}
 
-	if len(existingLines) == 0 {
-		if content != "" && !strings.HasSuffix(content, "\n") {
-			content += "\n"
+	if len(kelvinLines) == 0 {
+		out := content
+		if out != "" && !strings.HasSuffix(out, "\n") {
+			out += "\n"
 		}
-		return content + expected + "\n", ""
+		return out + expected + "\n", ""
 	}
 
-	if len(existingLines) == 1 && existingLines[0] == expected {
+	if len(kelvinLines) == 1 && kelvinLines[0] == expected {
 		return content, "" // Idempotent no-op
 	}
 
-	return "", "conflicting subordinate ID configuration found: expected " + expected + ", found " + strings.Join(existingLines, ", ")
+	return "", fmt.Sprintf("conflicting subordinate %s configuration found: expected %s, found %s",
+		idType, expected, strings.Join(kelvinLines, ", "))
 }
 
-func parseSubidInt(s string) int {
-	var n int
-	for _, c := range s {
-		if c >= '0' && c <= '9' {
-			n = n*10 + int(c-'0')
-		} else {
-			return 0
-		}
-	}
-	return n
+func validateOrAddSubidContent(content string) (newContent string, err string) {
+	// Default backwards-compatible signature using 200000 start
+	return validateOrAddSubidContentConfigurable(content, "UID", "200000", 65536)
 }
 
 func TestSubordinateIDValidation_ConflictingRanges(t *testing.T) {
-	// Case A: Missing mapping -> successfully adds expected mapping
-	resA, errA := validateOrAddSubidContent("otheruser:200000:65536\n")
-	if errA != "" {
-		t.Fatalf("unexpected error for missing mapping: %s", errA)
+	// 1. Existing opc:100000:65536 preserved when valid non-overlapping Kelvin allocation (200000:65536) added
+	res1, err1 := validateOrAddSubidContentConfigurable("opc:100000:65536\n", "UID", "200000", 65536)
+	if err1 != "" {
+		t.Fatalf("Test 1 failed: %s", err1)
 	}
-	if !strings.Contains(resA, "kelvin-worker:100000:65536") {
-		t.Errorf("expected new mapping appended, got: %s", resA)
+	if !strings.Contains(res1, "opc:100000:65536") {
+		t.Errorf("Test 1: expected opc mapping preserved, got: %s", res1)
 	}
-
-	// Case B: Existing correct mapping -> idempotent, no duplicate added
-	resB, errB := validateOrAddSubidContent("kelvin-worker:100000:65536\n")
-	if errB != "" {
-		t.Fatalf("unexpected error for valid existing mapping: %s", errB)
-	}
-	if strings.Count(resB, "kelvin-worker:100000:65536") != 1 {
-		t.Errorf("expected exactly 1 mapping, got duplicate: %s", resB)
+	if !strings.Contains(res1, "kelvin-worker:200000:65536") {
+		t.Errorf("Test 1: expected kelvin-worker mapping appended, got: %s", res1)
 	}
 
-	// Case C: Conflicting mapping range -> aborts with error
-	_, errC := validateOrAddSubidContent("kelvin-worker:200000:65536\n")
-	if errC == "" {
-		t.Fatal("expected conflict error for range 200000:65536, got nil")
+	// 2. Valid non-overlapping Kelvin allocation verified idempotently
+	res2, err2 := validateOrAddSubidContentConfigurable("opc:100000:65536\nkelvin-worker:200000:65536\n", "UID", "200000", 65536)
+	if err2 != "" {
+		t.Fatalf("Test 2 failed: %s", err2)
 	}
-	if !strings.Contains(errC, "conflicting subordinate ID") {
-		t.Errorf("expected conflict message, got: %s", errC)
-	}
-
-	// Case D: Multiple duplicate conflicting lines -> aborts with error
-	_, errD := validateOrAddSubidContent("kelvin-worker:100000:65536\nkelvin-worker:200000:65536\n")
-	if errD == "" {
-		t.Fatal("expected conflict error for multiple mappings, got nil")
+	if strings.Count(res2, "kelvin-worker:200000:65536") != 1 || strings.Count(res2, "opc:100000:65536") != 1 {
+		t.Errorf("Test 2: expected exactly 1 mapping of each, got: %s", res2)
 	}
 
-	// Case E: Range collision with another user (50000:60000 covers 50000-109999, overlaps 100000)
-	_, errE := validateOrAddSubidContent("otheruser:50000:60000\n")
-	if errE == "" {
-		t.Fatal("expected collision error for overlapping other user (50000:60000), got nil")
+	// 3. UID collision (Kelvin UID configured as 100000 collides with opc:100000:65536)
+	_, err3 := validateOrAddSubidContentConfigurable("opc:100000:65536\n", "UID", "100000", 65536)
+	if err3 == "" {
+		t.Fatal("Test 3: expected UID collision error, got nil")
 	}
-	if !strings.Contains(errE, "range collision") {
-		t.Errorf("expected collision message, got: %s", errE)
+	if !strings.Contains(err3, "subordinate UID range collision") || !strings.Contains(err3, "opc") {
+		t.Errorf("Test 3: expected UID collision message mentioning opc, got: %s", err3)
 	}
 
-	// Case F: Range collision with another user (150000:20000 covers 150000-169999, overlaps 165535)
-	_, errF := validateOrAddSubidContent("developer:150000:20000\n")
-	if errF == "" {
-		t.Fatal("expected collision error for overlapping other user (150000:20000), got nil")
+	// 4. GID collision (independent audit for /etc/subgid)
+	_, err4 := validateOrAddSubidContentConfigurable("opc:100000:65536\ndockergroup:200000:65536\n", "GID", "200000", 65536)
+	if err4 == "" {
+		t.Fatal("Test 4: expected GID collision error, got nil")
 	}
-	if !strings.Contains(errF, "range collision") {
-		t.Errorf("expected collision message, got: %s", errF)
+	if !strings.Contains(err4, "subordinate GID range collision") || !strings.Contains(err4, "dockergroup") {
+		t.Errorf("Test 4: expected GID collision message mentioning dockergroup, got: %s", err4)
+	}
+
+	// 5. Collision with another user's overlapping range (otheruser:150000:60000 overlaps 200000:65536)
+	_, err5 := validateOrAddSubidContentConfigurable("otheruser:150000:60000\n", "UID", "200000", 65536)
+	if err5 == "" {
+		t.Fatal("Test 5: expected collision error for 150000:60000 overlapping 200000:65536, got nil")
+	}
+	if !strings.Contains(err5, "range collision") || !strings.Contains(err5, "otheruser") {
+		t.Errorf("Test 5: unexpected error message: %s", err5)
+	}
+
+	// 6. Multiple conflicting Kelvin mappings
+	_, err6 := validateOrAddSubidContentConfigurable("kelvin-worker:200000:65536\nkelvin-worker:300000:65536\n", "UID", "200000", 65536)
+	if err6 == "" {
+		t.Fatal("Test 6: expected multiple conflicting Kelvin mappings error, got nil")
+	}
+	if !strings.Contains(err6, "conflicting subordinate UID configuration") {
+		t.Errorf("Test 6: unexpected error message: %s", err6)
+	}
+
+	// 7. No available range when ID space is exhausted
+	_, err7 := validateOrAddSubidContentConfigurable("exhaustuser:100000:4294867296\n", "UID", "auto", 65536)
+	if err7 == "" {
+		t.Fatal("Test 7: expected failure for exhausted ID space, got nil")
+	}
+	if !strings.Contains(err7, "no available contiguous subordinate ID range") {
+		t.Errorf("Test 7: unexpected error message: %s", err7)
+	}
+
+	// 8. Integer overflow and malformed subordinate-ID entries
+	// 8a. Integer overflow in existing entry
+	_, err8a := validateOrAddSubidContentConfigurable("overflowuser:4294950000:65536\n", "UID", "200000", 65536)
+	if err8a == "" {
+		t.Fatal("Test 8a: expected integer overflow error, got nil")
+	}
+	if !strings.Contains(err8a, "integer overflow") {
+		t.Errorf("Test 8a: unexpected error message: %s", err8a)
+	}
+
+	// 8b. Integer overflow in configured target
+	_, err8b := validateOrAddSubidContentConfigurable("", "UID", "4294950000", 65536)
+	if err8b == "" {
+		t.Fatal("Test 8b: expected integer overflow in configured target, got nil")
+	}
+	if !strings.Contains(err8b, "integer overflow") {
+		t.Errorf("Test 8b: unexpected error message: %s", err8b)
+	}
+
+	// 8c. Malformed line without colons
+	_, err8c := validateOrAddSubidContentConfigurable("malformed_line_no_colons\n", "UID", "200000", 65536)
+	if err8c == "" {
+		t.Fatal("Test 8c: expected malformed line error, got nil")
+	}
+	if !strings.Contains(err8c, "malformed subordinate ID entry") {
+		t.Errorf("Test 8c: unexpected error message: %s", err8c)
+	}
+
+	// 8d. Malformed line with non-numeric start
+	_, err8d := validateOrAddSubidContentConfigurable("baduser:notanumber:65536\n", "UID", "200000", 65536)
+	if err8d == "" {
+		t.Fatal("Test 8d: expected malformed non-numeric start error, got nil")
+	}
+	if !strings.Contains(err8d, "invalid start") {
+		t.Errorf("Test 8d: unexpected error message: %s", err8d)
+	}
+
+	// 9. Dynamic auto-allocation selects next contiguous range
+	res9, err9 := validateOrAddSubidContentConfigurable("opc:100000:65536\ndeveloper:165536:34464\n", "UID", "auto", 65536)
+	if err9 != "" {
+		t.Fatalf("Test 9 failed: %s", err9)
+	}
+	if !strings.Contains(res9, "kelvin-worker:200000:65536") {
+		t.Errorf("Test 9: expected auto-allocated range 200000:65536, got: %s", res9)
 	}
 }
 
