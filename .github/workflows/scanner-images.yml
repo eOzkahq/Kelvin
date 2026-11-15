@@ -24,7 +24,7 @@ on:
         required: true
         type: string
       publish:
-        description: Whether to push built images to GitHub Container Registry (ghcr.io)
+        description: Whether to push built images to GitHub Container Registry (ghcr.io) and sign with Cosign
         required: false
         default: false
         type: boolean
@@ -42,20 +42,40 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
+  attestations: write
 
 # CI Workflow Toggle: Set ENABLE_CI to 'true' (or repo var ENABLE_CI) to enable runs.
 env:
   ENABLE_CI: 'true'
 
 jobs:
-  build-scan:
+  build-scan-and-release:
     if: inputs.enable_ci == true || env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true'
-    name: Build and verify pinned scanner runtimes
+    name: Build, scan, publish and attest scanner images
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Build and verify scanner images
+      - name: Checkout repository source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Inspect runner architecture and host environment
+        shell: bash
+        run: |
+          echo "Host runner architecture: $(uname -m)"
+          echo "Target build platform:   ${{ inputs.platform || 'linux/arm64' }}"
+
+      - name: Set up QEMU for multi-arch emulation
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4480b82837412f66d573217e85c4 # v3.2.0
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b4e79d4850a0074cbe657f63 # v3.7.1
+
+      - name: Install Sigstore Cosign
+        uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+
+      - name: Build, harden and smoke test scanner images
         env:
           ZAP_BASE_IMAGE: ${{ inputs.zap_base_image }}
           ZAP_VERSION: ${{ inputs.zap_version }}
@@ -65,8 +85,9 @@ jobs:
           PLATFORM: ${{ inputs.platform || 'linux/arm64' }}
           OUT_DIR: artifacts/scanner-images
         run: bash scripts/scanners/build-images.sh
-      - name: Scan ZAP image and write SBOM
-        uses: aquasecurity/trivy-action@0.36.0
+
+      - name: Scan ZAP image for vulnerabilities & generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
         with:
           scan-type: image
           image-ref: kelvin/scanner-zap:${{ inputs.zap_version }}
@@ -75,8 +96,9 @@ jobs:
           scanners: vuln
           severity: HIGH,CRITICAL
           exit-code: "1"
-      - name: Scan Nuclei image and write SBOM
-        uses: aquasecurity/trivy-action@0.36.0
+
+      - name: Scan Nuclei image for vulnerabilities & generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
         with:
           scan-type: image
           image-ref: kelvin/scanner-nuclei:${{ inputs.nuclei_version }}
@@ -85,7 +107,8 @@ jobs:
           scanners: vuln
           severity: HIGH,CRITICAL
           exit-code: "1"
-      - name: Record image IDs and workflow inputs
+
+      - name: Record image inspection and metadata
         shell: bash
         env:
           ZAP_VERSION: ${{ inputs.zap_version }}
@@ -95,31 +118,36 @@ jobs:
           DISTROLESS_BASE_IMAGE: ${{ inputs.distroless_base_image }}
         run: |
           docker image inspect "kelvin/scanner-zap:$ZAP_VERSION" "kelvin/scanner-nuclei:$NUCLEI_VERSION" \
-            --format '{{.RepoTags}} {{.Id}} {{.Config.User}} {{json .Config.Labels}}' > artifacts/scanner-images/image-inspect.txt
-          printf 'ZAP_BASE_IMAGE=%s\nZAP_VERSION=%s\nNUCLEI_SOURCE_IMAGE=%s\nNUCLEI_VERSION=%s\nDISTROLESS_BASE_IMAGE=%s\n' \
-            "$ZAP_BASE_IMAGE" "$ZAP_VERSION" "$NUCLEI_SOURCE_IMAGE" "$NUCLEI_VERSION" "$DISTROLESS_BASE_IMAGE" \
-            > artifacts/scanner-images/build-inputs.txt
+            --format '{{.RepoTags}} {{.Id}} {{.Architecture}} {{.Os}} {{.Config.User}} {{json .Config.Labels}}' \
+            > artifacts/scanner-images/image-inspect.txt
+
       - name: Log in to GitHub Container Registry
         if: ${{ inputs.publish == true }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Tag and push scanner images to GHCR
+
+      - name: Publish to GHCR, sign with Cosign and attest supply chain
         if: ${{ inputs.publish == true }}
         shell: bash
         env:
           REPO: ${{ github.repository }}
           ZAP_VERSION: ${{ inputs.zap_version }}
           NUCLEI_VERSION: ${{ inputs.nuclei_version }}
+          OUT_DIR: artifacts/scanner-images
         run: |
           REPO_LOWER=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
-          docker tag "kelvin/scanner-zap:$ZAP_VERSION" "ghcr.io/$REPO_LOWER/scanner-zap:$ZAP_VERSION"
-          docker tag "kelvin/scanner-nuclei:$NUCLEI_VERSION" "ghcr.io/$REPO_LOWER/scanner-nuclei:$NUCLEI_VERSION"
-          docker push "ghcr.io/$REPO_LOWER/scanner-zap:$ZAP_VERSION"
-          docker push "ghcr.io/$REPO_LOWER/scanner-nuclei:$NUCLEI_VERSION"
-      - uses: actions/upload-artifact@v4
+          export REGISTRY_NAMESPACE="ghcr.io/$REPO_LOWER"
+          bash scripts/scanners/publish-and-sign.sh
+
+      - name: Verify release manifest governance
+        shell: bash
+        run: bash scripts/scanners/verify-release-manifest.sh deploy/scanners/images.lock.json
+
+      - name: Upload scanner runtime image evidence
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: scanner-runtime-image-evidence
           path: artifacts/scanner-images/

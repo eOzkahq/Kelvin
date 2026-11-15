@@ -4,7 +4,7 @@ labels: ["devops","testing","priority/critical"]
 milestone: "Scanner Execution Platform"
 issue_id: "EXEC-013"
 priority: "critical"
-status: "ready-for-dev"
+status: "completed"
 phase: "Phase 3 — Scanner Image Release and Certification"
 ---
 
@@ -14,7 +14,7 @@ phase: "Phase 3 — Scanner Image Release and Certification"
 **Phase:** Phase 3 — Scanner Image Release and Certification  
 **Issue ID:** `EXEC-013`  
 **Priority:** `critical`  
-**Status:** `ready-for-dev`  
+**Status:** `completed`  
 
 ---
 
@@ -47,8 +47,8 @@ flowchart TD
 
 ## ✅ Acceptance Criteria
 
-- [ ] GitHub Actions workflow parses successfully.
-- [ ] Manual workflow dispatch works.
-- [ ] Invalid input is rejected.
-- [ ] Unapproved workflows cannot publish release images.
-- [ ] Workflow permissions are least-privilege.
+- [x] GitHub Actions workflow parses successfully.
+- [x] Manual workflow dispatch works.
+- [x] Invalid input is rejected.
+- [x] Unapproved workflows cannot publish release images.
+- [x] Workflow permissions are least-privilege.

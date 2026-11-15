@@ -4,7 +4,7 @@ labels: ["kind/scanner-integration","devops","infrastructure","priority/critical
 milestone: "Scanner Execution Platform"
 issue_id: "EXEC-011"
 priority: "critical"
-status: "ready-for-dev"
+status: "completed"
 phase: "Phase 3 — Scanner Image Release and Certification"
 ---
 
@@ -14,7 +14,7 @@ phase: "Phase 3 — Scanner Image Release and Certification"
 **Phase:** Phase 3 — Scanner Image Release and Certification  
 **Issue ID:** `EXEC-011`  
 **Priority:** `critical`  
-**Status:** `ready-for-dev`  
+**Status:** `completed`  
 
 ---
 
@@ -45,8 +45,8 @@ flowchart LR
 
 ## ✅ Acceptance Criteria
 
-- [ ] Nuclei image runs on ARM64.
-- [ ] ZAP image runs on ARM64.
-- [ ] Executable versions match declared versions.
-- [ ] Images run as UID/GID 10001:10001.
-- [ ] No unexpected architecture fallback occurs.
+- [x] Nuclei image runs on ARM64.
+- [x] ZAP image runs on ARM64.
+- [x] Executable versions match declared versions.
+- [x] Images run as UID/GID 10001:10001.
+- [x] No unexpected architecture fallback occurs.
