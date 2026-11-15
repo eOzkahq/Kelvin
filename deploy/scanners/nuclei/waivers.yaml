@@ -1,0 +1,273 @@
+schema_version: 1.0.0
+scanner: nuclei
+metadata:
+  policy_reference: ADR-0008
+  description: Kelvin Scanner Vulnerability Exception Waiver Registry - NUCLEI
+  updated_at: '2026-11-15T20:00:00Z'
+  ttl_days:
+    CRITICAL: 30
+    HIGH: 90
+    MEDIUM: 180
+    LOW: 180
+  expiry_warning_days: 14
+waivers:
+- cve_id: CVE-2026-100349
+  component: pkg:golang/github.com/getkin/kin-openapi@v0.144.0
+  severity: HIGH
+  technical_justification: Upgrade github.com/getkin/kin-openapi to version 0
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-100349
+  approval: null
+- cve_id: CVE-2026-100351
+  component: pkg:golang/github.com/getkin/kin-openapi@v0.144.0
+  severity: HIGH
+  technical_justification: Upgrade github.com/getkin/kin-openapi to version 0
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-100351
+  approval: null
+- cve_id: CVE-2026-100352
+  component: pkg:golang/github.com/getkin/kin-openapi@v0.144.0
+  severity: HIGH
+  technical_justification: Upgrade github.com/getkin/kin-openapi to version 0
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-100352
+  approval: null
+- cve_id: CVE-2026-100353
+  component: pkg:golang/github.com/getkin/kin-openapi@v0.144.0
+  severity: HIGH
+  technical_justification: Upgrade github.com/getkin/kin-openapi to version 0
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-100353
+  approval: null
+- cve_id: CVE-2026-100354
+  component: pkg:golang/github.com/getkin/kin-openapi@v0.144.0
+  severity: HIGH
+  technical_justification: Upgrade github.com/getkin/kin-openapi to version 0
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-100354
+  approval: null
+- cve_id: CVE-2026-111943
+  component: pkg:golang/stdlib@v1.26.5
+  severity: HIGH
+  technical_justification: Upgrade stdlib to version 1.26.10, 1.27.3
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-111943
+  approval: null
+- cve_id: CVE-2026-116587
+  component: pkg:golang/github.com/go-jose/go-jose/v4@v4.1.4
+  severity: HIGH
+  technical_justification: Upgrade github.com/go-jose/go-jose/v4 to version 4
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-116587
+  approval: null
+- cve_id: CVE-2026-33818
+  component: pkg:golang/stdlib@v1.26.5
+  severity: HIGH
+  technical_justification: Upgrade stdlib to version 1.25.13, 1.26.6, 1.27.0-
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-33818
+  approval: null
+- cve_id: CVE-2026-39821
+  component: pkg:golang/stdlib@v1.26.5
+  severity: HIGH
+  technical_justification: Upgrade stdlib to version 1.25.13, 1.26.6, 1.27.0-
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-39821
+  approval: null
+- cve_id: CVE-2026-46600
+  component: pkg:golang/stdlib@v1.26.5
+  severity: MEDIUM
+  technical_justification: Upgrade stdlib to version 1.26.6, 1.27.0-rc.3
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-46600
+  approval: null
+- cve_id: CVE-2026-56851
+  component: pkg:golang/golang.org/x/text@v0.39.0
+  severity: HIGH
+  technical_justification: Upgrade golang.org/x/text to version 0.41.0
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-56851
+  approval: null
+- cve_id: CVE-2026-56853
+  component: pkg:golang/stdlib@v1.26.5
+  severity: HIGH
+  technical_justification: Upgrade stdlib to version 1.25.13, 1.26.6, 1.27.0-
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-56853
+  approval: null
+- cve_id: CVE-2026-56854
+  component: pkg:golang/golang.org/x/crypto@v0.53.0
+  severity: HIGH
+  technical_justification: Upgrade golang.org/x/crypto to version 0.55.0
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-56854
+  approval: null
+- cve_id: CVE-2026-56858
+  component: pkg:golang/stdlib@v1.26.5
+  severity: HIGH
+  technical_justification: Upgrade stdlib to version 1.25.13, 1.26.6, 1.27.0-
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-56858
+  approval: null
+- cve_id: CVE-2026-56859
+  component: pkg:golang/stdlib@v1.26.5
+  severity: HIGH
+  technical_justification: Upgrade stdlib to version 1.25.13, 1.26.6, 1.27.0-
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-56859
+  approval: null
+- cve_id: CVE-2026-56860
+  component: pkg:golang/stdlib@v1.26.5
+  severity: HIGH
+  technical_justification: Upgrade stdlib to version 1.25.13, 1.26.6, 1.27.0-
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-56860
+  approval: null
+- cve_id: CVE-2026-56862
+  component: pkg:golang/stdlib@v1.26.5
+  severity: HIGH
+  technical_justification: Upgrade stdlib to version 1.25.13, 1.26.6, 1.27.0-
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-56862
+  approval: null
+- cve_id: CVE-2026-56864
+  component: pkg:golang/golang.org/x/mod@v0.37.0
+  severity: HIGH
+  technical_justification: Upgrade golang.org/x/mod to version 0.40.0
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-56864
+  approval: null
+- cve_id: CVE-2026-56865
+  component: pkg:golang/golang.org/x/mod@v0.37.0
+  severity: HIGH
+  technical_justification: Upgrade golang.org/x/mod to version 0.40.0
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-56865
+  approval: null
+- cve_id: CVE-2026-71556
+  component: pkg:golang/github.com/go-git/go-git/v5@v5.19.1
+  severity: CRITICAL
+  technical_justification: Upgrade github.com/go-git/go-git/v5 to version 5.1
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-71556
+  approval: null
+- cve_id: CVE-2026-78661
+  component: pkg:golang/golang.org/x/net@v0.56.0
+  severity: MEDIUM
+  technical_justification: Upgrade golang.org/x/net to version 0.62.0
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-78661
+  approval: null
+- cve_id: CVE-2026-78667
+  component: pkg:golang/stdlib@v1.26.5
+  severity: HIGH
+  technical_justification: Upgrade stdlib to version 1.26.9, 1.27.2
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-78667
+  approval: null
+- cve_id: CVE-2026-78669
+  component: pkg:golang/golang.org/x/net@v0.56.0
+  severity: HIGH
+  technical_justification: Upgrade golang.org/x/net to version 0.60.0; Upgrad
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-78669
+  approval: null
+- cve_id: CVE-2026-84304
+  component: pkg:golang/google.golang.org/grpc@v1.82.1
+  severity: HIGH
+  technical_justification: Upgrade google.golang.org/grpc to version 1.83.1
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-84304
+  approval: null
+- cve_id: CVE-2026-84445
+  component: pkg:golang/google.golang.org/grpc@v1.82.1
+  severity: HIGH
+  technical_justification: Upgrade google.golang.org/grpc to version 1.82.2,
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-84445
+  approval: null
+- cve_id: CVE-2026-97031
+  component: pkg:golang/stdlib@v1.26.5
+  severity: HIGH
+  technical_justification: Upgrade stdlib to version 1.26.9, 1.27.2
+  status: pending_review
+  owner: null
+  review_date: null
+  expiry_date: null
+  tracking_reference: https://pkg.go.dev/vuln/CVE-2026-97031
+  approval: null

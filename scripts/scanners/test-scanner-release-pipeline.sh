@@ -847,6 +847,72 @@ else
 fi
 
 # ------------------------------------------------------------------------------
+# SCENARIO 18: Vulnerability Exception Governance Verification
+# ------------------------------------------------------------------------------
+echo "--- Testing Scenario 18: Vulnerability Exception Governance Verification ---"
+
+# 18a: Canonical waiver registries exist, schema version 1.0.0, and contain all 410 exceptions
+if python -c "
+import yaml, sys
+
+for path, expected_scanner, expected_count in [
+    ('deploy/scanners/zap/waivers.yaml', 'zap', 384),
+    ('deploy/scanners/nuclei/waivers.yaml', 'nuclei', 26)
+]:
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+    if data.get('schema_version') not in ['1.0.0', '1', 1]:
+        sys.exit(1)
+    if data.get('scanner') != expected_scanner:
+        sys.exit(2)
+    waivers = data.get('waivers', [])
+    if len(waivers) != expected_count:
+        sys.exit(3)
+    # Assert every migrated record is pending_review
+    for w in waivers:
+        if w.get('status') != 'pending_review':
+            sys.exit(4)
+sys.exit(0)
+"; then
+  test_pass "Scenario 18a: Canonical waiver registries contain all 410 migrated exceptions in 'pending_review' status"
+else
+  test_fail "Scenario 18a: Canonical waiver registries missing, malformed, or have non-pending records"
+fi
+
+# 18b: Waiver governance unit test suite passes completely
+if python scripts/scanners/test-waiver-governance.py >/dev/null 2>&1; then
+  test_pass "Scenario 18b: Waiver governance comprehensive unit test suite passed (15/15 tests)"
+else
+  test_fail "Scenario 18b: Waiver governance test suite failed"
+fi
+
+# 18c: Waiver registries and generated .trivyignore files are strictly synchronized
+if python scripts/scanners/validate-waivers.py --verify-sync >/dev/null 2>&1; then
+  test_pass "Scenario 18c: Waiver registries and generated .trivyignore files verified in strict synchronization"
+else
+  test_fail "Scenario 18c: Synchronization drift between waiver registries and .trivyignore files"
+fi
+
+# 18d: Workflow contains waiver registry validation and reconciliation steps
+if python -c "
+import yaml, sys
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+
+build_steps = wf.get('jobs', {}).get('build-and-scan', {}).get('steps', [])
+has_val = any('validate-waivers.py --check --verify-sync' in s.get('run', '') for s in build_steps)
+has_recon = any('validate-waivers.py' in s.get('run', '') and '--reconcile' in s.get('run', '') for s in build_steps)
+
+if not has_val or not has_recon:
+    sys.exit(1)
+sys.exit(0)
+"; then
+  test_pass "Scenario 18d: Workflow contains waiver validation and raw-finding reconciliation steps"
+else
+  test_fail "Scenario 18d: Workflow missing waiver validation or reconciliation steps"
+fi
+
+# ------------------------------------------------------------------------------
 # Summary
 # ------------------------------------------------------------------------------
 echo "=============================================================================="
@@ -854,7 +920,7 @@ echo "Scanner Release Pipeline Test Results: $PASS_COUNT PASSED, $FAIL_COUNT FAI
 echo "=============================================================================="
 
 if [[ $FAIL_COUNT -eq 0 ]]; then
-  echo "ALL 17 SCANNER RELEASE GATES PASSED!"
+  echo "ALL 18 SCANNER RELEASE GATES PASSED!"
   exit 0
 else
   echo "TEST SUITE FAILED!" >&2

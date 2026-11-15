@@ -78,6 +78,10 @@ jobs:
           OUT_DIR: artifacts/scanner-images
         run: bash scripts/scanners/build-images.sh
 
+      - name: Validate scanner vulnerability exception waiver registries
+        shell: bash
+        run: python scripts/scanners/validate-waivers.py --check --verify-sync
+
       - name: Scan ZAP image for vulnerabilities & generate CycloneDX SBOM
         id: scan_zap
         uses: aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37 # v0.31.0
@@ -107,6 +111,28 @@ jobs:
           scanners: vuln
           severity: HIGH,CRITICAL
           exit-code: "1"
+
+      - name: Generate unsuppressed raw vulnerability inventories
+        shell: bash
+        env:
+          ZAP_VERSION: ${{ inputs.zap_version }}
+          NUCLEI_VERSION: ${{ inputs.nuclei_version }}
+        run: |
+          trivy image --scanners vuln --severity HIGH,CRITICAL --format cyclonedx \
+            --output artifacts/scanner-images/zap-raw.cdx.json \
+            "kelvin/scanner-zap:$ZAP_VERSION" || true
+          trivy image --scanners vuln --severity HIGH,CRITICAL --format cyclonedx \
+            --output artifacts/scanner-images/nuclei-raw.cdx.json \
+            "kelvin/scanner-nuclei:$NUCLEI_VERSION" || true
+
+      - name: Reconcile scanner vulnerabilities against waiver registries
+        shell: bash
+        run: |
+          python scripts/scanners/validate-waivers.py \
+            --reconcile \
+            --zap-raw artifacts/scanner-images/zap-raw.cdx.json \
+            --nuclei-raw artifacts/scanner-images/nuclei-raw.cdx.json \
+            --output artifacts/scanner-images/vulnerability-waiver-reconciliation.txt
 
       - name: Generate human-readable vulnerability diagnostic reports
         shell: bash
