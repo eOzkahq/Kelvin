@@ -1,0 +1,88 @@
+name: Scanner Release Readiness Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'deploy/scanners/**'
+      - 'scripts/scanners/**'
+      - 'tools/reconcile-vulns/**'
+      - 'tools/scanner-scorecard/**'
+      - '.github/workflows/scanner-release-gate.yml'
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'deploy/scanners/**'
+      - 'scripts/scanners/**'
+  workflow_dispatch:
+    inputs:
+      candidate_tag:
+        description: 'Scanner Release Candidate Tag (e.g., v1.0.0-rc1)'
+        required: false
+        type: string
+      strict:
+        description: 'Fail closed if manifest status is not-released'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scanner-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  readiness-gate:
+    name: Scanner Release Readiness Verification Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go Toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Setup Python Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml jsonschema
+
+      - name: Execute Scanner Release Readiness Gate
+        run: |
+          STRICT_FLAG=""
+          if [ "${{ github.event.inputs.strict }}" = "true" ]; then
+            STRICT_FLAG="--strict"
+          fi
+          bash scripts/scanners/release-readiness-check.sh \
+            --manifest deploy/scanners/images.lock.json \
+            --candidate-tag "${{ github.event.inputs.candidate_tag || github.ref_name }}" \
+            $STRICT_FLAG
+
+      - name: Upload Release Readiness Report Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scanner-release-readiness-report
+          path: |
+            reports/scanners/release-readiness-report.json
+            reports/scanners/release-readiness-report.md
+          if-no-files-found: warn
+
+      - name: Publish Summary to GitHub Step Summary
+        if: always()
+        run: |
+          if [ -f "reports/scanners/release-readiness-report.md" ]; then
+            cat reports/scanners/release-readiness-report.md >> $GITHUB_STEP_SUMMARY
+          fi
