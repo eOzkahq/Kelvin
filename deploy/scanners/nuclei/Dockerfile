@@ -1,9 +1,10 @@
 # The upstream image is used only as a source for the statically linked Nuclei
 # binary. The final runtime contains no shell, package manager, or compiler.
 ARG NUCLEI_SOURCE_IMAGE
+ARG DISTROLESS_BASE_IMAGE
+
 FROM ${NUCLEI_SOURCE_IMAGE} AS upstream
 
-ARG DISTROLESS_BASE_IMAGE
 FROM ${DISTROLESS_BASE_IMAGE}
 
 ARG NUCLEI_VERSION

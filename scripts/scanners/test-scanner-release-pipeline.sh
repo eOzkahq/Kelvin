@@ -18,6 +18,7 @@
 # 14. Attempts to certify incomplete manifests (null/empty digests rejected)
 # 15. Worker rejection of 'not-released' manifests in staging/production
 # 16. Workflow permission boundaries & publish=false gating (least-privilege CI)
+# 17. Nuclei Dockerfile global ARG scoping before FROM instructions
 # ==============================================================================
 set -euo pipefail
 
@@ -685,6 +686,79 @@ sys.exit(1)
 fi
 
 # ------------------------------------------------------------------------------
+# SCENARIO 17: Nuclei Dockerfile Global ARG Placement Verification
+# ------------------------------------------------------------------------------
+echo "--- Testing Scenario 17: Nuclei Dockerfile Global ARG Scope Verification ---"
+nuclei_dockerfile="deploy/scanners/nuclei/Dockerfile"
+
+validate_dockerfile_from_args() {
+  local df_path="$1"
+  python -c "
+import sys, re
+
+with open('$df_path', 'r') as f:
+    lines = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+
+# Find the index of the first FROM instruction
+first_from_idx = None
+for idx, line in enumerate(lines):
+    if re.match(r'^FROM\s+', line, re.IGNORECASE):
+        first_from_idx = idx
+        break
+
+if first_from_idx is None:
+    print('No FROM instruction found', file=sys.stderr)
+    sys.exit(1)
+
+# Collect all ARGs before the first FROM (global scope)
+global_args = set()
+for line in lines[:first_from_idx]:
+    m = re.match(r'^ARG\s+([A-Za-z0-9_]+)', line, re.IGNORECASE)
+    if m:
+        global_args.add(m.group(1))
+
+# Check for required global ARGs used in subsequent FROM instructions
+required_from_args = {'NUCLEI_SOURCE_IMAGE', 'DISTROLESS_BASE_IMAGE'}
+missing = required_from_args - global_args
+if missing:
+    print(f'Missing required global ARG(s) before first FROM: {missing}', file=sys.stderr)
+    sys.exit(1)
+
+# Ensure DISTROLESS_BASE_IMAGE is not declared between FROM instructions
+for line in lines[first_from_idx:]:
+    if re.match(r'^FROM\s+', line, re.IGNORECASE):
+        continue
+    if re.match(r'^ARG\s+DISTROLESS_BASE_IMAGE', line, re.IGNORECASE):
+        print('DISTROLESS_BASE_IMAGE found in stage scope instead of global scope', file=sys.stderr)
+        sys.exit(2)
+
+sys.exit(0)
+"
+}
+
+if validate_dockerfile_from_args "$nuclei_dockerfile"; then
+  test_pass "Scenario 17a: Nuclei Dockerfile declares both NUCLEI_SOURCE_IMAGE and DISTROLESS_BASE_IMAGE before first FROM"
+else
+  test_fail "Scenario 17a: Nuclei Dockerfile global ARG validation failed"
+fi
+
+# Negative test: Dockerfile with misplaced ARG after first FROM must be rejected
+faulty_dockerfile="$TMP_TEST_DIR/faulty.Dockerfile"
+cat <<'EOF' > "$faulty_dockerfile"
+ARG NUCLEI_SOURCE_IMAGE
+FROM ${NUCLEI_SOURCE_IMAGE} AS upstream
+
+ARG DISTROLESS_BASE_IMAGE
+FROM ${DISTROLESS_BASE_IMAGE}
+EOF
+
+if ! validate_dockerfile_from_args "$faulty_dockerfile" >/dev/null 2>&1; then
+  test_pass "Scenario 17b: Misplaced ARG DISTROLESS_BASE_IMAGE after first FROM successfully detected and rejected"
+else
+  test_fail "Scenario 17b: Faulty Dockerfile with misplaced ARG was accepted"
+fi
+
+# ------------------------------------------------------------------------------
 # Summary
 # ------------------------------------------------------------------------------
 echo "=============================================================================="
@@ -692,7 +766,7 @@ echo "Scanner Release Pipeline Test Results: $PASS_COUNT PASSED, $FAIL_COUNT FAI
 echo "=============================================================================="
 
 if [[ $FAIL_COUNT -eq 0 ]]; then
-  echo "ALL 16 SCANNER RELEASE GATES PASSED!"
+  echo "ALL 17 SCANNER RELEASE GATES PASSED!"
   exit 0
 else
   echo "TEST SUITE FAILED!" >&2
