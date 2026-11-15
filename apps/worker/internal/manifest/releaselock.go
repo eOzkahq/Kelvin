@@ -472,3 +472,18 @@ func ValidateCertifiedManifest(lock *ScannerImageLock, catalogPath string) error
 	}
 	return nil
 }
+
+// ValidateNucleiVersionMatch verifies that the runtime output of Nuclei matches
+// the build input semantic version. Build input must be semver without 'v' (e.g. 3.11.1),
+// while Nuclei executable binary reports 'v3.11.1'.
+func ValidateNucleiVersionMatch(buildInput, runtimeOutput string) error {
+	if err := ValidateSemanticVersion(buildInput); err != nil {
+		return fmt.Errorf("build input version: %w", err)
+	}
+	expectedV := "v" + buildInput
+	if !strings.Contains(runtimeOutput, expectedV) && !strings.Contains(runtimeOutput, buildInput) {
+		return fmt.Errorf("nuclei runtime version mismatch: binary output %q does not match expected version %q", runtimeOutput, buildInput)
+	}
+	return nil
+}
+

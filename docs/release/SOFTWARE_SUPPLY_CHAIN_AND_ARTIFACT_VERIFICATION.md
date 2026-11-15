@@ -99,10 +99,10 @@ All container images and dependency manifests are evaluated against the followin
 ## 5. Scanner Runtime Image Release Pipeline (ADR-0008)
 
 The scanner execution platform operates under strict release governance:
-- **Registry Namespaces:** `ghcr.io/inkesk-dozing/kelvin/scanner-zap` and `ghcr.io/inkesk-dozing/kelvin/scanner-nuclei`.
+- **Registry Namespaces:** `ghcr.io/eozkull/kelvin/scanner-zap` and `ghcr.io/eozkull/kelvin/scanner-nuclei`.
 - **Target Platform:** `linux/arm64` (native ARM64 runner or verified QEMU binfmt emulation).
 - **Execution Account:** Unprivileged UID/GID `10001:10001` with `--read-only` rootfs and dropped capabilities (`--cap-drop=ALL`).
-- **Supply Chain Signing:** Sigstore Cosign keyless signing via GitHub Actions OIDC (`https://token.actions.githubusercontent.com`).
+- **Supply Chain Signing:** Sigstore Cosign keyless signing via GitHub Actions OIDC (`https://token.actions.githubusercontent.com`) bound to repository identity `https://github.com/eOzkull/Kelvin/.github/workflows/*`.
 - **Attestations:** SLSA build provenance and CycloneDX SBOM attestations attached to the exact registry manifest digest.
 - **Authoritative Manifest:** `deploy/scanners/images.lock.json` remains strictly `not-released` until all gates pass. The worker daemon fails closed if live container execution is attempted against uncertified images.
 - **Automated Gates:** Verified by `scripts/scanners/test-scanner-release-pipeline.sh` (15 acceptance conditions) and `apps/worker/internal/manifest/scanner_release_test.go`.

@@ -28,7 +28,7 @@ Publish multi-arch/ARM64 scanner images to GitHub Container Registry with immuta
 
 ```mermaid
 flowchart LR
-    Build["CI Image Build"] --> Push["Push to ghcr.io/inkesk-dozing/kelvin-scanners"]
+    Build["CI Image Build"] --> Push["Push to ghcr.io/eozkull/kelvin"]
     Push --> Digest["Extract Immutable SHA256 Digest"]
     Digest --> Lock["Update Authoritative Release Lock"]
 ```

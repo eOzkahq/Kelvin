@@ -23,7 +23,7 @@ export const INITIAL_TASKS: RemediationTask[] = [
     slaHoursRemaining: 18,
     isOverdue: false,
     remediationGuidance: "Bump log4j-core dependency to >= 2.17.1 across microservice POMs and Docker base images.",
-    prUrl: "https://github.com/Inkesk-Dozing/Kelvin/pull/432",
+    prUrl: "https://github.com/eOzkull/Kelvin/pull/432",
     commitSha: "1056b5a",
     notes: [
       {

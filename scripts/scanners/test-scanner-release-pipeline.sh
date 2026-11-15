@@ -145,6 +145,39 @@ else
   test_fail "Scenario 4b: Invalid version string accepted"
 fi
 
+# Nuclei semantic version handling: build input is "3.11.1" (pure semver),
+# while runtime binary output reports "v3.11.1"
+validate_nuclei_version_match() {
+  local build_v="$1" runtime_out="$2"
+  if ! validate_version "$build_v"; then
+    return 1 # build input must be pure semver (no leading v)
+  fi
+  local expected_v="v$build_v"
+  if ! grep -Eq "(^|[^0-9A-Za-z])v?${build_v}([^0-9A-Za-z]|$)" <<<"$runtime_out"; then
+    return 2 # runtime output mismatch
+  fi
+  return 0
+}
+
+mock_nuclei_output="[INF] Current nuclei version: v3.11.1 (latest)"
+if validate_nuclei_version_match "3.11.1" "$mock_nuclei_output"; then
+  test_pass "Scenario 4c: Nuclei semver build input (3.11.1) matches binary report (v3.11.1)"
+else
+  test_fail "Scenario 4c: Nuclei version match failed"
+fi
+
+if ! validate_nuclei_version_match "v3.11.1" "$mock_nuclei_output"; then
+  test_pass "Scenario 4d: Nuclei build input with leading 'v' strictly rejected"
+else
+  test_fail "Scenario 4d: Leading 'v' in build input was accepted"
+fi
+
+if ! validate_nuclei_version_match "3.11.1" "[INF] Current nuclei version: v3.10.0 (outdated)"; then
+  test_pass "Scenario 4e: Mismatched Nuclei binary version strictly rejected"
+else
+  test_fail "Scenario 4e: Mismatched Nuclei binary version accepted"
+fi
+
 # ------------------------------------------------------------------------------
 # SCENARIO 5: Architecture Mismatch
 # ------------------------------------------------------------------------------
@@ -310,25 +343,26 @@ verify_provenance_identity() {
   if [[ "$issuer" != "$req_issuer" ]]; then
     return 1
   fi
-  if [[ ! "$uri" =~ ^https://github\.com/Inkesk-Dozing/Kelvin/\.github/workflows/ ]]; then
+  if [[ ! "$uri" =~ ^https://github\.com/eOzkull/Kelvin/\.github/workflows/ ]]; then
     return 2
   fi
   return 0
 }
 
-good_uri="https://github.com/Inkesk-Dozing/Kelvin/.github/workflows/scanner-images.yml@refs/heads/main"
+good_uri="https://github.com/eOzkull/Kelvin/.github/workflows/scanner-images.yml@refs/heads/main"
 good_issuer="https://token.actions.githubusercontent.com"
 if verify_provenance_identity "$good_uri" "$good_issuer"; then
-  test_pass "Scenario 11a: Expected repo and workflow provenance identity accepted"
+  test_pass "Scenario 11a: Expected repo and workflow provenance identity (eOzkull/Kelvin) accepted"
 else
   test_fail "Scenario 11a: Valid provenance identity rejected"
 fi
 
 foreign_uri="https://github.com/Attacker/Kelvin/.github/workflows/scanner-images.yml@refs/heads/main"
-if ! verify_provenance_identity "$foreign_uri" "$good_issuer"; then
-  test_pass "Scenario 11b: Foreign/unauthorized repository provenance strictly rejected"
+old_owner_uri="https://github.com/Inkesk-Dozing/Kelvin/.github/workflows/scanner-images.yml@refs/heads/main"
+if ! verify_provenance_identity "$foreign_uri" "$good_issuer" && ! verify_provenance_identity "$old_owner_uri" "$good_issuer"; then
+  test_pass "Scenario 11b: Foreign provenance and legacy owner (Inkesk-Dozing) strictly rejected"
 else
-  test_fail "Scenario 11b: Foreign provenance identity accepted"
+  test_fail "Scenario 11b: Foreign or legacy provenance identity accepted"
 fi
 
 # ------------------------------------------------------------------------------
@@ -411,9 +445,31 @@ cat <<'EOF' > "$incomplete_manifest"
 EOF
 
 if ! bash scripts/scanners/verify-release-manifest.sh "$incomplete_manifest" >/dev/null 2>&1; then
-  test_pass "Scenario 14: Attempt to certify incomplete manifest with null digests rejected"
+  test_pass "Scenario 14a: Attempt to certify incomplete manifest with null digests rejected"
 else
-  test_fail "Scenario 14: Incomplete manifest was certified"
+  test_fail "Scenario 14a: Incomplete manifest was certified"
+fi
+
+old_ns_manifest="$TMP_TEST_DIR/old_ns.json"
+cat <<'EOF' > "$old_ns_manifest"
+{
+  "schema_version": "1",
+  "status": "certified",
+  "images": {
+    "zap": {
+      "upstream": "ghcr.io/zaproxy/zaproxy:stable",
+      "upstream_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "version": "2.15.0",
+      "kelvin_image": "ghcr.io/inkesk-dozing/kelvin/scanner-zap",
+      "kelvin_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  }
+}
+EOF
+if ! bash scripts/scanners/verify-release-manifest.sh "$old_ns_manifest" >/dev/null 2>&1; then
+  test_pass "Scenario 14b: Legacy namespace (ghcr.io/inkesk-dozing) in manifest rejected"
+else
+  test_fail "Scenario 14b: Legacy namespace in manifest was accepted"
 fi
 
 # ------------------------------------------------------------------------------

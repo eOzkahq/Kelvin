@@ -73,7 +73,9 @@ To achieve live operational certification on the Oracle Linux 9.8 ARM64 host, th
    - Populate `/etc/kelvin/worker.env` with valid staging credentials (DB connection with `verify-full`, Upstash Redis TLS token, Supabase service-role key, worker token secret).
 3. **Scanner Image Builds & Certification:**
    - Execute the ARM64 image build pipeline (`scripts/scanners/build-images.sh`) on an ARM64 runner or via Docker buildx.
-   - Publish built images to GHCR (`ghcr.io/inkesk-dozing/scanner-zap`, `ghcr.io/inkesk-dozing/scanner-nuclei`).
-   - Record verifiable SHA256 digests in `deploy/scanners/images.lock.json` and change status from `not-released` to `certified`.
+   - Publish built images to GHCR (`ghcr.io/eozkull/kelvin/scanner-zap`, `ghcr.io/eozkull/kelvin/scanner-nuclei`).
+   - Sign published images using Sigstore Cosign keyless OIDC signing, and attach SLSA provenance and CycloneDX SBOM attestations.
+   - Record verifiable SHA256 digests in `deploy/scanners/images.lock.json` and change status from `not-released` to `certified` (validating structural schema and catalog digest constraints via `scripts/scanners/verify-release-manifest.sh`).
+   - Independently verify cryptographic Cosign signatures and attestations on the published container images via `scripts/release/verify-artifact-provenance.sh`.
 4. **Service Activation & Smoke Test:**
    - Run `scripts/deploy/staging-deploy.sh` to compile the binary, start `kelvin-worker.service`, and verify end-to-end task execution against an authorized staging target.
