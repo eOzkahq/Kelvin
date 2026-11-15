@@ -1,0 +1,2692 @@
+{
+  "schema_version": "1.0.0",
+  "scanner": "zap",
+  "total_findings": 384,
+  "audit_date": "2026-11-15",
+  "packages": {
+    "linux-libc-dev": {
+      "package_name": "linux-libc-dev",
+      "installed_version": "6.1.190-1?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": false,
+      "is_dev_package": false,
+      "cve_count": 193,
+      "findings": [
+        {
+          "cve_id": "CVE-2013-7445",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2013-7445",
+          "technical_justification": "The Direct Rendering Manager (DRM) subsystem in th"
+        },
+        {
+          "cve_id": "CVE-2019-19449",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2019-19449",
+          "technical_justification": "In the Linux kernel 5.0.21, mounting a crafted f2f"
+        },
+        {
+          "cve_id": "CVE-2019-19814",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2019-19814",
+          "technical_justification": "In the Linux kernel 5.0.21, mounting a crafted f2f"
+        },
+        {
+          "cve_id": "CVE-2021-3847",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2021-3847",
+          "technical_justification": "An unauthorized access to the execution of the set"
+        },
+        {
+          "cve_id": "CVE-2021-3864",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2021-3864",
+          "technical_justification": "A flaw was found in the way the dumpable flag sett"
+        },
+        {
+          "cve_id": "CVE-2023-52452",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-52452",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2023-52586",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-52586",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2023-52624",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-52624",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2023-52751",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-52751",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2023-53218",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-53218",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-21803",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-21803",
+          "technical_justification": "Use After Free vulnerability in Linux Linux kernel"
+        },
+        {
+          "cve_id": "CVE-2024-21963",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-21963",
+          "technical_justification": "An out-of-bounds read vulnerability in the IOMMU c"
+        },
+        {
+          "cve_id": "CVE-2024-26669",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-26669",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-26836",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-26836",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-26913",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-26913",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-26914",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-26914",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-26944",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-26944",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-38570",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-38570",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-38630",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-38630",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-41045",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-41045",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-41935",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-41935",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-42118",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-42118",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-42162",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-42162",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-44941",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-44941",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-44942",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-44942",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-44951",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-44951",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-46729",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-46729",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-46811",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-46811",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-46813",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-46813",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-47691",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-47691",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-50217",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-50217",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-50226",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-50226",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-50282",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-50282",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-53068",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-53068",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-53147",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-53147",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-53168",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-53168",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-53179",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-53179",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-53218",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-53218",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-56538",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-56538",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-56775",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-56775",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-57900",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-57900",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2024-57982",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2024-57982",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-21927",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-21927",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-21967",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-21967",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-21969",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-21969",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-21985",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-21985",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-23133",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-23133",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-37750",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-37750",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-37776",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-37776",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-37777",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-37777",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-37861",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-37861",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-37952",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-37952",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-37957",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-37957",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38069",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38069",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38081",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38081",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38182",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38182",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38204",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38204",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38248",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38248",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38369",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38369",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38582",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38582",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38585",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38585",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38595",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38595",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38636",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38636",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38722",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38722",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-38734",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-38734",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-39744",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-39744",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-39797",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-39797",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-39810",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-39810",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-39859",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-39859",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-39952",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-39952",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-40137",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-40137",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-40333",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-40333",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-40354",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-40354",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-68809",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-68809",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-71068",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-71068",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-71073",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-71073",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2025-71152",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-71152",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-0004",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-0004",
+          "technical_justification": "A transient execution vulnerability in some AMD pr"
+        },
+        {
+          "cve_id": "CVE-2026-100072",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-100072",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-23171",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-23171",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-23208",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-23208",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-23226",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-23226",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-23327",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-23327",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-23361",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-23361",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-31432",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-31432",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-31493",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-31493",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-31527",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-31527",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-31568",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-31568",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-31729",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-31729",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-43049",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-43049",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-43125",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-43125",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-43185",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-43185",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-43250",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-43250",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-45893",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-45893",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-45943",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-45943",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-45957",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-45957",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-46054",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-46054",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-46068",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-46068",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-46130",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-46130",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-46181",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-46181",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-46219",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-46219",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-46241",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-46241",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-46293",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-46293",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-52991",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-52991",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53000",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53000",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53091",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53091",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53115",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53115",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53117",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53117",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53118",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53118",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53120",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53120",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53129",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53129",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53143",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53143",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53156",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53156",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53179",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53179",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53262",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53262",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53272",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53272",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-53330",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53330",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-63826",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-63826",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64001",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64001",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64017",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64017",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64026",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64026",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64138",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64138",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64305",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64305",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64320",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64320",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64341",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64341",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64348",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64348",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64389",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64389",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64392",
+          "severity": "CRITICAL",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64392",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64400",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64400",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64424",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64424",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-64556",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64556",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-68409",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-68409",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-68426",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-68426",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-68470",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-68470",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-72042",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-72042",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-72098",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-72098",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-72130",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-72130",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-74269",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-74269",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-74345",
+          "severity": "CRITICAL",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-74345",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-74752",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-74752",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-80837",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-80837",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-80841",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-80841",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89465",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89465",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89526",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89526",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89530",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89530",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89545",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89545",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89564",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89564",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89631",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89631",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89633",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89633",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89638",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89638",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89652",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89652",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89659",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89659",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89675",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89675",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89676",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89676",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89708",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89708",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89713",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89713",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89761",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89761",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89811",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89811",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-89972",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-89972",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-90036",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-90036",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-90111",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-90111",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-90206",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-90206",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-90227",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-90227",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-90315",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-90315",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-93817",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-93817",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98107",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98107",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98111",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98111",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98222",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98222",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98364",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98364",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98466",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98466",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98490",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98490",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98549",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98549",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98715",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98715",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98716",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98716",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98725",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98725",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98741",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98741",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98742",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98742",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98769",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98769",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98805",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98805",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98853",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98853",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-98857",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-98857",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99056",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99056",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99083",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99083",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99109",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99109",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99152",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99152",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99153",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99153",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99233",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99233",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99236",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99236",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99246",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99246",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99272",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99272",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99281",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99281",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99284",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99284",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        },
+        {
+          "cve_id": "CVE-2026-99288",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-99288",
+          "technical_justification": "In the Linux kernel, the following vulnerability h"
+        }
+      ]
+    },
+    "libharfbuzz0b": {
+      "package_name": "libharfbuzz0b",
+      "installed_version": "6.0.0%2Bdfsg-3?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2023-25193",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-25193",
+          "technical_justification": "hb-ot-layout-gsubgpos.hh in HarfBuzz through 6.0.0"
+        }
+      ]
+    },
+    "libldap-2.5-0": {
+      "package_name": "libldap-2.5-0",
+      "installed_version": "2.5.13%2Bdfsg-5?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2023-2953",
+          "severity": "LOW",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-2953",
+          "technical_justification": "A vulnerability was found in openldap. This securi"
+        }
+      ]
+    },
+    "libaom3": {
+      "package_name": "libaom3",
+      "installed_version": "3.6.0-1%2Bdeb12u3?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 2,
+      "findings": [
+        {
+          "cve_id": "CVE-2023-39616",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-39616",
+          "technical_justification": "AOMedia v3.0.0 to v3.5.0 was discovered to contain"
+        },
+        {
+          "cve_id": "CVE-2023-6879",
+          "severity": "CRITICAL",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-6879",
+          "technical_justification": "Increasing the resolution of video frames, while p"
+        }
+      ]
+    },
+    "zlib1g-dev": {
+      "package_name": "zlib1g-dev",
+      "installed_version": "1.2.13.dfsg-1?arch=arm64&distro=debian-12.15&epoch=1",
+      "ecosystem": "debian",
+      "runtime_required": false,
+      "is_dev_package": true,
+      "cve_count": 3,
+      "findings": [
+        {
+          "cve_id": "CVE-2023-45853",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-45853",
+          "technical_justification": "MiniZip in zlib through 1.3 has an integer overflo"
+        },
+        {
+          "cve_id": "CVE-2026-76844",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-76844",
+          "technical_justification": "webpack-dev-middleware 5.3.4, 6.1.2 through 6.1.3,"
+        },
+        {
+          "cve_id": "CVE-2026-85091",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-85091",
+          "technical_justification": "zlib 1.2.11 through 1.3.2 contains a heap buffer o"
+        }
+      ]
+    },
+    "libtiff6": {
+      "package_name": "libtiff6",
+      "installed_version": "4.5.0-6%2Bdeb12u4?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 4,
+      "findings": [
+        {
+          "cve_id": "CVE-2023-52355",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-52355",
+          "technical_justification": "An out-of-memory flaw was found in libtiff that co"
+        },
+        {
+          "cve_id": "CVE-2026-12912",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-12912",
+          "technical_justification": "A flaw was found in libtiff. A remote attacker cou"
+        },
+        {
+          "cve_id": "CVE-2026-36849",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-36849",
+          "technical_justification": "Package updates are available for Amazon Linux 202"
+        },
+        {
+          "cve_id": "CVE-2026-52490",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-52490",
+          "technical_justification": "An issue in libtiff 85f2ac8e0b01cb7db2bbecf4a3b891"
+        }
+      ]
+    },
+    "xserver-common": {
+      "package_name": "xserver-common",
+      "installed_version": "21.1.7-3%2Bdeb12u13?arch=all&distro=debian-12.15&epoch=2",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 13,
+      "findings": [
+        {
+          "cve_id": "CVE-2023-5574",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2023-5574",
+          "technical_justification": "A use-after-free flaw was found in xorg-x11-server"
+        },
+        {
+          "cve_id": "CVE-2026-109091",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-109091",
+          "technical_justification": "A buffer overflow in handling\u00a0EDID Display-Range d"
+        },
+        {
+          "cve_id": "CVE-2026-109092",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-109092",
+          "technical_justification": "Incorrectly handled negative sizes when processing"
+        },
+        {
+          "cve_id": "CVE-2026-109093",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-109093",
+          "technical_justification": "A stack buffer overflow in\u00a0\u00a0ProcXTestFakeInput Dev"
+        },
+        {
+          "cve_id": "CVE-2026-109095",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-109095",
+          "technical_justification": "A integer overflow in\u00a0glamor Xv Image Size handlin"
+        },
+        {
+          "cve_id": "CVE-2026-109096",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-109096",
+          "technical_justification": "Incorrect handling of negative returns from\u00a0ddQuer"
+        },
+        {
+          "cve_id": "CVE-2026-109903",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-109903",
+          "technical_justification": "A buffer overread caused by casting a negative int"
+        },
+        {
+          "cve_id": "CVE-2026-55999",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-55999",
+          "technical_justification": "Local attackers with a X connection able to provid"
+        },
+        {
+          "cve_id": "CVE-2026-56000",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-56000",
+          "technical_justification": "Local attackers with a X connection able to provid"
+        },
+        {
+          "cve_id": "CVE-2026-88812",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-88812",
+          "technical_justification": "A double free in\u00a0XKB SetGeometryin X.Org X Server"
+        },
+        {
+          "cve_id": "CVE-2026-93516",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-93516",
+          "technical_justification": "A use-after-free caused by lack of lifecycle manag"
+        },
+        {
+          "cve_id": "CVE-2026-93521",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-93521",
+          "technical_justification": "A buffer overflow in RandR"
+        },
+        {
+          "cve_id": "CVE-2026-93523",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-93523",
+          "technical_justification": "A heap buffer overflow caused by a XIPassiveUngrab"
+        }
+      ]
+    },
+    "setuptools": {
+      "package_name": "setuptools",
+      "installed_version": "70.3.0",
+      "ecosystem": "pypi",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2025-47273",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://nvd.nist.gov/vuln/detail/CVE-2025-47273",
+          "technical_justification": "Upgrade setuptools to version 78.1.1"
+        }
+      ]
+    },
+    "libpam-modules-bin": {
+      "package_name": "libpam-modules-bin",
+      "installed_version": "1.5.2-6%2Bdeb12u2?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2025-6020",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-6020",
+          "technical_justification": "A flaw was found in linux-pam. The module pam_name"
+        }
+      ]
+    },
+    "libheif1": {
+      "package_name": "libheif1",
+      "installed_version": "1.15.1-1%2Bdeb12u1?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 16,
+      "findings": [
+        {
+          "cve_id": "CVE-2025-68431",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-68431",
+          "technical_justification": "libheif is an HEIF and AVIF file format decoder an"
+        },
+        {
+          "cve_id": "CVE-2026-120208",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-120208",
+          "technical_justification": "libheif 1.18.0 before 1.23.3 contains a heap-based"
+        },
+        {
+          "cve_id": "CVE-2026-32740",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-32740",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-32741",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-32741",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-32882",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-32882",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-41071",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-41071",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-47178",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-47178",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-50142",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-50142",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-62289",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-62289",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-62292",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-62292",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-84384",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-84384",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-84444",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-84444",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-84446",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-84446",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-84447",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-84447",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-84450",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-84450",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        },
+        {
+          "cve_id": "CVE-2026-84451",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-84451",
+          "technical_justification": "libheif is a HEIF and AVIF file format decoder and"
+        }
+      ]
+    },
+    "libncursesw6": {
+      "package_name": "libncursesw6",
+      "installed_version": "6.4-4?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2025-69720",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-69720",
+          "technical_justification": "The infocmp command-line tool in ncurses before 6."
+        }
+      ]
+    },
+    "libjxl0.7": {
+      "package_name": "libjxl0.7",
+      "installed_version": "0.7.0-10%2Bdeb12u1?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2025-70103",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-70103",
+          "technical_justification": "Heap buffer overflow vulnerability in libjxl 0.12."
+        }
+      ]
+    },
+    "libsqlite3-0": {
+      "package_name": "libsqlite3-0",
+      "installed_version": "3.40.1-2%2Bdeb12u2?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 6,
+      "findings": [
+        {
+          "cve_id": "CVE-2025-7458",
+          "severity": "CRITICAL",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2025-7458",
+          "technical_justification": "An integer overflow in the sqlite3KeyInfoFromExprL"
+        },
+        {
+          "cve_id": "CVE-2026-11822",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-11822",
+          "technical_justification": "SQLite before 3.53.2 contains an out-of-bounds rea"
+        },
+        {
+          "cve_id": "CVE-2026-11824",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-11824",
+          "technical_justification": "SQLite before 3.53.2 contains a heap-based buffer"
+        },
+        {
+          "cve_id": "CVE-2026-119373",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-119373",
+          "technical_justification": "SQLite before 3.54.0 built with FTS5 contains a he"
+        },
+        {
+          "cve_id": "CVE-2026-119374",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-119374",
+          "technical_justification": "SQLite before 3.54.0 built with FTS5 contains a he"
+        },
+        {
+          "cve_id": "CVE-2026-119379",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-119379",
+          "technical_justification": "SQLite before 3.54.0 built with the session extens"
+        }
+      ]
+    },
+    "libgs-common": {
+      "package_name": "libgs-common",
+      "installed_version": "10.0.0~dfsg-11%2Bdeb12u8?arch=all&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 2,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-101258",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-101258",
+          "technical_justification": "A flaw was found in Ghostscript. When Ghostscript"
+        },
+        {
+          "cve_id": "CVE-2026-103226",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-103226",
+          "technical_justification": "A vulnerability was identified in Artifex Ghostscr"
+        }
+      ]
+    },
+    "git-man": {
+      "package_name": "git-man",
+      "installed_version": "2.39.5-0%2Bdeb12u3?arch=all&distro=debian-12.15&epoch=1",
+      "ecosystem": "debian",
+      "runtime_required": false,
+      "is_dev_package": true,
+      "cve_count": 3,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-105437",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-105437",
+          "technical_justification": "Affected versions of Git have a heap buffer overfl"
+        },
+        {
+          "cve_id": "CVE-2026-111760",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-111760",
+          "technical_justification": "A flaw was found in Git. Unsafe handling of submod"
+        },
+        {
+          "cve_id": "CVE-2026-114466",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-114466",
+          "technical_justification": "Arbitrary data can be read or written through git-"
+        }
+      ]
+    },
+    "openssh-client": {
+      "package_name": "openssh-client",
+      "installed_version": "9.2p1-2%2Bdeb12u10?arch=arm64&distro=debian-12.15&epoch=1",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 6,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-106553",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-106553",
+          "technical_justification": "In sshd in OpenSSH before 10.6, credentials can in"
+        },
+        {
+          "cve_id": "CVE-2026-106555",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-106555",
+          "technical_justification": "In sshd in OpenSSH before 10.6, GSSAPIAuthenticati"
+        },
+        {
+          "cve_id": "CVE-2026-106583",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-106583",
+          "technical_justification": "In ssh in OpenSSH before 10.6, a $ or \\ character"
+        },
+        {
+          "cve_id": "CVE-2026-59999",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-59999",
+          "technical_justification": "In sshd in OpenSSH before 10.4, DisableForwarding="
+        },
+        {
+          "cve_id": "CVE-2026-60000",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-60000",
+          "technical_justification": "sshd in OpenSSH before 10.4 allows remote attacker"
+        },
+        {
+          "cve_id": "CVE-2026-60002",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-60002",
+          "technical_justification": "ssh in OpenSSH before 10.4 can have a use-after-fr"
+        }
+      ]
+    },
+    "krb5-locales": {
+      "package_name": "krb5-locales",
+      "installed_version": "1.20.1-2%2Bdeb12u5?arch=all&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 14,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-107364",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-107364",
+          "technical_justification": "In all released versions of MIT krb5, an unauthent"
+        },
+        {
+          "cve_id": "CVE-2026-112315",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-112315",
+          "technical_justification": "The RPCSEC_GSS authentication routines in lib/rpc/"
+        },
+        {
+          "cve_id": "CVE-2026-112316",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-112316",
+          "technical_justification": "xdr_krb5_tl_data() in lib/kadm5/kadm_rpc_xdr.c in"
+        },
+        {
+          "cve_id": "CVE-2026-112317",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-112317",
+          "technical_justification": "krb5_ktkdb_get_entry() in lib/kdb/keytab.c in MIT"
+        },
+        {
+          "cve_id": "CVE-2026-112318",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-112318",
+          "technical_justification": "The policy RPC stubs in kadmin/server/server_stubs"
+        },
+        {
+          "cve_id": "CVE-2026-112319",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-112319",
+          "technical_justification": "The GSS-RPC layer in MIT Kerberos 5 (aka krb5) doe"
+        },
+        {
+          "cve_id": "CVE-2026-112320",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-112320",
+          "technical_justification": "The GSS-RPC transport layer in MIT Kerberos 5 (aka"
+        },
+        {
+          "cve_id": "CVE-2026-112321",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-112321",
+          "technical_justification": "The AUTH_GSSAPI handler in lib/rpc/svc_auth_gssapi"
+        },
+        {
+          "cve_id": "CVE-2026-112322",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-112322",
+          "technical_justification": "clean_client() in lib/rpc/svc_auth_gssapi.c in MIT"
+        },
+        {
+          "cve_id": "CVE-2026-112323",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-112323",
+          "technical_justification": "The AUTH_GSSAPI handler in lib/rpc/svc_auth_gssapi"
+        },
+        {
+          "cve_id": "CVE-2026-118380",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-118380",
+          "technical_justification": "In MIT krb5 release 1.4 and later, an active netwo"
+        },
+        {
+          "cve_id": "CVE-2026-119079",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-119079",
+          "technical_justification": "decode_sequence_of() in lib/krb5/asn.1/asn1_encode"
+        },
+        {
+          "cve_id": "CVE-2026-71199",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-71199",
+          "technical_justification": "In MIT krb5 release 1.14 and later (since authenti"
+        },
+        {
+          "cve_id": "CVE-2026-71200",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-71200",
+          "technical_justification": "If a KDC is configured to allow PKINIT authenticat"
+        }
+      ]
+    },
+    "libxi6": {
+      "package_name": "libxi6",
+      "installed_version": "1.8-1%2Bb1?arch=arm64&distro=debian-12.15&epoch=2",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 2,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-109089",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-109089",
+          "technical_justification": "A buffer overflow when handling DEVICE_RESOLUTION"
+        },
+        {
+          "cve_id": "CVE-2026-109090",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-109090",
+          "technical_justification": "A malicious X server could cause a heap overflow b"
+        }
+      ]
+    },
+    "apt": {
+      "package_name": "apt",
+      "installed_version": "2.6.1?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-109518",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-109518",
+          "technical_justification": "Upgrade apt to version 2.6.2; Upgrade libapt-pkg6."
+        }
+      ]
+    },
+    "libexpat1-dev": {
+      "package_name": "libexpat1-dev",
+      "installed_version": "2.5.0-1%2Bdeb12u5?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": false,
+      "is_dev_package": true,
+      "cve_count": 4,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-113351",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-113351",
+          "technical_justification": "libexpat 2.7.2 through 2.9.0 contains a denial of"
+        },
+        {
+          "cve_id": "CVE-2026-115506",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-115506",
+          "technical_justification": "libexpat through 2.9.0 contains a denial of servic"
+        },
+        {
+          "cve_id": "CVE-2026-117610",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-117610",
+          "technical_justification": "libexpat through 2.9.0 contains a NULL pointer der"
+        },
+        {
+          "cve_id": "CVE-2026-118370",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-118370",
+          "technical_justification": "libexpat through 2.9.0 contains a signed integer o"
+        }
+      ]
+    },
+    "openjdk-17-jdk-headless": {
+      "package_name": "openjdk-17-jdk-headless",
+      "installed_version": "17.0.21%2B9-1~deb12u1?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 2,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-114820",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-114820",
+          "technical_justification": "Vulnerability in the Oracle Java SE, Oracle GraalV"
+        },
+        {
+          "cve_id": "CVE-2026-91403",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-91403",
+          "technical_justification": "Vulnerability in the Oracle Java SE, Oracle GraalV"
+        }
+      ]
+    },
+    "firefox-esr": {
+      "package_name": "firefox-esr",
+      "installed_version": "153.6.0esr-1~deb12u2?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 51,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-118007",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-118007",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124853",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124853",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124854",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124854",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124855",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124855",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124856",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124856",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124857",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124857",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124858",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124858",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124859",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124859",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124860",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124860",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124861",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124861",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124862",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124862",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124863",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124863",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124864",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124864",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124865",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124865",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124866",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124866",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124868",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124868",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124869",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124869",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124870",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124870",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124872",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124872",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124873",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124873",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124874",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124874",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124875",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124875",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124876",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124876",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124877",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124877",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124879",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124879",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124880",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124880",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124881",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124881",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124882",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124882",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124883",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124883",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124884",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124884",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124885",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124885",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124886",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124886",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124887",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124887",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124888",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124888",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124889",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124889",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124890",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124890",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124891",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124891",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124892",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124892",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124893",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124893",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124894",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124894",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124895",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124895",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124896",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124896",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124897",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124897",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124898",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124898",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124899",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124899",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124901",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124901",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124902",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124902",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124903",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124903",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124905",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124905",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124906",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124906",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        },
+        {
+          "cve_id": "CVE-2026-124907",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124907",
+          "technical_justification": "Upgrade firefox-esr to version 153.7.0esr-1~deb12u"
+        }
+      ]
+    },
+    "libpython3.11-dev": {
+      "package_name": "libpython3.11-dev",
+      "installed_version": "3.11.2-6%2Bdeb12u9?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": false,
+      "is_dev_package": true,
+      "cve_count": 2,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-11940",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-11940",
+          "technical_justification": "tarfile.extractall() with the 'data' or 'tar'"
+        },
+        {
+          "cve_id": "CVE-2026-7210",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-7210",
+          "technical_justification": "`xml.parsers.expat` and `xml.etree.ElementTree` us"
+        }
+      ]
+    },
+    "curl": {
+      "package_name": "curl",
+      "installed_version": "7.88.1-10%2Bdeb12u15?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 5,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-12064",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-12064",
+          "technical_justification": "When a user invokes curl using a schemeless URL co"
+        },
+        {
+          "cve_id": "CVE-2026-6276",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-6276",
+          "technical_justification": "Using libcurl, when a custom `Host:` header is fir"
+        },
+        {
+          "cve_id": "CVE-2026-8286",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-8286",
+          "technical_justification": "A vulnerability exists where a new transfer that u"
+        },
+        {
+          "cve_id": "CVE-2026-8458",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-8458",
+          "technical_justification": "libcurl might in some circumstances reuse the wron"
+        },
+        {
+          "cve_id": "CVE-2026-8927",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-8927",
+          "technical_justification": "When reusing a libcurl handle for sequential trans"
+        }
+      ]
+    },
+    "libavcodec59": {
+      "package_name": "libavcodec59",
+      "installed_version": "5.1.9-0%2Bdeb12u1?arch=arm64&distro=debian-12.15&epoch=7",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 20,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-125204",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-125204",
+          "technical_justification": "FFmpeg through 9.0.2 contains a heap buffer overfl"
+        },
+        {
+          "cve_id": "CVE-2026-125209",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-125209",
+          "technical_justification": "FFmpeg before 8.1.3 and 9.x before 9.0.2 contains"
+        },
+        {
+          "cve_id": "CVE-2026-52296",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-52296",
+          "technical_justification": "FFmpeg before 9.0 has an out-of-bounds read becaus"
+        },
+        {
+          "cve_id": "CVE-2026-58049",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-58049",
+          "technical_justification": "FFmpeg's RASC video decoder (decode_dlta in libavc"
+        },
+        {
+          "cve_id": "CVE-2026-64830",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64830",
+          "technical_justification": "FFmpeg versions 2.1 through 8.1.2 contains a heap"
+        },
+        {
+          "cve_id": "CVE-2026-64832",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64832",
+          "technical_justification": "FFmpeg versions 4.4 through 8.1.2 contain a double"
+        },
+        {
+          "cve_id": "CVE-2026-64833",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64833",
+          "technical_justification": "FFmpeg versions 0.7.1 through 8.1.2 contain an out"
+        },
+        {
+          "cve_id": "CVE-2026-64834",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64834",
+          "technical_justification": "FFmpeg versions 0.6.3 through 8.1.2 contain an inf"
+        },
+        {
+          "cve_id": "CVE-2026-64835",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-64835",
+          "technical_justification": "FFmpeg versions 4.4 through 8.1.2 contain an out-o"
+        },
+        {
+          "cve_id": "CVE-2026-66036",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-66036",
+          "technical_justification": "FFmpeg through 8.1.2, fixed in commit 5d7112c, con"
+        },
+        {
+          "cve_id": "CVE-2026-66039",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-66039",
+          "technical_justification": "FFmpeg through 8.1.2, fixed in commit aafb5c6, con"
+        },
+        {
+          "cve_id": "CVE-2026-66040",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-66040",
+          "technical_justification": "FFmpeg through 8.1.2, fixed in commit b506faf, con"
+        },
+        {
+          "cve_id": "CVE-2026-70628",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-70628",
+          "technical_justification": "FFmpeg versions from 0.5 up to, but not including,"
+        },
+        {
+          "cve_id": "CVE-2026-70632",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-70632",
+          "technical_justification": "FFmpeg versions from 4.4 up to, but not including,"
+        },
+        {
+          "cve_id": "CVE-2026-75141",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-75141",
+          "technical_justification": "FFmpeg before commit acf5d7c contains a heap buffe"
+        },
+        {
+          "cve_id": "CVE-2026-75142",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-75142",
+          "technical_justification": "FFmpeg before commit 9d786e4 contains a stack buff"
+        },
+        {
+          "cve_id": "CVE-2026-75143",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-75143",
+          "technical_justification": "FFmpeg before commit 1c10bcc contains a heap buffe"
+        },
+        {
+          "cve_id": "CVE-2026-75144",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-75144",
+          "technical_justification": "FFmpeg before commit 1cdeb3c contains a heap buffe"
+        },
+        {
+          "cve_id": "CVE-2026-75146",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-75146",
+          "technical_justification": "FFmpeg before commit 65b0dab contains an out-of-bo"
+        },
+        {
+          "cve_id": "CVE-2026-8461",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-8461",
+          "technical_justification": "An out-of-bounds write vulnerability in FFmpeg's l"
+        }
+      ]
+    },
+    "libnss-systemd": {
+      "package_name": "libnss-systemd",
+      "installed_version": "252.39-1~deb12u2?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-16742",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-16742",
+          "technical_justification": "systemd-homed contains a local privilege escalatio"
+        }
+      ]
+    },
+    "libcups2": {
+      "package_name": "libcups2",
+      "installed_version": "2.4.2-3%2Bdeb12u9?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 2,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-34980",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-34980",
+          "technical_justification": "OpenPrinting CUPS is an open source printing syste"
+        },
+        {
+          "cve_id": "CVE-2026-55453",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-55453",
+          "technical_justification": "OpenPrinting CUPS is an open source printing syste"
+        }
+      ]
+    },
+    "gzip": {
+      "package_name": "gzip",
+      "installed_version": "1.12-1?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-41992",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-41992",
+          "technical_justification": "GNU gzip contains a global buffer overflow vulnera"
+        }
+      ]
+    },
+    "bsdutils": {
+      "package_name": "bsdutils",
+      "installed_version": "2.38.1-5%2Bdeb12u3?arch=arm64&distro=debian-12.15&epoch=1",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 3,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-53613",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53613",
+          "technical_justification": "util-linux is a random collection of Linux utiliti"
+        },
+        {
+          "cve_id": "CVE-2026-53615",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-53615",
+          "technical_justification": "util-linux is a random collection of Linux utiliti"
+        },
+        {
+          "cve_id": "CVE-2026-78410",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-78410",
+          "technical_justification": "A flaw was found in util-linux. Restricted bind mo"
+        }
+      ]
+    },
+    "libacl1": {
+      "package_name": "libacl1",
+      "installed_version": "2.3.1-3?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-54369",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-54369",
+          "technical_justification": "acl before version 2.4.0 contains a symlink traver"
+        }
+      ]
+    },
+    "libglib2.0-0": {
+      "package_name": "libglib2.0-0",
+      "installed_version": "2.74.6-2%2Bdeb12u9?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 7,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-58010",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-58010",
+          "technical_justification": "A flaw was found in GLib. An off-by-one error can"
+        },
+        {
+          "cve_id": "CVE-2026-58011",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-58011",
+          "technical_justification": "A flaw was found in GLib. An out-of-bounds read of"
+        },
+        {
+          "cve_id": "CVE-2026-58012",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-58012",
+          "technical_justification": "A flaw was found in GLib. A buffer over-read can o"
+        },
+        {
+          "cve_id": "CVE-2026-58013",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-58013",
+          "technical_justification": "A flaw was found in GLib. A buffer over-read can o"
+        },
+        {
+          "cve_id": "CVE-2026-58014",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-58014",
+          "technical_justification": "A flaw was found in GLib. An off-by-one error can"
+        },
+        {
+          "cve_id": "CVE-2026-58015",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-58015",
+          "technical_justification": "A flaw was found in GLib. The D-Bus client-side im"
+        },
+        {
+          "cve_id": "CVE-2026-58016",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-58016",
+          "technical_justification": "A flaw was found in GLib. A state confusion issue"
+        }
+      ]
+    },
+    "wget": {
+      "package_name": "wget",
+      "installed_version": "1.21.3-1%2Bdeb12u1?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 2,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-58471",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-58471",
+          "technical_justification": "GNU Wget through 1.25.0, fixed in commit c2640fe,"
+        },
+        {
+          "cve_id": "CVE-2026-58472",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-58472",
+          "technical_justification": "GNU Wget through 1.25.0, fixed in commit dd692d9,"
+        }
+      ]
+    },
+    "libxml2": {
+      "package_name": "libxml2",
+      "installed_version": "2.9.14%2Bdfsg-1.3~deb12u6?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 7,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-6653",
+          "severity": "MEDIUM",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-6653",
+          "technical_justification": "Use After Free in libxml2's xmlParseInternalSubset"
+        },
+        {
+          "cve_id": "CVE-2026-74860",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-74860",
+          "technical_justification": "A flaw was found in libxml2 with Python bindings e"
+        },
+        {
+          "cve_id": "CVE-2026-86138",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-86138",
+          "technical_justification": "In libxml2 before 2.15.4, xmlDictAddQString in dic"
+        },
+        {
+          "cve_id": "CVE-2026-86140",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-86140",
+          "technical_justification": "In libxml2 before 2.15.4, xmlSnprintfElements in v"
+        },
+        {
+          "cve_id": "CVE-2026-86142",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-86142",
+          "technical_justification": "In libxml2 before 2.15.4, there is a heap-based bu"
+        },
+        {
+          "cve_id": "CVE-2026-86143",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-86143",
+          "technical_justification": "In xmlIO in libxml2 before 2.15.4, an inconsistenc"
+        },
+        {
+          "cve_id": "CVE-2026-86144",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-86144",
+          "technical_justification": "In xinclude in libxml2 before 2.15.4, xmlXIncludeP"
+        }
+      ]
+    },
+    "libx11-6": {
+      "package_name": "libx11-6",
+      "installed_version": "1.8.4-2%2Bdeb12u2?arch=arm64&distro=debian-12.15&epoch=2",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-88806",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-88806",
+          "technical_justification": "A malicious X server could exploit a buffer overfl"
+        }
+      ]
+    },
+    "libxrender1": {
+      "package_name": "libxrender1",
+      "installed_version": "0.9.10-1.1?arch=arm64&distro=debian-12.15&epoch=1",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-88807",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-88807",
+          "technical_justification": "A heap overflow in libXrender before 0.9.13 in\u00a0Ren"
+        }
+      ]
+    },
+    "libxtst6": {
+      "package_name": "libxtst6",
+      "installed_version": "1.2.3-1.1?arch=arm64&distro=debian-12.15&epoch=2",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-94286",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-94286",
+          "technical_justification": "An out-of-bounds read in libXtst's RECORD reply pa"
+        }
+      ]
+    },
+    "libperl5.36": {
+      "package_name": "libperl5.36",
+      "installed_version": "5.36.0-7%2Bdeb12u4?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-9538",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-9538",
+          "technical_justification": "Archive::Tar versions before 3.10 for Perl allow m"
+        }
+      ]
+    },
+    "librsvg2-2": {
+      "package_name": "librsvg2-2",
+      "installed_version": "2.54.7%2Bdfsg-1~deb12u1?arch=arm64&distro=debian-12.15",
+      "ecosystem": "debian",
+      "runtime_required": true,
+      "is_dev_package": false,
+      "cve_count": 1,
+      "findings": [
+        {
+          "cve_id": "CVE-2026-96889",
+          "severity": "HIGH",
+          "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-96889",
+          "technical_justification": "A flaw was found in librsvg. When processing an SV"
+        }
+      ]
+    }
+  }
+}

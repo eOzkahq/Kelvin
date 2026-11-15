@@ -133,6 +133,7 @@ raw_evidence/
 evidence/temp/
 reports/temp/
 reports/generated/
+run-*-artifacts/
 *.pcap
 *.pcapng
 *.har
