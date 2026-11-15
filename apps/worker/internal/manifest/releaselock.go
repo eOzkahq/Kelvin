@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -26,10 +27,18 @@ const (
 )
 
 var (
-	ErrScannerNotReleased   = errors.New("manifest: scanner is not certified or released for production execution")
-	ErrPlaceholderEmptyHash = errors.New("manifest: empty string placeholder hash is prohibited")
-	ErrManifestConflict     = errors.New("manifest: release locks conflict")
-	ErrMissingReleaseDigest = errors.New("manifest: released scanner must have non-empty sha256 digest")
+	ErrScannerNotReleased       = errors.New("manifest: scanner is not certified or released for production execution")
+	ErrPlaceholderEmptyHash     = errors.New("manifest: empty string placeholder hash is prohibited")
+	ErrManifestConflict         = errors.New("manifest: release locks conflict")
+	ErrMissingReleaseDigest     = errors.New("manifest: released scanner must have non-empty sha256 digest")
+	ErrInvalidDigestFormat      = errors.New("manifest: invalid sha256 digest format")
+	ErrInvalidUpstreamReference = errors.New("manifest: invalid or unapproved upstream repository reference")
+	ErrMutableTagProhibited     = errors.New("manifest: mutable image tags prohibited, immutable digest required")
+	ErrInvalidVersion           = errors.New("manifest: invalid semantic version")
+	ErrArchitectureMismatch     = errors.New("manifest: container architecture mismatch")
+	ErrInvalidRuntimeUser       = errors.New("manifest: invalid runtime user")
+	ErrCatalogDigestMismatch    = errors.New("manifest: template catalog digest mismatch")
+	ErrIncompleteCertification  = errors.New("manifest: cannot certify incomplete release manifest")
 )
 
 // ScannerImageLock represents the canonical JSON release manifest (deploy/scanners/images.lock.json).
@@ -320,6 +329,146 @@ func EnforceCertifiedReleaseForExecution(manifestPath, scannerID, env string) er
 	}
 	if !strings.HasPrefix(*img.KelvinDigest, "sha256:") || len(strings.TrimPrefix(*img.KelvinDigest, "sha256:")) != 64 {
 		return fmt.Errorf("%w: scanner %q has invalid release digest format %q", ErrScannerNotReleased, scannerID, *img.KelvinDigest)
+	}
+	return nil
+}
+
+// ValidateDigestFormat checks that digest is "sha256:<64 lowercase hex>" and not empty hash.
+func ValidateDigestFormat(digest string) error {
+	if !strings.HasPrefix(digest, "sha256:") || len(digest) != 71 {
+		return fmt.Errorf("%w: %q (expected sha256:<64 hex>)", ErrInvalidDigestFormat, digest)
+	}
+	hexPart := strings.TrimPrefix(digest, "sha256:")
+	for _, c := range hexPart {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return fmt.Errorf("%w: non-hex character in %q", ErrInvalidDigestFormat, digest)
+		}
+	}
+	if digest == EmptySHA256Digest {
+		return fmt.Errorf("%w: %s", ErrPlaceholderEmptyHash, digest)
+	}
+	return nil
+}
+
+// ValidateUpstreamReference checks approved upstream repo and immutable digest pinning.
+func ValidateUpstreamReference(imageRef, expectedPrefix string) error {
+	if !strings.Contains(imageRef, "@sha256:") {
+		return fmt.Errorf("%w: reference %q missing @sha256: digest", ErrMutableTagProhibited, imageRef)
+	}
+	parts := strings.Split(imageRef, "@")
+	repoPart := parts[0]
+	digestPart := parts[1]
+	if err := ValidateDigestFormat(digestPart); err != nil {
+		return err
+	}
+	if !strings.HasPrefix(repoPart, expectedPrefix) {
+		return fmt.Errorf("%w: %q does not match approved prefix %q", ErrInvalidUpstreamReference, repoPart, expectedPrefix)
+	}
+	return nil
+}
+
+// ValidateSemanticVersion checks that version is valid semver (e.g. 1.2.3).
+func ValidateSemanticVersion(version string) error {
+	trimmed := strings.TrimSpace(version)
+	if trimmed == "" {
+		return fmt.Errorf("%w: version cannot be empty", ErrInvalidVersion)
+	}
+	parts := strings.Split(trimmed, ".")
+	if len(parts) < 3 {
+		return fmt.Errorf("%w: %q must have at least major.minor.patch", ErrInvalidVersion, version)
+	}
+	for i := 0; i < 2; i++ {
+		if _, err := strconv.Atoi(parts[i]); err != nil {
+			return fmt.Errorf("%w: invalid numeric component in %q", ErrInvalidVersion, version)
+		}
+	}
+	return nil
+}
+
+// ValidateRuntimeArchitecture checks that image architecture is "arm64" and OS is "linux".
+func ValidateRuntimeArchitecture(arch, osName string) error {
+	if osName != "linux" {
+		return fmt.Errorf("%w: unexpected OS %q (expected linux)", ErrArchitectureMismatch, osName)
+	}
+	if arch != "arm64" {
+		return fmt.Errorf("%w: unexpected architecture %q (expected arm64)", ErrArchitectureMismatch, arch)
+	}
+	return nil
+}
+
+// ValidateRuntimeUser checks that container UID:GID is 10001:10001.
+func ValidateRuntimeUser(user string) error {
+	if user != "10001:10001" {
+		return fmt.Errorf("%w: unexpected user %q (expected 10001:10001)", ErrInvalidRuntimeUser, user)
+	}
+	return nil
+}
+
+// ValidateCertifiedManifest performs a complete, strict audit on a certified manifest.
+func ValidateCertifiedManifest(lock *ScannerImageLock, catalogPath string) error {
+	if lock.Status != StatusCertified {
+		return fmt.Errorf("%w: status is %q", ErrScannerNotReleased, lock.Status)
+	}
+	for _, scannerID := range []string{"zap", "nuclei"} {
+		img, ok := lock.Images[scannerID]
+		if !ok {
+			return fmt.Errorf("%w: missing required scanner %q", ErrIncompleteCertification, scannerID)
+		}
+		if img.Upstream == "" {
+			return fmt.Errorf("%w: scanner %q missing upstream repository", ErrIncompleteCertification, scannerID)
+		}
+		if img.UpstreamDigest == nil || *img.UpstreamDigest == "" {
+			return fmt.Errorf("%w: scanner %q missing upstream digest", ErrIncompleteCertification, scannerID)
+		}
+		if err := ValidateDigestFormat(*img.UpstreamDigest); err != nil {
+			return fmt.Errorf("scanner %q: %w", scannerID, err)
+		}
+		if img.Version == nil || *img.Version == "" {
+			return fmt.Errorf("%w: scanner %q missing version", ErrIncompleteCertification, scannerID)
+		}
+		if err := ValidateSemanticVersion(*img.Version); err != nil {
+			return fmt.Errorf("scanner %q: %w", scannerID, err)
+		}
+		if img.KelvinImage == nil || *img.KelvinImage == "" {
+			return fmt.Errorf("%w: scanner %q missing kelvin image", ErrIncompleteCertification, scannerID)
+		}
+		if img.KelvinDigest == nil || *img.KelvinDigest == "" {
+			return fmt.Errorf("%w: scanner %q missing kelvin digest", ErrIncompleteCertification, scannerID)
+		}
+		if err := ValidateDigestFormat(*img.KelvinDigest); err != nil {
+			return fmt.Errorf("scanner %q: %w", scannerID, err)
+		}
+	}
+
+	// Nuclei specific checks
+	nucleiImg := lock.Images["nuclei"]
+	if nucleiImg.DistrolessBase == nil || *nucleiImg.DistrolessBase == "" {
+		return fmt.Errorf("%w: nuclei missing distroless base", ErrIncompleteCertification)
+	}
+	if nucleiImg.DistrolessDigest == nil || *nucleiImg.DistrolessDigest == "" {
+		return fmt.Errorf("%w: nuclei missing distroless digest", ErrIncompleteCertification)
+	}
+	if err := ValidateDigestFormat(*nucleiImg.DistrolessDigest); err != nil {
+		return fmt.Errorf("nuclei distroless: %w", err)
+	}
+	if nucleiImg.TemplateCatalogID != "kelvin.safe.web.v1" {
+		return fmt.Errorf("%w: unexpected template catalog ID %q", ErrIncompleteCertification, nucleiImg.TemplateCatalogID)
+	}
+	if nucleiImg.TemplateCatalogDigest == nil || *nucleiImg.TemplateCatalogDigest == "" {
+		return fmt.Errorf("%w: nuclei missing template catalog digest", ErrIncompleteCertification)
+	}
+	if err := ValidateDigestFormat(*nucleiImg.TemplateCatalogDigest); err != nil {
+		return fmt.Errorf("nuclei catalog digest: %w", err)
+	}
+
+	if catalogPath != "" {
+		calcDigest, err := CalculateCatalogDigest(catalogPath)
+		if err != nil {
+			return fmt.Errorf("failed to calculate catalog digest: %w", err)
+		}
+		if *nucleiImg.TemplateCatalogDigest != calcDigest {
+			return fmt.Errorf("%w: declared %q, calculated %q", ErrCatalogDigestMismatch, *nucleiImg.TemplateCatalogDigest, calcDigest)
+		}
 	}
 	return nil
 }

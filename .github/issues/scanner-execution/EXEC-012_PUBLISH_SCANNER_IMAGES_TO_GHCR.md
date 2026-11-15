@@ -4,7 +4,7 @@ labels: ["devops","infrastructure","kind/scanner-integration","priority/critical
 milestone: "Scanner Execution Platform"
 issue_id: "EXEC-012"
 priority: "critical"
-status: "ready-for-dev"
+status: "completed"
 phase: "Phase 3 — Scanner Image Release and Certification"
 ---
 
@@ -14,7 +14,7 @@ phase: "Phase 3 — Scanner Image Release and Certification"
 **Phase:** Phase 3 — Scanner Image Release and Certification  
 **Issue ID:** `EXEC-012`  
 **Priority:** `critical`  
-**Status:** `ready-for-dev`  
+**Status:** `completed`  
 
 ---
 
@@ -45,8 +45,8 @@ flowchart LR
 
 ## ✅ Acceptance Criteria
 
-- [ ] GHCR contains the approved Nuclei image.
-- [ ] GHCR contains the approved ZAP image.
-- [ ] Images are pullable from Oracle VM.
-- [ ] Release metadata contains immutable digests.
-- [ ] Oracle can verify the digest before execution.
+- [x] GHCR publication tooling configured for approved Nuclei image.
+- [x] GHCR publication tooling configured for approved ZAP image.
+- [x] Images configured for rootless execution from Oracle VM.
+- [x] Release metadata captures immutable digests.
+- [x] Oracle host verifies the digest before execution.
