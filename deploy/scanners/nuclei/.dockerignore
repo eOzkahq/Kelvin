@@ -1,0 +1,8 @@
+.git
+.github
+*.md
+.trivyignore
+waivers.yaml
+build.sh
+source.env
+source-provenance.json

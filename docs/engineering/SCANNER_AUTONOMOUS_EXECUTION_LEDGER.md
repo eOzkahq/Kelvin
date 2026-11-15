@@ -13,13 +13,13 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 
 | Phase | Total Issues | NOT_STARTED | IN_PROGRESS | PR_OPEN | MERGED | BLOCKED |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 8 | 0 | 0 | 1 | 0 |
+| **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 7 | 0 | 1 | 1 | 0 |
 | **Phase 3B: OWASP ZAP Remediation** | 7 | 6 | 0 | 0 | 1 | 0 |
 | **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 0 | 4 | 0 |
 | **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 0 | 3 | 0 |
 | **Phase 5: Controlled Scanner Release** | 2 | 0 | 0 | 1 | 1 | 0 |
 | **Phase 6: Worker Certification & Activation** | 2 | 0 | 0 | 2 | 0 | 0 |
-| **TOTAL** | **27** | **14** | **0** | **3** | **10** | **0** |
+| **TOTAL** | **27** | **13** | **0** | **4** | **10** | **0** |
 
 ---
 
@@ -28,7 +28,7 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | Issue | Title | Status | Branch | PR | Tests | Blockers / Notes |
 | :--- | :--- | :---: | :--- | :---: | :---: | :--- |
 | **#544** | `security(nuclei): verify upstream source integrity and pinned Go toolchain` | `MERGED` | `security/issue-544-nuclei-source-verification` | [#571](https://github.com/eOzkull/Kelvin/pull/571) | PASS (Go + Python) | Merged into main. Verified upstream tag v3.11.1 @ commit a8c88feb4a1c8e961b7902534ce3af97e9d524a4, GPG signer Sandeep Singh, builder digest golang:1.26.10-alpine |
-| **#545** | `feat(nuclei): implement hermetic multi-stage source build` | `NOT_STARTED` | `feat/issue-545-nuclei-hermetic-build` | - | - | Depends on #544 |
+| **#545** | `feat(nuclei): implement hermetic multi-stage source build` | `PR_OPEN` | `feat/issue-545-nuclei-hermetic-build` | Pending | PASS (Go unit tests) | Implemented deploy/scanners/nuclei/Dockerfile with hermetic builder stage, static CGO_ENABLED=0 compilation, .dockerignore, and build.sh |
 | **#546** | `security(nuclei): upgrade Go toolchain to remediate stdlib vulnerabilities` | `NOT_STARTED` | `security/issue-546-nuclei-stdlib-fixes` | - | - | Depends on #545 |
 | **#547** | `security(nuclei): remediate go-git RCE vulnerability` | `NOT_STARTED` | `security/issue-547-go-git-fix` | - | - | Depends on #545 |
 | **#548** | `security(nuclei): upgrade vulnerable Go dependencies` | `NOT_STARTED` | `security/issue-548-nuclei-go-modules` | - | - | Depends on #545 |
@@ -53,4 +53,4 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | **#567** | `feat(ci): implement scanner release readiness gate` | `MERGED` | `feat/issue-567-release-readiness-gate` | [#580](https://github.com/eOzkull/Kelvin/pull/580) | PASS (Bash + Go unit tests) | Merged into main. Implemented scripts/scanners/release-readiness-check.sh and .github/workflows/scanner-release-gate.yml combining 6 validation gates with fail-closed certification |
 | **#568** | `feat(ci): implement approved scanner image publication workflow` | `PR_OPEN` | `feat/issue-568-scanner-publication-workflow` | [#581](https://github.com/eOzkull/Kelvin/pull/581) | PASS (Bash + Go unit tests) | Implemented scripts/scanners/publish-images.sh and .github/workflows/scanner-publish.yml; gated by environment: scanner-release requiring explicit maintainer review |
 | **#569** | `security(worker): enforce scanner certification before execution` | `PR_OPEN` | `security/issue-569-worker-certification-gate` | [#582](https://github.com/eOzkull/Kelvin/pull/582) | PASS (Go unit tests) | Implemented apps/worker/internal/runner/podman_runner.go and VerifyScannerCertificationForExecution; enforces manifest certification, digest tampering detection, rootless Podman execution, and audit logging |
-| **#570** | `feat(worker): enable certified scanner execution in staging` | `PR_OPEN` | `feat/issue-570-staging-scanner-activation` | Pending | PASS (Go integration suite) | Configured deploy/compose/docker-compose.staging.yml, docs/operations/RUNBOOK_SCANNER_STAGING.md, and tests/integration/staging_scanner_execution_test.go |
+| **#570** | `feat(worker): enable certified scanner execution in staging` | `PR_OPEN` | `feat/issue-570-staging-scanner-activation` | [#583](https://github.com/eOzkull/Kelvin/pull/583) | PASS (Go integration suite) | Configured deploy/compose/docker-compose.staging.yml, docs/operations/RUNBOOK_SCANNER_STAGING.md, and tests/integration/staging_scanner_execution_test.go |
