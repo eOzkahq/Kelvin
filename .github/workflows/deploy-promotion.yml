@@ -30,7 +30,7 @@ jobs:
   # Stage 1: Staging Environment Automated Deployment
   # ----------------------------------------------------------------------------
   deploy-staging:
-    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
+    if: vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
     name: Deploy to Staging Environment
     runs-on: ubuntu-latest
     environment:
@@ -54,7 +54,7 @@ jobs:
   # Stage 2: Production Promotion (Manual Gate Approval Required)
   # ----------------------------------------------------------------------------
   deploy-production:
-    if: (env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch') && (github.event_name != 'workflow_dispatch' || inputs.target_env == 'prod')
+    if: (vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch') && (github.event_name != 'workflow_dispatch' || inputs.target_env == 'prod')
     name: Promote & Deploy to Production
     needs: [deploy-staging]
     runs-on: ubuntu-latest

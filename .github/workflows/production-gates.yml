@@ -28,7 +28,7 @@ jobs:
   # Gate 1: Code Quality, Style & Static Analysis
   # ----------------------------------------------------------------------------
   code-quality:
-    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
+    if: vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
     name: Code Quality & Static Analysis
     runs-on: ubuntu-latest
     steps:
@@ -58,7 +58,7 @@ jobs:
   # Gate 2: Full Test Verification Suite with Race Detector
   # ----------------------------------------------------------------------------
   test-verification:
-    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
+    if: vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
     name: Unit & Integration Test Verification
     needs: [code-quality]
     runs-on: ubuntu-latest
@@ -117,7 +117,7 @@ jobs:
   # Gate 3: Security, Contracts & Compliance Verification
   # ----------------------------------------------------------------------------
   security-contracts:
-    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
+    if: vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
     name: Security, Contracts & Supply-Chain
     needs: [code-quality]
     runs-on: ubuntu-latest
@@ -144,7 +144,7 @@ jobs:
   # Gate 4: Release Readiness Gate (All upstream checks required)
   # ----------------------------------------------------------------------------
   release-gate:
-    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
+    if: vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
     name: Release Readiness Gate
     needs: [code-quality, test-verification, security-contracts]
     runs-on: ubuntu-latest

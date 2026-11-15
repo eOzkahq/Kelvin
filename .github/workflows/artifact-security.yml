@@ -15,7 +15,7 @@ env:
 
 jobs:
   build-and-sign:
-    if: env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
+    if: vars.ENABLE_CI == 'true' || github.event_name == 'workflow_dispatch'
     name: Build, SBOM, Vulnerability Scan & Cosign Sign
     runs-on: ubuntu-latest
     steps:
