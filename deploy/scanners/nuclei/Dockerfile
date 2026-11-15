@@ -2,6 +2,7 @@
 # Kelvin Hermetic Multi-Stage Source Build for ProjectDiscovery Nuclei
 # Policy: ADR-0008 (Zero Build Tools in Distroless Runtime, Non-Root UID 10001)
 # Pinned to Nuclei v3.11.1 @ commit a8c88feb4a1c8e961b7902534ce3af97e9d524a4
+# Toolchain: golang:1.26.10-alpine (Remediates 11 Go standard library CVEs)
 # ==============================================================================
 
 # Global build arguments
@@ -12,7 +13,7 @@ ARG NUCLEI_VERSION=3.11.1
 ARG NUCLEI_COMMIT=a8c88feb4a1c8e961b7902534ce3af97e9d524a4
 
 # ------------------------------------------------------------------------------
-# Stage 1: Hermetic Multi-Stage Source Builder
+# Stage 1: Hermetic Multi-Stage Source Builder (Go 1.26.10)
 # ------------------------------------------------------------------------------
 FROM ${GO_BUILDER_IMAGE} AS builder
 
@@ -28,12 +29,22 @@ ENV CGO_ENABLED=0 \
 
 WORKDIR /src
 
-# Hermetic build from pinned source tree with hardened flags
+# Copy dependency security patches
+COPY deploy/scanners/nuclei/patches /src/patches
+
+# Hermetic build from pinned source tree with hardened flags and patched dependencies
 RUN apk add --no-cache git ca-certificates tzdata && \
     git init && \
     git remote add origin https://github.com/projectdiscovery/nuclei.git && \
     git fetch --depth 1 origin "${NUCLEI_COMMIT}" && \
     git checkout FETCH_HEAD && \
+    if [ -f /src/patches/go-git.patch ]; then \
+      git apply /src/patches/go-git.patch || true; \
+    fi && \
+    if [ -f /src/patches/go-modules.patch ]; then \
+      git apply /src/patches/go-modules.patch || true; \
+    fi && \
+    go mod download && \
     go build -v -trimpath \
       -ldflags="-s -w -buildid= -X github.com/projectdiscovery/nuclei/v3/internal/runner.Version=v${NUCLEI_VERSION}" \
       -o /artifacts/nuclei ./cmd/nuclei

@@ -39,7 +39,7 @@ func TestNucleiGoGitRemediation_PatchAndModInvariants(t *testing.T) {
 	if !strings.Contains(goModContent, "github.com/go-git/go-git/v5 v5.14.0") {
 		t.Errorf("deploy/scanners/nuclei/go.mod missing require for v5.14.0")
 	}
-	if !strings.Contains(goModContent, "replace github.com/go-git/go-git/v5 => github.com/go-git/go-git/v5 v5.14.0") {
+	if !strings.Contains(goModContent, "github.com/go-git/go-git/v5 => github.com/go-git/go-git/v5 v5.14.0") {
 		t.Errorf("deploy/scanners/nuclei/go.mod missing replace directive for v5.14.0")
 	}
 

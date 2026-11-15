@@ -23,6 +23,16 @@ on:
         description: gcr.io/distroless/static-debian12:nonroot reference pinned with @sha256
         required: true
         type: string
+      nuclei_commit:
+        description: Pinned upstream source commit SHA for hermetic source build
+        required: false
+        default: a8c88feb4a1c8e961b7902534ce3af97e9d524a4
+        type: string
+      go_builder_image:
+        description: Hermetic Go builder image reference pinned with @sha256
+        required: false
+        default: golang:1.26.10-alpine@sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696
+        type: string
       publish:
         description: Whether to push built images to GitHub Container Registry (ghcr.io) and sign with Cosign
         required: false
@@ -73,10 +83,21 @@ jobs:
           ZAP_VERSION: ${{ inputs.zap_version }}
           NUCLEI_SOURCE_IMAGE: ${{ inputs.nuclei_source_image }}
           NUCLEI_VERSION: ${{ inputs.nuclei_version }}
+          NUCLEI_COMMIT: ${{ inputs.nuclei_commit || 'a8c88feb4a1c8e961b7902534ce3af97e9d524a4' }}
+          GO_BUILDER_IMAGE: ${{ inputs.go_builder_image || 'golang:1.26.10-alpine@sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696' }}
           DISTROLESS_BASE_IMAGE: ${{ inputs.distroless_base_image }}
           PLATFORM: ${{ inputs.platform || 'linux/arm64' }}
           OUT_DIR: artifacts/scanner-images
         run: bash scripts/scanners/build-images.sh
+
+      - name: Verify scanner image build invariants
+        shell: bash
+        env:
+          OUT_DIR: artifacts/scanner-images
+          PLATFORM: ${{ inputs.platform || 'linux/arm64' }}
+          NUCLEI_VERSION: ${{ inputs.nuclei_version }}
+          PUBLISH: ${{ inputs.publish || false }}
+        run: bash scripts/scanners/verify-build.sh
 
       - name: Validate scanner vulnerability exception waiver registries
         shell: bash
