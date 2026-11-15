@@ -633,6 +633,27 @@ func TestScannerReleaseGate_WorkflowPermissionBoundariesAndGating(t *testing.T) 
 		t.Errorf("security gate must check both scan_zap and scan_nuclei step outcomes")
 	}
 
+	// 11. Assert documented vulnerability exception policies (.trivyignore) are configured
+	if !strings.Contains(content, "trivyignores: deploy/scanners/zap/.trivyignore") {
+		t.Errorf("workflow missing trivyignores policy for ZAP scan step")
+	}
+	if !strings.Contains(content, "trivyignores: deploy/scanners/nuclei/.trivyignore") {
+		t.Errorf("workflow missing trivyignores policy for Nuclei scan step")
+	}
+
+	// Verify both .trivyignore files exist on disk
+	for _, ignoreRelPath := range []string{
+		filepath.Join("..", "..", "..", "..", "deploy", "scanners", "zap", ".trivyignore"),
+		filepath.Join("..", "..", "..", "..", "deploy", "scanners", "nuclei", ".trivyignore"),
+	} {
+		data, err := os.ReadFile(ignoreRelPath)
+		if err != nil {
+			t.Errorf("failed to read expected ignore file %q: %v", ignoreRelPath, err)
+		} else if !strings.Contains(string(data), "CVE-") {
+			t.Errorf("ignore file %q missing CVE definitions", ignoreRelPath)
+		}
+	}
+
 	for _, invalidSHA := range invalidLegacySHAs {
 		if strings.Contains(content, invalidSHA) {
 			t.Errorf("workflow contains invalid legacy action SHA %q", invalidSHA)

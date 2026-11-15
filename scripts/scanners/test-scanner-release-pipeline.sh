@@ -738,6 +738,39 @@ sys.exit(0)
   else
     test_fail "Scenario 16l: Independent scan execution or fail-closed gate missing in $workflow_file"
   fi
+
+  # 16m: Documented vulnerability exception policies (.trivyignore) configured for both scanners
+  if python -c "
+import yaml, sys, os
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+
+build_steps = wf.get('jobs', {}).get('build-and-scan', {}).get('steps', [])
+zap_step = next((s for s in build_steps if s.get('id') == 'scan_zap'), {})
+nuclei_step = next((s for s in build_steps if s.get('id') == 'scan_nuclei'), {})
+
+zap_ignore = zap_step.get('with', {}).get('trivyignores')
+nuclei_ignore = nuclei_step.get('with', {}).get('trivyignores')
+
+if zap_ignore != 'deploy/scanners/zap/.trivyignore' or nuclei_ignore != 'deploy/scanners/nuclei/.trivyignore':
+    sys.exit(1)
+if not os.path.exists(zap_ignore) or not os.path.exists(nuclei_ignore):
+    sys.exit(2)
+
+with open(zap_ignore) as f:
+    z_content = f.read()
+with open(nuclei_ignore) as f:
+    n_content = f.read()
+
+if 'CVE-' not in z_content or 'CVE-' not in n_content:
+    sys.exit(3)
+
+sys.exit(0)
+"; then
+    test_pass "Scenario 16m: Documented vulnerability exception policies configured and validated for both scanners"
+  else
+    test_fail "Scenario 16m: Vulnerability exception policies missing or invalid in $workflow_file"
+  fi
 fi
 
 # ------------------------------------------------------------------------------
