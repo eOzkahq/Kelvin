@@ -727,3 +727,242 @@ FROM ${DISTROLESS_BASE_IMAGE}
 		t.Fatalf("expected faulty Dockerfile with misplaced ARG to fail validation")
 	}
 }
+
+// Condition 18: Certified scanner release manifest verification (Issue #566)
+func TestScannerReleaseGate_CertifiedManifestValidation(t *testing.T) {
+	sPtr := func(s string) *string { return &s }
+
+	createValidCertifiedManifest := func() *ScannerImageLock {
+		return &ScannerImageLock{
+			SchemaVersion: "1",
+			Status:        StatusCertified,
+			Images: map[string]ImageMetadata{
+				"zap": {
+					Upstream:        "ghcr.io/zaproxy/zaproxy:stable",
+					UpstreamDigest:  sPtr("sha256:1111111111111111111111111111111111111111111111111111111111111111"),
+					Version:         sPtr("2.15.0"),
+					KelvinImage:     sPtr("ghcr.io/eozkull/kelvin/scanner-zap"),
+					KelvinDigest:    sPtr("sha256:2222222222222222222222222222222222222222222222222222222222222222"),
+					Architecture:    sPtr(ArchLinuxArm64),
+					SBOMDigest:      sPtr("sha256:3333333333333333333333333333333333333333333333333333333333333333"),
+					SignatureRef:    sPtr("ghcr.io/eozkull/kelvin/scanner-zap:sha256-2222222222222222222222222222222222222222222222222222222222222222.sig"),
+					ProvenanceRef:   sPtr("ghcr.io/eozkull/kelvin/scanner-zap:sha256-2222222222222222222222222222222222222222222222222222222222222222.att"),
+					ScorecardStatus: sPtr(ScorecardStatusEligible),
+				},
+				"nuclei": {
+					Upstream:              "projectdiscovery/nuclei",
+					UpstreamDigest:        sPtr("sha256:4444444444444444444444444444444444444444444444444444444444444444"),
+					Version:               sPtr("3.11.1"),
+					DistrolessBase:        sPtr("gcr.io/distroless/static-debian12:nonroot"),
+					DistrolessDigest:      sPtr("sha256:5555555555555555555555555555555555555555555555555555555555555555"),
+					KelvinImage:           sPtr("ghcr.io/eozkull/kelvin/scanner-nuclei"),
+					KelvinDigest:          sPtr("sha256:6666666666666666666666666666666666666666666666666666666666666666"),
+					Architecture:          sPtr(ArchLinuxArm64),
+					SBOMDigest:            sPtr("sha256:7777777777777777777777777777777777777777777777777777777777777777"),
+					SignatureRef:          sPtr("ghcr.io/eozkull/kelvin/scanner-nuclei:sha256-6666666666666666666666666666666666666666666666666666666666666666.sig"),
+					ProvenanceRef:         sPtr("ghcr.io/eozkull/kelvin/scanner-nuclei:sha256-6666666666666666666666666666666666666666666666666666666666666666.att"),
+					ScorecardStatus:       sPtr(ScorecardStatusEligible),
+					TemplateCatalogID:     "kelvin.safe.web.v1",
+					TemplateCatalogDigest: sPtr("sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2"),
+				},
+			},
+		}
+	}
+
+	t.Run("valid certified manifest passes", func(t *testing.T) {
+		m := createValidCertifiedManifest()
+		if err := ValidateCertifiedScannerManifest(m, ""); err != nil {
+			t.Fatalf("expected valid certified manifest to pass, got: %v", err)
+		}
+	})
+
+	t.Run("nil manifest rejected", func(t *testing.T) {
+		if err := ValidateCertifiedScannerManifest(nil, ""); err == nil {
+			t.Fatal("expected error for nil manifest")
+		}
+	})
+
+	t.Run("status not-released rejected with ErrScannerNotReleased", func(t *testing.T) {
+		m := createValidCertifiedManifest()
+		m.Status = StatusNotReleased
+		if err := ValidateCertifiedScannerManifest(m, ""); !errors.Is(err, ErrScannerNotReleased) {
+			t.Fatalf("expected ErrScannerNotReleased, got: %v", err)
+		}
+	})
+
+	t.Run("missing architecture rejected", func(t *testing.T) {
+		m := createValidCertifiedManifest()
+		m.Images["zap"] = func(orig ImageMetadata) ImageMetadata {
+			orig.Architecture = nil
+			return orig
+		}(m.Images["zap"])
+		if err := ValidateCertifiedScannerManifest(m, ""); !errors.Is(err, ErrIncompleteCertification) {
+			t.Fatalf("expected ErrIncompleteCertification for missing architecture, got: %v", err)
+		}
+	})
+
+	t.Run("invalid architecture rejected", func(t *testing.T) {
+		m := createValidCertifiedManifest()
+		m.Images["zap"] = func(orig ImageMetadata) ImageMetadata {
+			orig.Architecture = sPtr("windows/amd64")
+			return orig
+		}(m.Images["zap"])
+		if err := ValidateCertifiedScannerManifest(m, ""); !errors.Is(err, ErrInvalidArchitecture) {
+			t.Fatalf("expected ErrInvalidArchitecture, got: %v", err)
+		}
+	})
+
+	t.Run("missing SBOM digest rejected", func(t *testing.T) {
+		m := createValidCertifiedManifest()
+		m.Images["zap"] = func(orig ImageMetadata) ImageMetadata {
+			orig.SBOMDigest = nil
+			return orig
+		}(m.Images["zap"])
+		if err := ValidateCertifiedScannerManifest(m, ""); !errors.Is(err, ErrIncompleteCertification) {
+			t.Fatalf("expected ErrIncompleteCertification for missing SBOM digest, got: %v", err)
+		}
+	})
+
+	t.Run("empty placeholder SBOM digest rejected", func(t *testing.T) {
+		m := createValidCertifiedManifest()
+		m.Images["zap"] = func(orig ImageMetadata) ImageMetadata {
+			orig.SBOMDigest = sPtr(EmptySHA256Digest)
+			return orig
+		}(m.Images["zap"])
+		if err := ValidateCertifiedScannerManifest(m, ""); !errors.Is(err, ErrPlaceholderEmptyHash) {
+			t.Fatalf("expected ErrPlaceholderEmptyHash for empty hash SBOM digest, got: %v", err)
+		}
+	})
+
+	t.Run("missing signature ref rejected", func(t *testing.T) {
+		m := createValidCertifiedManifest()
+		m.Images["nuclei"] = func(orig ImageMetadata) ImageMetadata {
+			orig.SignatureRef = nil
+			return orig
+		}(m.Images["nuclei"])
+		if err := ValidateCertifiedScannerManifest(m, ""); !errors.Is(err, ErrIncompleteCertification) {
+			t.Fatalf("expected ErrIncompleteCertification for missing signature ref, got: %v", err)
+		}
+	})
+
+	t.Run("missing provenance ref rejected", func(t *testing.T) {
+		m := createValidCertifiedManifest()
+		m.Images["nuclei"] = func(orig ImageMetadata) ImageMetadata {
+			orig.ProvenanceRef = nil
+			return orig
+		}(m.Images["nuclei"])
+		if err := ValidateCertifiedScannerManifest(m, ""); !errors.Is(err, ErrIncompleteCertification) {
+			t.Fatalf("expected ErrIncompleteCertification for missing provenance ref, got: %v", err)
+		}
+	})
+
+	t.Run("missing scorecard status rejected", func(t *testing.T) {
+		m := createValidCertifiedManifest()
+		m.Images["zap"] = func(orig ImageMetadata) ImageMetadata {
+			orig.ScorecardStatus = nil
+			return orig
+		}(m.Images["zap"])
+		if err := ValidateCertifiedScannerManifest(m, ""); !errors.Is(err, ErrIncompleteCertification) {
+			t.Fatalf("expected ErrIncompleteCertification for missing scorecard status, got: %v", err)
+		}
+	})
+
+	t.Run("ineligible scorecard status rejected", func(t *testing.T) {
+		m := createValidCertifiedManifest()
+		m.Images["zap"] = func(orig ImageMetadata) ImageMetadata {
+			orig.ScorecardStatus = sPtr(ScorecardStatusIneligible)
+			return orig
+		}(m.Images["zap"])
+		if err := ValidateCertifiedScannerManifest(m, ""); !errors.Is(err, ErrIneligibleScorecard) {
+			t.Fatalf("expected ErrIneligibleScorecard, got: %v", err)
+		}
+	})
+}
+
+// Condition 19: Dedicated helper validators for certified manifest elements
+func TestScannerReleaseGate_HelperValidators(t *testing.T) {
+	t.Run("ValidateReleaseArchitecture", func(t *testing.T) {
+		for _, valid := range []string{"linux/arm64", "linux/amd64", "arm64", "amd64"} {
+			if err := ValidateReleaseArchitecture(valid); err != nil {
+				t.Errorf("expected valid architecture %q to pass, got: %v", valid, err)
+			}
+		}
+		for _, invalid := range []string{"", "windows/amd64", "darwin/arm64", "unknown"} {
+			if err := ValidateReleaseArchitecture(invalid); !errors.Is(err, ErrInvalidArchitecture) {
+				t.Errorf("expected ErrInvalidArchitecture for %q, got: %v", invalid, err)
+			}
+		}
+	})
+
+	t.Run("ValidateSBOMDigest", func(t *testing.T) {
+		validDigest := "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+		if err := ValidateSBOMDigest(validDigest); err != nil {
+			t.Errorf("expected valid SBOM digest to pass, got: %v", err)
+		}
+		if err := ValidateSBOMDigest(""); !errors.Is(err, ErrInvalidSBOMDigest) {
+			t.Errorf("expected ErrInvalidSBOMDigest for empty, got: %v", err)
+		}
+		if err := ValidateSBOMDigest(EmptySHA256Digest); !errors.Is(err, ErrPlaceholderEmptyHash) {
+			t.Errorf("expected ErrPlaceholderEmptyHash for empty hash placeholder, got: %v", err)
+		}
+	})
+
+	t.Run("ValidateSignatureRef", func(t *testing.T) {
+		if err := ValidateSignatureRef("sha256:4444444444444444444444444444444444444444444444444444444444444444"); err != nil {
+			t.Errorf("expected valid signature digest to pass, got: %v", err)
+		}
+		if err := ValidateSignatureRef("ghcr.io/eozkull/kelvin/scanner-zap:sha256-xxx.sig"); err != nil {
+			t.Errorf("expected valid signature reference tag to pass, got: %v", err)
+		}
+		if err := ValidateSignatureRef(""); !errors.Is(err, ErrInvalidSignatureRef) {
+			t.Errorf("expected ErrInvalidSignatureRef for empty, got: %v", err)
+		}
+	})
+
+	t.Run("ValidateProvenanceRef", func(t *testing.T) {
+		if err := ValidateProvenanceRef("sha256:5555555555555555555555555555555555555555555555555555555555555555"); err != nil {
+			t.Errorf("expected valid provenance digest to pass, got: %v", err)
+		}
+		if err := ValidateProvenanceRef("ghcr.io/eozkull/kelvin/scanner-zap:sha256-xxx.att"); err != nil {
+			t.Errorf("expected valid provenance reference tag to pass, got: %v", err)
+		}
+		if err := ValidateProvenanceRef(""); !errors.Is(err, ErrInvalidProvenanceRef) {
+			t.Errorf("expected ErrInvalidProvenanceRef for empty, got: %v", err)
+		}
+	})
+
+	t.Run("ValidateScorecardStatus", func(t *testing.T) {
+		if err := ValidateScorecardStatus(ScorecardStatusEligible); err != nil {
+			t.Errorf("expected ELIGIBLE to pass, got: %v", err)
+		}
+		for _, ineligible := range []string{"INELIGIBLE", "UNKNOWN", "FAIL", ""} {
+			if err := ValidateScorecardStatus(ineligible); !errors.Is(err, ErrIneligibleScorecard) {
+				t.Errorf("expected ErrIneligibleScorecard for %q, got: %v", ineligible, err)
+			}
+		}
+	})
+}
+
+// Condition 20: Canonical release manifest verification on disk
+func TestScannerReleaseGate_CanonicalLockOnDisk(t *testing.T) {
+	lockPath := filepath.Join("..", "..", "..", "..", "deploy", "scanners", "images.lock.json")
+	lock, err := LoadCanonicalLock(lockPath)
+	if err != nil {
+		t.Fatalf("failed to load canonical lock: %v", err)
+	}
+
+	if lock.Status != StatusNotReleased {
+		t.Fatalf("canonical lock must be in status %q, got: %q", StatusNotReleased, lock.Status)
+	}
+
+	for _, scannerID := range []string{"zap", "nuclei"} {
+		img, ok := lock.Images[scannerID]
+		if !ok {
+			t.Fatalf("missing scanner %q in canonical lock", scannerID)
+		}
+		if img.Upstream == "" {
+			t.Errorf("scanner %q missing upstream repository", scannerID)
+		}
+	}
+}
+

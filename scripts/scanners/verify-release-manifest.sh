@@ -117,6 +117,34 @@ if [[ ! "$zap_digest" =~ ^sha256:[0-9a-f]{64}$ || "$zap_digest" == "$EMPTY_SHA25
   exit 1
 fi
 
+# Check ZAP Provenance, SBOM, Signature & Scorecard
+zap_arch="$(json_get "$MANIFEST_PATH" ".images.zap.architecture")"
+zap_sbom="$(json_get "$MANIFEST_PATH" ".images.zap.sbom_digest")"
+zap_sig="$(json_get "$MANIFEST_PATH" ".images.zap.signature_ref")"
+zap_prov="$(json_get "$MANIFEST_PATH" ".images.zap.provenance_ref")"
+zap_scorecard="$(json_get "$MANIFEST_PATH" ".images.zap.scorecard_status")"
+
+if [[ "$zap_arch" != "linux/arm64" && "$zap_arch" != "linux/amd64" && "$zap_arch" != "arm64" && "$zap_arch" != "amd64" ]]; then
+  echo "ERROR: ZAP architecture must be linux/arm64 or linux/amd64 (got: '$zap_arch')" >&2
+  exit 1
+fi
+if [[ ! "$zap_sbom" =~ ^sha256:[0-9a-f]{64}$ || "$zap_sbom" == "$EMPTY_SHA256" ]]; then
+  echo "ERROR: ZAP SBOM digest must be valid non-empty sha256 (got: '$zap_sbom')" >&2
+  exit 1
+fi
+if [[ -z "$zap_sig" ]]; then
+  echo "ERROR: ZAP signature reference must be non-empty" >&2
+  exit 1
+fi
+if [[ -z "$zap_prov" ]]; then
+  echo "ERROR: ZAP provenance reference must be non-empty" >&2
+  exit 1
+fi
+if [[ "$zap_scorecard" != "ELIGIBLE" ]]; then
+  echo "ERROR: ZAP scorecard status must be 'ELIGIBLE' (got: '$zap_scorecard')" >&2
+  exit 1
+fi
+
 # Check Nuclei Fields
 nuclei_upstream="$(json_get "$MANIFEST_PATH" ".images.nuclei.upstream")"
 nuclei_up_digest="$(json_get "$MANIFEST_PATH" ".images.nuclei.upstream_digest")"
@@ -154,6 +182,34 @@ if [[ "$nuclei_image" != "ghcr.io/eozkull/kelvin/scanner-nuclei"* ]]; then
 fi
 if [[ ! "$nuclei_digest" =~ ^sha256:[0-9a-f]{64}$ || "$nuclei_digest" == "$EMPTY_SHA256" ]]; then
   echo "ERROR: Nuclei release digest must be valid non-empty sha256 (got: '$nuclei_digest')" >&2
+  exit 1
+fi
+
+# Check Nuclei Provenance, SBOM, Signature & Scorecard
+nuclei_arch="$(json_get "$MANIFEST_PATH" ".images.nuclei.architecture")"
+nuclei_sbom="$(json_get "$MANIFEST_PATH" ".images.nuclei.sbom_digest")"
+nuclei_sig="$(json_get "$MANIFEST_PATH" ".images.nuclei.signature_ref")"
+nuclei_prov="$(json_get "$MANIFEST_PATH" ".images.nuclei.provenance_ref")"
+nuclei_scorecard="$(json_get "$MANIFEST_PATH" ".images.nuclei.scorecard_status")"
+
+if [[ "$nuclei_arch" != "linux/arm64" && "$nuclei_arch" != "linux/amd64" && "$nuclei_arch" != "arm64" && "$nuclei_arch" != "amd64" ]]; then
+  echo "ERROR: Nuclei architecture must be linux/arm64 or linux/amd64 (got: '$nuclei_arch')" >&2
+  exit 1
+fi
+if [[ ! "$nuclei_sbom" =~ ^sha256:[0-9a-f]{64}$ || "$nuclei_sbom" == "$EMPTY_SHA256" ]]; then
+  echo "ERROR: Nuclei SBOM digest must be valid non-empty sha256 (got: '$nuclei_sbom')" >&2
+  exit 1
+fi
+if [[ -z "$nuclei_sig" ]]; then
+  echo "ERROR: Nuclei signature reference must be non-empty" >&2
+  exit 1
+fi
+if [[ -z "$nuclei_prov" ]]; then
+  echo "ERROR: Nuclei provenance reference must be non-empty" >&2
+  exit 1
+fi
+if [[ "$nuclei_scorecard" != "ELIGIBLE" ]]; then
+  echo "ERROR: Nuclei scorecard status must be 'ELIGIBLE' (got: '$nuclei_scorecard')" >&2
   exit 1
 fi
 if [[ "$catalog_id" != "$EXPECTED_CATALOG_ID" ]]; then
