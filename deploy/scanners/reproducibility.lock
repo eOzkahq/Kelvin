@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "policy": "ADR-0008-REPRODUCIBLE-BUILDS",
+  "description": "Kelvin Scanner Image Reproducibility Specification & Determinism Lock",
+  "reproducibility_epoch": {
+    "SOURCE_DATE_EPOCH": 1786191600,
+    "timestamp_iso": "2026-08-08T12:20:00Z"
+  },
+  "compiler_normalization": {
+    "cgo_enabled": 0,
+    "go_flags": [
+      "-trimpath",
+      "-ldflags=-s -w -buildid=",
+      "-mod=readonly"
+    ],
+    "strip_debug_info": true
+  },
+  "archive_normalization": {
+    "clamp_mtime": true,
+    "sort_file_entries": true,
+    "numeric_owner": true,
+    "uid": 10001,
+    "gid": 10001,
+    "gzip_no_name": true
+  },
+  "non_deterministic_fields": [
+    {
+      "field": "docker_image_manifest_created_at",
+      "mitigation": "Use BuildKit rewrite-timestamp or clamp to SOURCE_DATE_EPOCH",
+      "expected_variance": "Zero variance when BuildKit SOURCE_DATE_EPOCH is clamped"
+    },
+    {
+      "field": "go_build_id",
+      "mitigation": "Pass -buildid= to go build ldflags",
+      "expected_variance": "Zero variance across identical toolchain releases"
+    },
+    {
+      "field": "tar_header_mtime",
+      "mitigation": "Clamp tar header mtimes to SOURCE_DATE_EPOCH via pax/tar options",
+      "expected_variance": "Zero variance in layer checksums"
+    }
+  ]
+}
