@@ -24,6 +24,18 @@ SEVERITY_TTL_DAYS = {
 EXPIRY_WARNING_DAYS = 14
 CVE_REGEX = re.compile(r"^CVE-[0-9]{4}-[0-9]{4,}$")
 PLACEHOLDER_REGEX = re.compile(r"(<.*>|UNASSIGNED|PENDING|PLACEHOLDER|TBD|TODO)", re.IGNORECASE)
+COMPONENT_PURL_REGEX = re.compile(r"^pkg:[a-z0-9_-]+/[^@\s]+@[^@\s]+$")
+
+APPROVED_ADVISORY_PREFIXES = [
+    "https://nvd.nist.gov/vuln/detail/",
+    "https://github.com/advisories/",
+    "https://security-tracker.debian.org/tracker/",
+    "https://pkg.go.dev/vuln/",
+    "https://ubuntu.com/security/",
+    "https://osv.dev/",
+    "https://cve.org/",
+    "https://www.cve.org/",
+]
 
 DATE_FORMAT = "%Y-%m-%d"
 DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
@@ -71,18 +83,29 @@ def validate_waiver(waiver, current_date, authorized_maintainers, ttl_config, al
     component = waiver["component"]
     if not isinstance(component, str) or not component.strip():
         raise ValidationError(f"[{cve_id}] 'component' must be a non-empty string")
+    if not COMPONENT_PURL_REGEX.match(component):
+        raise ValidationError(f"[{cve_id}] 'component' must follow canonical Package URL (purl) format 'pkg:<type>/<name>@<version>', got '{component}'")
 
     severity = waiver["severity"]
     if severity not in SEVERITY_TTL_DAYS:
         raise ValidationError(f"[{cve_id}] Invalid severity '{severity}'. Must be one of {list(SEVERITY_TTL_DAYS.keys())}")
 
     justification = waiver["technical_justification"]
-    if not isinstance(justification, str) or not justification.strip():
-        raise ValidationError(f"[{cve_id}] 'technical_justification' must be a non-empty string")
+    if not isinstance(justification, str) or len(justification.strip()) < 10:
+        raise ValidationError(f"[{cve_id}] 'technical_justification' must be an informative explanation with at least 10 characters")
+    if PLACEHOLDER_REGEX.search(justification):
+        raise ValidationError(f"[{cve_id}] 'technical_justification' contains forbidden placeholder text: '{justification}'")
 
     tracking = waiver["tracking_reference"]
     if not isinstance(tracking, str) or not tracking.strip():
         raise ValidationError(f"[{cve_id}] 'tracking_reference' must be a non-empty URI string")
+    if not (tracking.startswith("https://") or tracking.startswith("http://")):
+        raise ValidationError(f"[{cve_id}] 'tracking_reference' must be an HTTP/HTTPS advisory URI: '{tracking}'")
+    if not any(tracking.startswith(prefix) for prefix in APPROVED_ADVISORY_PREFIXES):
+        raise ValidationError(
+            f"[{cve_id}] 'tracking_reference' '{tracking}' does not match an approved security advisory source. "
+            f"Approved sources include NVD, GHSA, Debian Security Tracker, Go Vuln DB, OSV, and CVE.org."
+        )
 
     status = waiver["status"]
     valid_statuses = ["pending_review", "approved", "rejected", "expired"]
