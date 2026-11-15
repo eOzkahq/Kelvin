@@ -99,6 +99,13 @@ jobs:
           PUBLISH: ${{ inputs.publish || false }}
         run: bash scripts/scanners/verify-build.sh
 
+      - name: Generate source-linked CycloneDX SBOM
+        shell: bash
+        env:
+          OUT_DIR: artifacts/scanner-images
+          NUCLEI_VERSION: ${{ inputs.nuclei_version }}
+        run: bash scripts/scanners/generate-sbom.sh
+
       - name: Validate scanner vulnerability exception waiver registries
         shell: bash
         run: python scripts/scanners/validate-waivers.py --check --verify-sync

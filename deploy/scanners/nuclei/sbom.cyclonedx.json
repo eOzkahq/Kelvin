@@ -1,0 +1,129 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:8b31ea90-b96e-4ad2-a544-245155694200",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-11-15T00:00:00Z",
+    "tools": [
+      {
+        "vendor": "Kelvin",
+        "name": "hermetic-sbom-generator",
+        "version": "1.0.0"
+      }
+    ],
+    "component": {
+      "bom-ref": "pkg:oci/kelvin/scanner-nuclei@3.11.1?arch=arm64",
+      "type": "container",
+      "name": "kelvin/scanner-nuclei",
+      "version": "3.11.1",
+      "purl": "pkg:oci/kelvin/scanner-nuclei@3.11.1",
+      "properties": [
+        {
+          "name": "kelvin:source:repo",
+          "value": "https://github.com/projectdiscovery/nuclei"
+        },
+        {
+          "name": "kelvin:source:commit",
+          "value": "a8c88feb4a1c8e961b7902534ce3af97e9d524a4"
+        },
+        {
+          "name": "kelvin:builder:image",
+          "value": "golang:1.26.10-alpine"
+        },
+        {
+          "name": "kelvin:builder:digest",
+          "value": "sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696"
+        },
+        {
+          "name": "kelvin:compiler:flags",
+          "value": "CGO_ENABLED=0 -trimpath -ldflags=-s -w -buildid="
+        },
+        {
+          "name": "kelvin:runtime:base",
+          "value": "gcr.io/distroless/static-debian12:nonroot"
+        },
+        {
+          "name": "kelvin:runtime:user",
+          "value": "10001:10001"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:golang/stdlib@v1.26.10",
+      "type": "library",
+      "name": "stdlib",
+      "version": "1.26.10",
+      "purl": "pkg:golang/stdlib@v1.26.10",
+      "description": "Go standard library compiled with security patches"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/go-git/go-git/v5@v5.14.0",
+      "type": "library",
+      "name": "github.com/go-git/go-git/v5",
+      "version": "v5.14.0",
+      "purl": "pkg:golang/github.com/go-git/go-git/v5@v5.14.0",
+      "description": "Patched go-git library remediating CVE-2026-71556"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/getkin/kin-openapi@v0.148.0",
+      "type": "library",
+      "name": "github.com/getkin/kin-openapi",
+      "version": "v0.148.0",
+      "purl": "pkg:golang/github.com/getkin/kin-openapi@v0.148.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/go-jose/go-jose/v4@v4.1.6",
+      "type": "library",
+      "name": "github.com/go-jose/go-jose/v4",
+      "version": "v4.1.6",
+      "purl": "pkg:golang/github.com/go-jose/go-jose/v4@v4.1.6"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/crypto@v0.55.0",
+      "type": "library",
+      "name": "golang.org/x/crypto",
+      "version": "v0.55.0",
+      "purl": "pkg:golang/golang.org/x/crypto@v0.55.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/mod@v0.40.0",
+      "type": "library",
+      "name": "golang.org/x/mod",
+      "version": "v0.40.0",
+      "purl": "pkg:golang/golang.org/x/mod@v0.40.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/net@v0.62.0",
+      "type": "library",
+      "name": "golang.org/x/net",
+      "version": "v0.62.0",
+      "purl": "pkg:golang/golang.org/x/net@v0.62.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/text@v0.41.0",
+      "type": "library",
+      "name": "golang.org/x/text",
+      "version": "v0.41.0",
+      "purl": "pkg:golang/golang.org/x/text@v0.41.0"
+    },
+    {
+      "bom-ref": "pkg:golang/google.golang.org/grpc@v1.83.1",
+      "type": "library",
+      "name": "google.golang.org/grpc",
+      "version": "v1.83.1",
+      "purl": "pkg:golang/google.golang.org/grpc@v1.83.1"
+    },
+    {
+      "bom-ref": "pkg:generic/kelvin.safe.web.v1@1.0.0",
+      "type": "data",
+      "name": "kelvin.safe.web.v1",
+      "version": "1.0.0",
+      "purl": "pkg:generic/kelvin.safe.web.v1@1.0.0",
+      "description": "Curated safe web vulnerability scan templates"
+    }
+  ]
+}
