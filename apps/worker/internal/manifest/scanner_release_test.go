@@ -498,3 +498,94 @@ func TestScannerReleaseGate_WorkerRejectionOfNotReleased(t *testing.T) {
 		t.Fatalf("expected development execution to be permitted, got: %v", err)
 	}
 }
+
+// Condition 16: Scanner image workflow permission boundaries and publish=false gating
+func TestScannerReleaseGate_WorkflowPermissionBoundariesAndGating(t *testing.T) {
+	workflowPath := filepath.Join("..", "..", "..", "..", ".github", "workflows", "scanner-images.yml")
+	contentBytes, err := os.ReadFile(workflowPath)
+	if err != nil {
+		t.Fatalf("failed to read workflow file: %v", err)
+	}
+	content := string(contentBytes)
+
+	// 1. Ensure hardcoded ENABLE_CI: 'true' is not in top-level environment
+	if strings.Contains(content, "ENABLE_CI: 'true'") || strings.Contains(content, `ENABLE_CI: "true"`) {
+		t.Errorf("expected no hardcoded ENABLE_CI: 'true' override in workflow")
+	}
+
+	// 2. Ensure job separation: build-and-scan and publish-and-sign exist, old merged job removed
+	if strings.Contains(content, "build-scan-and-release:") {
+		t.Errorf("legacy monolithic job 'build-scan-and-release' must be removed")
+	}
+	if !strings.Contains(content, "build-and-scan:") {
+		t.Errorf("missing 'build-and-scan' job")
+	}
+	if !strings.Contains(content, "publish-and-sign:") {
+		t.Errorf("missing 'publish-and-sign' job")
+	}
+
+	// Split workflow into job sections
+	buildJobIdx := strings.Index(content, "build-and-scan:")
+	pubJobIdx := strings.Index(content, "publish-and-sign:")
+	if buildJobIdx == -1 || pubJobIdx == -1 || buildJobIdx >= pubJobIdx {
+		t.Fatalf("invalid job ordering or missing jobs")
+	}
+
+	buildJobSection := content[buildJobIdx:pubJobIdx]
+	pubJobSection := content[pubJobIdx:]
+
+	// 3. Build job must be gated on inputs.enable_ci == true
+	if !strings.Contains(buildJobSection, "inputs.enable_ci == true") {
+		t.Errorf("build-and-scan job must be gated on inputs.enable_ci == true")
+	}
+
+	// 4. Build job must have ONLY least-privilege permissions (no packages, id-token, attestations write)
+	for _, forbiddenPerm := range []string{"packages: write", "id-token: write", "attestations: write"} {
+		if strings.Contains(buildJobSection, forbiddenPerm) {
+			t.Errorf("build-and-scan job must not contain sensitive permission %q", forbiddenPerm)
+		}
+	}
+	if !strings.Contains(buildJobSection, "contents: read") {
+		t.Errorf("build-and-scan job must explicitly specify contents: read")
+	}
+
+	// 5. Publishing job must depend on build-and-scan and be gated on inputs.publish == true
+	if !strings.Contains(pubJobSection, "needs: [build-and-scan]") && !strings.Contains(pubJobSection, "needs: build-and-scan") {
+		t.Errorf("publish-and-sign job must have needs dependency on build-and-scan")
+	}
+	if !strings.Contains(pubJobSection, "inputs.publish == true") {
+		t.Errorf("publish-and-sign job must be gated on inputs.publish == true")
+	}
+
+	// 6. Publishing job must hold required release permissions
+	for _, requiredPerm := range []string{"packages: write", "id-token: write", "attestations: write"} {
+		if !strings.Contains(pubJobSection, requiredPerm) {
+			t.Errorf("publish-and-sign job missing required permission %q", requiredPerm)
+		}
+	}
+
+	// 7. Sensitive actions must NOT be in build-and-scan job
+	sensitiveActions := []string{"docker/login-action", "publish-and-sign.sh", "sigstore/cosign-installer"}
+	for _, action := range sensitiveActions {
+		if strings.Contains(buildJobSection, action) {
+			t.Errorf("build-and-scan job must not contain sensitive action %q", action)
+		}
+		if !strings.Contains(pubJobSection, action) {
+			t.Errorf("publish-and-sign job must contain action %q", action)
+		}
+	}
+
+	// 8. All actions must be pinned by 40-character SHA
+	actionRegex := regexp.MustCompile(`uses:\s+([^\s\n#]+)`)
+	matches := actionRegex.FindAllStringSubmatch(content, -1)
+	if len(matches) == 0 {
+		t.Fatalf("no action uses: found in workflow")
+	}
+	shaRegex := regexp.MustCompile(`@[0-9a-f]{40}$`)
+	for _, match := range matches {
+		actionRef := match[1]
+		if !shaRegex.MatchString(actionRef) {
+			t.Errorf("action reference %q is not pinned to an immutable 40-character commit SHA", actionRef)
+		}
+	}
+}

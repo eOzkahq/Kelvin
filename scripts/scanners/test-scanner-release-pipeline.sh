@@ -17,6 +17,7 @@
 # 13. Missing release evidence (certification blocked without evidence)
 # 14. Attempts to certify incomplete manifests (null/empty digests rejected)
 # 15. Worker rejection of 'not-released' manifests in staging/production
+# 16. Workflow permission boundaries & publish=false gating (least-privilege CI)
 # ==============================================================================
 set -euo pipefail
 
@@ -493,6 +494,158 @@ else
 fi
 
 # ------------------------------------------------------------------------------
+# SCENARIO 16: Workflow Permission Boundaries & publish=false Gating
+# ------------------------------------------------------------------------------
+echo "--- Testing Scenario 16: Workflow Permission Boundaries & Release Gating ---"
+workflow_file=".github/workflows/scanner-images.yml"
+
+if [[ ! -f "$workflow_file" ]]; then
+  test_fail "Scenario 16: Workflow file $workflow_file missing"
+else
+  # 16a: Top-level environment must not have ENABLE_CI: 'true' hardcoded override
+  if python -c "
+import yaml, sys
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+env_block = wf.get('env', {})
+if env_block and env_block.get('ENABLE_CI') == 'true':
+    sys.exit(1)
+sys.exit(0)
+"; then
+    test_pass "Scenario 16a: Hardcoded ENABLE_CI: 'true' top-level override removed"
+  else
+    test_fail "Scenario 16a: Found hardcoded ENABLE_CI: 'true' in top-level env"
+  fi
+
+  # 16b: Workflow must separate build-and-scan from publish-and-sign jobs
+  if python -c "
+import yaml, sys
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+jobs = wf.get('jobs', {})
+if 'build-and-scan' in jobs and 'publish-and-sign' in jobs and 'build-scan-and-release' not in jobs:
+    sys.exit(0)
+sys.exit(1)
+"; then
+    test_pass "Scenario 16b: Separate build-and-scan and publish-and-sign jobs configured"
+  else
+    test_fail "Scenario 16b: Missing expected job separation in $workflow_file"
+  fi
+
+  # 16c: Build job must have only 'contents: read' permissions
+  if python -c "
+import yaml, sys
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+perms = wf.get('jobs', {}).get('build-and-scan', {}).get('permissions', {})
+if perms == {'contents': 'read'}:
+    sys.exit(0)
+sys.exit(1)
+"; then
+    test_pass "Scenario 16c: Build job has strictly least-privilege 'contents: read' permissions"
+  else
+    test_fail "Scenario 16c: Build job has excessive or unexpected permissions"
+  fi
+
+  # 16d: Build job condition requires inputs.enable_ci == true
+  if python -c "
+import yaml, sys
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+cond = str(wf.get('jobs', {}).get('build-and-scan', {}).get('if', ''))
+if 'inputs.enable_ci == true' in cond:
+    sys.exit(0)
+sys.exit(1)
+"; then
+    test_pass "Scenario 16d: Build job gated on inputs.enable_ci == true"
+  else
+    test_fail "Scenario 16d: Build job missing strict inputs.enable_ci gating"
+  fi
+
+  # 16e: Publishing job runs only when inputs.publish == true and build job succeeds
+  if python -c "
+import yaml, sys
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+job = wf.get('jobs', {}).get('publish-and-sign', {})
+cond = str(job.get('if', ''))
+needs = job.get('needs', [])
+if isinstance(needs, str):
+    needs = [needs]
+if 'inputs.publish == true' in cond and 'build-and-scan' in needs:
+    sys.exit(0)
+sys.exit(1)
+"; then
+    test_pass "Scenario 16e: Publishing job requires build-and-scan success and inputs.publish == true"
+  else
+    test_fail "Scenario 16e: Publishing job missing needs dependency or publish condition"
+  fi
+
+  # 16f: Grant packages: write, id-token: write, attestations: write only to publishing job
+  if python -c "
+import yaml, sys
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+pub_perms = wf.get('jobs', {}).get('publish-and-sign', {}).get('permissions', {})
+build_perms = wf.get('jobs', {}).get('build-and-scan', {}).get('permissions', {})
+top_perms = wf.get('permissions', {})
+
+has_write = all(pub_perms.get(k) == 'write' for k in ['packages', 'id-token', 'attestations'])
+build_clean = not any(build_perms.get(k) == 'write' for k in ['packages', 'id-token', 'attestations'])
+top_clean = not any(top_perms.get(k) == 'write' for k in ['packages', 'id-token', 'attestations'])
+
+if has_write and build_clean and top_clean:
+    sys.exit(0)
+sys.exit(1)
+"; then
+    test_pass "Scenario 16f: Sensitive write permissions granted strictly to publishing job"
+  else
+    test_fail "Scenario 16f: Permission leakage detected between workflow jobs"
+  fi
+
+  # 16g: Verify publish=false cannot authenticate to GHCR, push images, or sign
+  if python -c "
+import yaml, sys
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+build_steps = wf.get('jobs', {}).get('build-and-scan', {}).get('steps', [])
+build_str = yaml.dump(build_steps)
+
+sensitive_tokens = ['login-action', 'publish-and-sign.sh', 'cosign-installer', 'docker push']
+leaked = [t for t in sensitive_tokens if t in build_str]
+if not leaked:
+    sys.exit(0)
+sys.exit(1)
+"; then
+    test_pass "Scenario 16g: Sensitive publishing actions isolated to publish-and-sign job"
+  else
+    test_fail "Scenario 16g: Sensitive publishing action found in build-and-scan job"
+  fi
+
+  # 16h: All GitHub Actions pinned to immutable commit SHAs
+  if python -c "
+import yaml, re, sys
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+unpinned = []
+for jname, jdata in wf.get('jobs', {}).items():
+    for step in jdata.get('steps', []):
+        uses = step.get('uses')
+        if uses:
+            if not re.search(r'@[0-9a-f]{40}', uses):
+                unpinned.append(f'{jname}: {uses}')
+if not unpinned:
+    sys.exit(0)
+print('Unpinned actions:', unpinned, file=sys.stderr)
+sys.exit(1)
+"; then
+    test_pass "Scenario 16h: All GitHub Actions steps strictly pinned by immutable commit SHA"
+  else
+    test_fail "Scenario 16h: Unpinned GitHub Action reference detected in $workflow_file"
+  fi
+fi
+
+# ------------------------------------------------------------------------------
 # Summary
 # ------------------------------------------------------------------------------
 echo "=============================================================================="
@@ -500,7 +653,7 @@ echo "Scanner Release Pipeline Test Results: $PASS_COUNT PASSED, $FAIL_COUNT FAI
 echo "=============================================================================="
 
 if [[ $FAIL_COUNT -eq 0 ]]; then
-  echo "ALL 15 SCANNER RELEASE GATES PASSED!"
+  echo "ALL 16 SCANNER RELEASE GATES PASSED!"
   exit 0
 else
   echo "TEST SUITE FAILED!" >&2

@@ -41,19 +41,14 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write
-  attestations: write
-
-# CI Workflow Toggle: Set ENABLE_CI to 'true' (or repo var ENABLE_CI) to enable runs.
-env:
-  ENABLE_CI: 'true'
 
 jobs:
-  build-scan-and-release:
-    if: inputs.enable_ci == true || env.ENABLE_CI == 'true' || vars.ENABLE_CI == 'true'
-    name: Build, scan, publish and attest scanner images
+  build-and-scan:
+    name: Build, scan and harden scanner images
+    if: inputs.enable_ci == true
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -71,9 +66,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b4e79d4850a0074cbe657f63 # v3.7.1
-
-      - name: Install Sigstore Cosign
-        uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
 
       - name: Build, harden and smoke test scanner images
         env:
@@ -121,8 +113,71 @@ jobs:
             --format '{{.RepoTags}} {{.Id}} {{.Architecture}} {{.Os}} {{.Config.User}} {{json .Config.Labels}}' \
             > artifacts/scanner-images/image-inspect.txt
 
-      - name: Log in to GitHub Container Registry
+      - name: Verify release manifest governance
+        shell: bash
+        run: bash scripts/scanners/verify-release-manifest.sh deploy/scanners/images.lock.json
+
+      - name: Save container images for release publishing
         if: ${{ inputs.publish == true }}
+        shell: bash
+        run: |
+          mkdir -p artifacts/docker-images
+          docker save \
+            "kelvin/scanner-zap:${{ inputs.zap_version }}" \
+            "kelvin/scanner-nuclei:${{ inputs.nuclei_version }}" \
+            -o artifacts/docker-images/scanner-images.tar
+
+      - name: Upload scanner container images
+        if: ${{ inputs.publish == true }}
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: scanner-container-images
+          path: artifacts/docker-images/scanner-images.tar
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload scanner runtime image evidence
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: scanner-runtime-image-evidence
+          path: artifacts/scanner-images/
+          if-no-files-found: error
+          retention-days: 90
+
+  publish-and-sign:
+    name: Publish, sign and attest scanner images
+    needs: [build-and-scan]
+    if: inputs.enable_ci == true && inputs.publish == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout repository source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download scanner runtime image evidence
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: scanner-runtime-image-evidence
+          path: artifacts/scanner-images
+
+      - name: Download scanner container images
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: scanner-container-images
+          path: artifacts/docker-images
+
+      - name: Load scanner container images into Docker daemon
+        shell: bash
+        run: docker load -i artifacts/docker-images/scanner-images.tar
+
+      - name: Install Sigstore Cosign
+        uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
@@ -130,7 +185,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to GHCR, sign with Cosign and attest supply chain
-        if: ${{ inputs.publish == true }}
         shell: bash
         env:
           REPO: ${{ github.repository }}
@@ -146,10 +200,10 @@ jobs:
         shell: bash
         run: bash scripts/scanners/verify-release-manifest.sh deploy/scanners/images.lock.json
 
-      - name: Upload scanner runtime image evidence
+      - name: Upload scanner publication evidence
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: scanner-runtime-image-evidence
-          path: artifacts/scanner-images/
+          name: scanner-publication-evidence
+          path: artifacts/scanner-images/published-manifest.json
           if-no-files-found: error
           retention-days: 90
