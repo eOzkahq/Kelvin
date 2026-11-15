@@ -6,5 +6,5 @@ use (
 	./packages/common
 	./packages/schemas
 	./tests/integration
-	./tools/scanner-scorecard
+	./tools/reconcile-vulns
 )
