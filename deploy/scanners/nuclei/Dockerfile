@@ -39,7 +39,10 @@ RUN apk add --no-cache git ca-certificates tzdata && \
     git fetch --depth 1 origin "${NUCLEI_COMMIT}" && \
     git checkout FETCH_HEAD && \
     if [ -f /src/patches/go-git.patch ]; then \
-      git apply /src/patches/go-git.patch || go mod edit -replace github.com/go-git/go-git/v5=github.com/go-git/go-git/v5@v5.14.0; \
+      git apply /src/patches/go-git.patch || true; \
+    fi && \
+    if [ -f /src/patches/go-modules.patch ]; then \
+      git apply /src/patches/go-modules.patch || true; \
     fi && \
     go mod download && \
     go build -v -trimpath \

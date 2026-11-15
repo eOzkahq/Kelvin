@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.0",
+  "remediated_module_cves": [
+    {
+      "cve_id": "CVE-2026-100349",
+      "component": "pkg:golang/github.com/getkin/kin-openapi@v0.144.0",
+      "fixed_version": "v0.148.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-100349"
+    },
+    {
+      "cve_id": "CVE-2026-100351",
+      "component": "pkg:golang/github.com/getkin/kin-openapi@v0.144.0",
+      "fixed_version": "v0.148.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-100351"
+    },
+    {
+      "cve_id": "CVE-2026-100352",
+      "component": "pkg:golang/github.com/getkin/kin-openapi@v0.144.0",
+      "fixed_version": "v0.148.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-100352"
+    },
+    {
+      "cve_id": "CVE-2026-100353",
+      "component": "pkg:golang/github.com/getkin/kin-openapi@v0.144.0",
+      "fixed_version": "v0.148.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-100353"
+    },
+    {
+      "cve_id": "CVE-2026-100354",
+      "component": "pkg:golang/github.com/getkin/kin-openapi@v0.144.0",
+      "fixed_version": "v0.148.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-100354"
+    },
+    {
+      "cve_id": "CVE-2026-116587",
+      "component": "pkg:golang/github.com/go-jose/go-jose/v4@v4.1.4",
+      "fixed_version": "v4.1.6",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-116587"
+    },
+    {
+      "cve_id": "CVE-2026-56851",
+      "component": "pkg:golang/golang.org/x/text@v0.39.0",
+      "fixed_version": "v0.41.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-56851"
+    },
+    {
+      "cve_id": "CVE-2026-56854",
+      "component": "pkg:golang/golang.org/x/crypto@v0.53.0",
+      "fixed_version": "v0.55.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-56854"
+    },
+    {
+      "cve_id": "CVE-2026-56864",
+      "component": "pkg:golang/golang.org/x/mod@v0.37.0",
+      "fixed_version": "v0.40.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-56864"
+    },
+    {
+      "cve_id": "CVE-2026-56865",
+      "component": "pkg:golang/golang.org/x/mod@v0.37.0",
+      "fixed_version": "v0.40.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-56865"
+    },
+    {
+      "cve_id": "CVE-2026-71556",
+      "component": "pkg:golang/github.com/go-git/go-git/v5@v5.19.1",
+      "fixed_version": "v5.14.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-71556"
+    },
+    {
+      "cve_id": "CVE-2026-78661",
+      "component": "pkg:golang/golang.org/x/net@v0.56.0",
+      "fixed_version": "v0.62.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-78661"
+    },
+    {
+      "cve_id": "CVE-2026-78669",
+      "component": "pkg:golang/golang.org/x/net@v0.56.0",
+      "fixed_version": "v0.62.0",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-78669"
+    },
+    {
+      "cve_id": "CVE-2026-84304",
+      "component": "pkg:golang/google.golang.org/grpc@v1.82.1",
+      "fixed_version": "v1.83.1",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-84304"
+    },
+    {
+      "cve_id": "CVE-2026-84445",
+      "component": "pkg:golang/google.golang.org/grpc@v1.82.1",
+      "fixed_version": "v1.83.1",
+      "status": "remediated",
+      "advisory": "https://pkg.go.dev/vuln/CVE-2026-84445"
+    }
+  ]
+}
