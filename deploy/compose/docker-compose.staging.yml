@@ -1,0 +1,165 @@
+# ==============================================================================
+# Kelvin Staging Scanner Execution & Control Plane Deployment (Phase 6)
+# Target Architecture: Linux ARM64 (1 OCPU / 6 GB RAM) - Rootless OCI Topology
+# Policy: ADR-0008 (Secure OCI Execution Architecture & Fail-Closed Gating)
+# ==============================================================================
+services:
+  # ----------------------------------------------------------------------------
+  # Control Plane API Service
+  # ----------------------------------------------------------------------------
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      args:
+        TARGETARCH: arm64
+    image: ghcr.io/eozkull/kelvin/api:staging
+    container_name: kelvin-staging-api
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    environment:
+      KELVIN_ENV: staging
+      KELVIN_API_ADDR: ${KELVIN_API_ADDR:-:8080}
+      KELVIN_API_VERSION: "1.0.0-staging"
+      KELVIN_DATABASE_URL: ${KELVIN_DATABASE_URL}
+      KELVIN_DATABASE_SSL_ROOT_CERT: ${SUPABASE_CA_CERT_PATH:-}
+      KELVIN_DATABASE_MAX_CONNS: "5"
+      KELVIN_DATABASE_MIN_CONNS: "1"
+      KELVIN_REDIS_ADDR: ${KELVIN_REDIS_ADDR:-}
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_TLS_ENABLED: "true"
+      KELVIN_JWT_SECRET: ${KELVIN_JWT_SECRET}
+      KELVIN_EVIDENCE_SIGNING_KEY: ${KELVIN_EVIDENCE_SIGNING_KEY}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_STORAGE_BUCKET_REPORTS: ${SUPABASE_STORAGE_BUCKET_REPORTS:-kelvin-reports}
+      SUPABASE_STORAGE_BUCKET_EVIDENCE: ${SUPABASE_STORAGE_BUCKET_EVIDENCE:-kelvin-evidence}
+      KELVIN_API_ALLOWED_ORIGINS: ${KELVIN_API_ALLOWED_ORIGINS}
+      KELVIN_API_SHUTDOWN_TIMEOUT_S: "30"
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 1024M
+        reservations:
+          cpus: "0.10"
+          memory: 256M
+    networks:
+      - kelvin-staging-net
+
+  # ----------------------------------------------------------------------------
+  # Scanner Execution Worker (Execution Plane)
+  # Operates strictly with unprivileged non-root user (UID 10001)
+  # ZERO Docker socket access: container execution managed via rootless Podman
+  # ----------------------------------------------------------------------------
+  worker:
+    build:
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
+      args:
+        TARGETARCH: arm64
+    image: ghcr.io/eozkull/kelvin/worker:staging
+    container_name: kelvin-staging-worker
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,nosuid,size=1024m
+    environment:
+      KELVIN_ENV: staging
+      KELVIN_WORKER_ID: staging-worker-arm64-01
+      KELVIN_WORKER_POLL_INTERVAL: 1s
+      KELVIN_WORKER_CONCURRENCY: "1"
+      KELVIN_REDIS_ADDR: ${KELVIN_REDIS_ADDR:-}
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_TLS_ENABLED: "true"
+      KELVIN_DATABASE_URL: ${KELVIN_DATABASE_URL}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_STORAGE_BUCKET_EVIDENCE: ${SUPABASE_STORAGE_BUCKET_EVIDENCE:-kelvin-evidence}
+      KELVIN_SCANNER_RELEASE_MANIFEST: /app/deploy/scanners/images.lock.json
+      KELVIN_EGRESS_PROXY: http://anti-ssrf-proxy:8080
+      KELVIN_ANTI_SSRF_ENABLED: "true"
+      KELVIN_LIMITS_CPU_QUOTA: "0.50"
+      KELVIN_LIMITS_MEMORY_LIMIT: "2048M"
+      KELVIN_LIMITS_MAX_CONCURRENT_CONNS: "10"
+      KELVIN_LIMITS_MAX_REQUESTS_PER_TARGET: "5"
+    depends_on:
+      api:
+        condition: service_healthy
+      anti-ssrf-proxy:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 2048M
+        reservations:
+          cpus: "0.10"
+          memory: 512M
+    networks:
+      - kelvin-staging-net
+      - kelvin-scanner-internal
+
+  # ----------------------------------------------------------------------------
+  # Anti-SSRF Scoped Egress Proxy
+  # Blocks access to 127.0.0.1, RFC 1918 subnets, and cloud metadata (169.254.169.254)
+  # ----------------------------------------------------------------------------
+  anti-ssrf-proxy:
+    image: ghcr.io/eozkull/kelvin/anti-ssrf-proxy:staging
+    container_name: kelvin-staging-anti-ssrf-proxy
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    environment:
+      PROXY_PORT: "8080"
+      DENIED_CIDRS: "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.169.254/32,::1/128,fc00::/7"
+      ALLOWED_DOMAINS: "juice-shop.staging.internal,crapi.staging.internal,example.com"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+    networks:
+      - kelvin-staging-net
+      - kelvin-scanner-internal
+
+networks:
+  kelvin-staging-net:
+    name: kelvin-staging-net
+    driver: bridge
+
+  # Internal scanner network: direct external egress is blocked; all traffic routes through anti-ssrf-proxy
+  kelvin-scanner-internal:
+    name: kelvin-scanner-internal
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.89.10.0/24
+          gateway: 10.89.10.1
