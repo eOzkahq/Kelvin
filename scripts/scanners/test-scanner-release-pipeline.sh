@@ -643,6 +643,26 @@ sys.exit(1)
   else
     test_fail "Scenario 16h: Unpinned GitHub Action reference detected in $workflow_file"
   fi
+
+  # 16i: Exact verified immutable commit SHAs for setup-qemu-action and setup-buildx-action
+  if python -c "
+import sys
+with open('$workflow_file', 'r') as f:
+    content = f.read()
+
+qemu_valid = 'docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf' in content
+buildx_valid = 'docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349' in content
+qemu_invalid = '49b3bc8e6bdd4480b82837412f66d573217e85c4' in content
+buildx_invalid = 'c47758b77c9736f4b4e79d4850a0074cbe657f63' in content
+
+if qemu_valid and buildx_valid and not qemu_invalid and not buildx_invalid:
+    sys.exit(0)
+sys.exit(1)
+"; then
+    test_pass "Scenario 16i: Exact verified action commit SHAs for QEMU (v3.2.0) and Buildx (v3.7.1) confirmed"
+  else
+    test_fail "Scenario 16i: Invalid or corrupted action commit SHA detected in $workflow_file"
+  fi
 fi
 
 # ------------------------------------------------------------------------------
