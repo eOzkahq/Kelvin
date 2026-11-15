@@ -39,6 +39,11 @@ var (
 	ErrInvalidRuntimeUser       = errors.New("manifest: invalid runtime user")
 	ErrCatalogDigestMismatch    = errors.New("manifest: template catalog digest mismatch")
 	ErrIncompleteCertification  = errors.New("manifest: cannot certify incomplete release manifest")
+	ErrInvalidArchitecture      = errors.New("manifest: invalid or unsupported platform architecture")
+	ErrInvalidSBOMDigest        = errors.New("manifest: invalid or missing SBOM digest")
+	ErrInvalidSignatureRef      = errors.New("manifest: invalid or missing signature reference")
+	ErrInvalidProvenanceRef     = errors.New("manifest: invalid or missing provenance reference")
+	ErrIneligibleScorecard      = errors.New("manifest: scanner release scorecard is ineligible")
 )
 
 // ScannerImageLock represents the canonical JSON release manifest (deploy/scanners/images.lock.json).
@@ -59,6 +64,11 @@ type ImageMetadata struct {
 	DistrolessDigest      *string `json:"distroless_digest,omitempty"`
 	KelvinImage           *string `json:"kelvin_image,omitempty"`
 	KelvinDigest          *string `json:"kelvin_digest,omitempty"`
+	Architecture          *string `json:"architecture,omitempty"`
+	SBOMDigest            *string `json:"sbom_digest,omitempty"`
+	SignatureRef          *string `json:"signature_ref,omitempty"`
+	ProvenanceRef         *string `json:"provenance_ref,omitempty"`
+	ScorecardStatus       *string `json:"scorecard_status,omitempty"`
 	TemplateCatalogID     string  `json:"template_catalog_id,omitempty"`
 	TemplateCatalogDigest *string `json:"template_catalog_digest,omitempty"`
 }
@@ -406,71 +416,7 @@ func ValidateRuntimeUser(user string) error {
 
 // ValidateCertifiedManifest performs a complete, strict audit on a certified manifest.
 func ValidateCertifiedManifest(lock *ScannerImageLock, catalogPath string) error {
-	if lock.Status != StatusCertified {
-		return fmt.Errorf("%w: status is %q", ErrScannerNotReleased, lock.Status)
-	}
-	for _, scannerID := range []string{"zap", "nuclei"} {
-		img, ok := lock.Images[scannerID]
-		if !ok {
-			return fmt.Errorf("%w: missing required scanner %q", ErrIncompleteCertification, scannerID)
-		}
-		if img.Upstream == "" {
-			return fmt.Errorf("%w: scanner %q missing upstream repository", ErrIncompleteCertification, scannerID)
-		}
-		if img.UpstreamDigest == nil || *img.UpstreamDigest == "" {
-			return fmt.Errorf("%w: scanner %q missing upstream digest", ErrIncompleteCertification, scannerID)
-		}
-		if err := ValidateDigestFormat(*img.UpstreamDigest); err != nil {
-			return fmt.Errorf("scanner %q: %w", scannerID, err)
-		}
-		if img.Version == nil || *img.Version == "" {
-			return fmt.Errorf("%w: scanner %q missing version", ErrIncompleteCertification, scannerID)
-		}
-		if err := ValidateSemanticVersion(*img.Version); err != nil {
-			return fmt.Errorf("scanner %q: %w", scannerID, err)
-		}
-		if img.KelvinImage == nil || *img.KelvinImage == "" {
-			return fmt.Errorf("%w: scanner %q missing kelvin image", ErrIncompleteCertification, scannerID)
-		}
-		if img.KelvinDigest == nil || *img.KelvinDigest == "" {
-			return fmt.Errorf("%w: scanner %q missing kelvin digest", ErrIncompleteCertification, scannerID)
-		}
-		if err := ValidateDigestFormat(*img.KelvinDigest); err != nil {
-			return fmt.Errorf("scanner %q: %w", scannerID, err)
-		}
-	}
-
-	// Nuclei specific checks
-	nucleiImg := lock.Images["nuclei"]
-	if nucleiImg.DistrolessBase == nil || *nucleiImg.DistrolessBase == "" {
-		return fmt.Errorf("%w: nuclei missing distroless base", ErrIncompleteCertification)
-	}
-	if nucleiImg.DistrolessDigest == nil || *nucleiImg.DistrolessDigest == "" {
-		return fmt.Errorf("%w: nuclei missing distroless digest", ErrIncompleteCertification)
-	}
-	if err := ValidateDigestFormat(*nucleiImg.DistrolessDigest); err != nil {
-		return fmt.Errorf("nuclei distroless: %w", err)
-	}
-	if nucleiImg.TemplateCatalogID != "kelvin.safe.web.v1" {
-		return fmt.Errorf("%w: unexpected template catalog ID %q", ErrIncompleteCertification, nucleiImg.TemplateCatalogID)
-	}
-	if nucleiImg.TemplateCatalogDigest == nil || *nucleiImg.TemplateCatalogDigest == "" {
-		return fmt.Errorf("%w: nuclei missing template catalog digest", ErrIncompleteCertification)
-	}
-	if err := ValidateDigestFormat(*nucleiImg.TemplateCatalogDigest); err != nil {
-		return fmt.Errorf("nuclei catalog digest: %w", err)
-	}
-
-	if catalogPath != "" {
-		calcDigest, err := CalculateCatalogDigest(catalogPath)
-		if err != nil {
-			return fmt.Errorf("failed to calculate catalog digest: %w", err)
-		}
-		if *nucleiImg.TemplateCatalogDigest != calcDigest {
-			return fmt.Errorf("%w: declared %q, calculated %q", ErrCatalogDigestMismatch, *nucleiImg.TemplateCatalogDigest, calcDigest)
-		}
-	}
-	return nil
+	return ValidateCertifiedScannerManifest(lock, catalogPath)
 }
 
 // ValidateNucleiVersionMatch verifies that the runtime output of Nuclei matches
