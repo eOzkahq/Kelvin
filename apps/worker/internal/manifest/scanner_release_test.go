@@ -611,6 +611,10 @@ func TestScannerReleaseGate_WorkflowPermissionBoundariesAndGating(t *testing.T) 
 	if count := strings.Count(content, trivyV31Ref); count != 2 {
 		t.Errorf("expected exactly 2 occurrences of %q (for ZAP and Nuclei), got %d", trivyV31Ref, count)
 	}
+	// Assert both Trivy steps explicitly set version: v0.70.0 to override unreleased v0.63.0 default
+	if count := strings.Count(content, "version: v0.70.0"); count != 2 {
+		t.Errorf("expected exactly 2 occurrences of 'version: v0.70.0' for Trivy scan steps, got %d", count)
+	}
 	for _, invalidSHA := range invalidLegacySHAs {
 		if strings.Contains(content, invalidSHA) {
 			t.Errorf("workflow contains invalid legacy action SHA %q", invalidSHA)

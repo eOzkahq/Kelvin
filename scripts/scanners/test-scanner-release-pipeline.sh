@@ -683,6 +683,30 @@ sys.exit(1)
   else
     test_fail "Scenario 16j: Trivy action commit SHA verification failed in $workflow_file"
   fi
+
+  # 16k: Explicit verified Trivy release version (v0.70.0) configured to override unreleased v0.63.0 default
+  if python -c "
+import yaml, sys
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+
+build_steps = wf.get('jobs', {}).get('build-and-scan', {}).get('steps', [])
+trivy_steps = [s for s in build_steps if 'trivy-action' in s.get('uses', '')]
+
+if len(trivy_steps) != 2:
+    sys.exit(1)
+
+for s in trivy_steps:
+    v = s.get('with', {}).get('version')
+    if v != 'v0.70.0':
+        sys.exit(2)
+
+sys.exit(0)
+"; then
+    test_pass "Scenario 16k: Both Trivy scan steps explicitly specify verified release version (v0.70.0) to avoid 404"
+  else
+    test_fail "Scenario 16k: Trivy scan steps missing explicit verified version v0.70.0 in $workflow_file"
+  fi
 fi
 
 # ------------------------------------------------------------------------------
