@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "component": "nuclei",
+  "release": {
+    "version": "3.11.1",
+    "upstream_repository": "https://github.com/projectdiscovery/nuclei",
+    "tag": "v3.11.1",
+    "commit": "a8c88feb4a1c8e961b7902534ce3af97e9d524a4",
+    "tree": "4fc5cf8f1560b47526109ed40ab4450d98200bc7",
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "author": "Sandeep Singh <sandeep@projectdiscovery.io>",
+      "committer": "GitHub <noreply@github.com>",
+      "key_id": "4AEE18F83AFDEB23"
+    }
+  },
+  "builder": {
+    "image": "golang:1.26.10-alpine",
+    "digest": "sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696",
+    "go_version": "1.26.10",
+    "architectures": [
+      "amd64",
+      "arm64"
+    ]
+  },
+  "runtime": {
+    "base_image": "gcr.io/distroless/static-debian12:nonroot",
+    "digest": "sha256:06c3c14b7fa252d9f4285242d2d665ce3b51f74b02d3c529464f220f2912aecb",
+    "uid_gid": "10001:10001"
+  }
+}
