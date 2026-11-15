@@ -617,3 +617,70 @@ func TestScannerReleaseGate_WorkflowPermissionBoundariesAndGating(t *testing.T) 
 		}
 	}
 }
+
+// Condition 17: Nuclei Dockerfile global ARG scoping before FROM
+func TestScannerReleaseGate_NucleiDockerfileGlobalArgPlacement(t *testing.T) {
+	dockerfilePath := filepath.Join("..", "..", "..", "..", "deploy", "scanners", "nuclei", "Dockerfile")
+	contentBytes, err := os.ReadFile(dockerfilePath)
+	if err != nil {
+		t.Fatalf("failed to read Nuclei Dockerfile: %v", err)
+	}
+	content := string(contentBytes)
+
+	validateDockerfileGlobalARGs := func(dfContent string) error {
+		lines := strings.Split(dfContent, "\n")
+		firstFromIdx := -1
+		fromRegex := regexp.MustCompile(`(?i)^\s*FROM\s+`)
+		argRegex := regexp.MustCompile(`(?i)^\s*ARG\s+([A-Za-z0-9_]+)`)
+
+		for i, line := range lines {
+			if fromRegex.MatchString(line) {
+				firstFromIdx = i
+				break
+			}
+		}
+		if firstFromIdx == -1 {
+			return errors.New("no FROM instruction found")
+		}
+
+		globalArgs := make(map[string]bool)
+		for _, line := range lines[:firstFromIdx] {
+			if m := argRegex.FindStringSubmatch(line); len(m) > 1 {
+				globalArgs[m[1]] = true
+			}
+		}
+
+		requiredGlobalArgs := []string{"NUCLEI_SOURCE_IMAGE", "DISTROLESS_BASE_IMAGE"}
+		for _, req := range requiredGlobalArgs {
+			if !globalArgs[req] {
+				return fmt.Errorf("required ARG %q missing before first FROM", req)
+			}
+		}
+
+		// Ensure DISTROLESS_BASE_IMAGE is not declared between FROM instructions
+		for _, line := range lines[firstFromIdx:] {
+			if strings.Contains(line, "ARG DISTROLESS_BASE_IMAGE") {
+				return errors.New("DISTROLESS_BASE_IMAGE declared in stage scope instead of global scope")
+			}
+		}
+
+		return nil
+	}
+
+	// 1. Verify canonical Dockerfile
+	if err := validateDockerfileGlobalARGs(content); err != nil {
+		t.Fatalf("canonical Nuclei Dockerfile failed global ARG validation: %v", err)
+	}
+
+	// 2. Negative test: faulty Dockerfile with ARG after first FROM
+	faultyContent := `# Faulty Dockerfile
+ARG NUCLEI_SOURCE_IMAGE
+FROM ${NUCLEI_SOURCE_IMAGE} AS upstream
+
+ARG DISTROLESS_BASE_IMAGE
+FROM ${DISTROLESS_BASE_IMAGE}
+`
+	if err := validateDockerfileGlobalARGs(faultyContent); err == nil {
+		t.Fatalf("expected faulty Dockerfile with misplaced ARG to fail validation")
+	}
+}
