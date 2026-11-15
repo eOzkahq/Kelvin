@@ -217,3 +217,61 @@ func ValidateCertifiedScannerManifest(lock *ScannerImageLock, catalogPath string
 
 	return nil
 }
+
+// VerifyScannerCertificationForExecution enforces worker daemon certification checks:
+// - Fails closed if the manifest is in 'not-released' status in staging/production.
+// - Rejects images not present in the certified manifest.
+// - Detects and prevents image digest tampering if the runtime image reference digest
+//   does not match the certified KelvinDigest in the manifest.
+// - Enforces scorecard eligibility.
+func VerifyScannerCertificationForExecution(manifestPath, scannerID, imageRef, env string) error {
+	if env != "production" && env != "staging" {
+		// Non-production environment, allow development runs unless manifest is explicitly corrupted
+		return nil
+	}
+	if strings.TrimSpace(manifestPath) == "" {
+		manifestPath = "deploy/scanners/images.lock.json"
+	}
+
+	lock, err := LoadCanonicalLock(manifestPath)
+	if err != nil {
+		return fmt.Errorf("manifest: failed to load release manifest for execution gate: %w", err)
+	}
+
+	if lock.Status != StatusCertified {
+		return fmt.Errorf("%w: scanner %q execution blocked because manifest status is %q", ErrScannerNotReleased, scannerID, lock.Status)
+	}
+
+	img, ok := lock.Images[scannerID]
+	if !ok {
+		return fmt.Errorf("%w: scanner %q not registered in release manifest", ErrScannerNotReleased, scannerID)
+	}
+
+	if img.KelvinDigest == nil || *img.KelvinDigest == "" || *img.KelvinDigest == EmptySHA256Digest {
+		return fmt.Errorf("%w: scanner %q has missing or uncertified release digest", ErrScannerNotReleased, scannerID)
+	}
+
+	if err := ValidateDigestFormat(*img.KelvinDigest); err != nil {
+		return fmt.Errorf("%w: scanner %q has invalid release digest format: %w", ErrScannerNotReleased, scannerID, err)
+	}
+
+	// Verify that runtime image reference matches certified digest
+	if imageRef != "" {
+		parts := strings.Split(imageRef, "@")
+		if len(parts) == 2 {
+			refDigest := parts[1]
+			if refDigest != *img.KelvinDigest {
+				return fmt.Errorf("%w: image digest tampering detected: runtime image specifies %s but certified manifest specifies %s", ErrManifestConflict, refDigest, *img.KelvinDigest)
+			}
+		}
+	}
+
+	// Enforce scorecard eligibility if present
+	if img.ScorecardStatus != nil && *img.ScorecardStatus != "" {
+		if err := ValidateScorecardStatus(*img.ScorecardStatus); err != nil {
+			return fmt.Errorf("%w: scanner %q failed scorecard gate: %w", ErrIneligibleScorecard, scannerID, err)
+		}
+	}
+
+	return nil
+}
