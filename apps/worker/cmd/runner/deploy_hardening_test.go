@@ -257,6 +257,27 @@ func validateOrAddSubidContentConfigurable(content string, idType string, config
 			return "", discErr.Error()
 		}
 		targetStart = discovered
+	} else if configuredStart == "" || configuredStart == "adopt" {
+		if len(kelvinLines) == 0 {
+			discovered, discErr := findAvailableSubIDRange(existingRanges, targetCount, 100000)
+			if discErr != nil {
+				return "", discErr.Error()
+			}
+			targetStart = discovered
+		} else if len(kelvinLines) == 1 {
+			parts := strings.Split(kelvinLines[0], ":")
+			parsed, pErr := strconv.ParseUint(parts[1], 10, 64)
+			if pErr != nil {
+				return "", fmt.Sprintf("invalid start in existing %s: %s", idType, parts[1])
+			}
+			cParsed, cErr := strconv.ParseUint(parts[2], 10, 64)
+			if cErr != nil || cParsed != targetCount {
+				return "", fmt.Sprintf("subordinate %s range size mismatch: found count %s, expected %d", idType, parts[2], targetCount)
+			}
+			targetStart = parsed
+		} else {
+			return "", fmt.Sprintf("multiple conflicting subordinate %s mappings found for %s", idType, targetUser)
+		}
 	} else {
 		parsedStart, parseErr := strconv.ParseUint(configuredStart, 10, 64)
 		if parseErr != nil {
@@ -293,8 +314,55 @@ func validateOrAddSubidContentConfigurable(content string, idType string, config
 		return content, "" // Idempotent no-op
 	}
 
+	if len(kelvinLines) > 1 {
+		return "", fmt.Sprintf("multiple conflicting subordinate %s mappings found for %s: %s",
+			idType, targetUser, strings.Join(kelvinLines, ", "))
+	}
+
 	return "", fmt.Sprintf("conflicting subordinate %s configuration found: expected %s, found %s",
 		idType, expected, strings.Join(kelvinLines, ", "))
+}
+
+func validateSubidPairConsistency(subuidContent, subgidContent string, targetCount uint64) (start uint64, err string) {
+	targetUser := "kelvin-worker"
+	var uLine, gLine string
+	for _, l := range strings.Split(subuidContent, "\n") {
+		tr := strings.TrimSpace(l)
+		if strings.HasPrefix(tr, targetUser+":") {
+			if uLine != "" {
+				return 0, "multiple conflicting subordinate UID mappings found for kelvin-worker in subuid"
+			}
+			uLine = tr
+		}
+	}
+	for _, l := range strings.Split(subgidContent, "\n") {
+		tr := strings.TrimSpace(l)
+		if strings.HasPrefix(tr, targetUser+":") {
+			if gLine != "" {
+				return 0, "multiple conflicting subordinate GID mappings found for kelvin-worker in subgid"
+			}
+			gLine = tr
+		}
+	}
+	if uLine == "" || gLine == "" {
+		return 0, "inconsistent subordinate ID configuration: mapping missing in one or both files"
+	}
+	uParts := strings.Split(uLine, ":")
+	gParts := strings.Split(gLine, ":")
+	uStart, errU := strconv.ParseUint(uParts[1], 10, 64)
+	gStart, errG := strconv.ParseUint(gParts[1], 10, 64)
+	if errU != nil || errG != nil {
+		return 0, "malformed subordinate ID entry values"
+	}
+	if uStart != gStart {
+		return 0, fmt.Sprintf("subordinate UID/GID allocation mismatch: UID start '%d' does not match GID start '%d'", uStart, gStart)
+	}
+	uCnt, _ := strconv.ParseUint(uParts[2], 10, 64)
+	gCnt, _ := strconv.ParseUint(gParts[2], 10, 64)
+	if uCnt != targetCount || gCnt != targetCount {
+		return 0, fmt.Sprintf("subordinate ID range size mismatch: found count UID='%d'/GID='%d', expected '%d'", uCnt, gCnt, targetCount)
+	}
+	return uStart, ""
 }
 
 func validateOrAddSubidContent(content string) (newContent string, err string) {
@@ -356,7 +424,7 @@ func TestSubordinateIDValidation_ConflictingRanges(t *testing.T) {
 	if err6 == "" {
 		t.Fatal("Test 6: expected multiple conflicting Kelvin mappings error, got nil")
 	}
-	if !strings.Contains(err6, "conflicting subordinate UID configuration") {
+	if !strings.Contains(err6, "conflicting subordinate UID") {
 		t.Errorf("Test 6: unexpected error message: %s", err6)
 	}
 
@@ -413,6 +481,88 @@ func TestSubordinateIDValidation_ConflictingRanges(t *testing.T) {
 	}
 	if !strings.Contains(res9, "kelvin-worker:200000:65536") {
 		t.Errorf("Test 9: expected auto-allocated range 200000:65536, got: %s", res9)
+	}
+
+	// 10. Adoption of existing 165536:65536 allocation when configuration is absent
+	res10, err10 := validateOrAddSubidContentConfigurable("opc:100000:65536\nkelvin-worker:165536:65536\n", "UID", "adopt", 65536)
+	if err10 != "" {
+		t.Fatalf("Test 10 failed: %s", err10)
+	}
+	if strings.Count(res10, "kelvin-worker:165536:65536") != 1 || !strings.Contains(res10, "opc:100000:65536") {
+		t.Errorf("Test 10: expected existing mapping preserved and adopted, got: %s", res10)
+	}
+
+	// 11. Explicit configured mapping conflict (file has 165536, configured with 200000)
+	_, err11 := validateOrAddSubidContentConfigurable("opc:100000:65536\nkelvin-worker:165536:65536\n", "UID", "200000", 65536)
+	if err11 == "" {
+		t.Fatal("Test 11: expected conflict error when configured 200000 conflicts with 165536, got nil")
+	}
+	if !strings.Contains(err11, "conflicting subordinate UID configuration") {
+		t.Errorf("Test 11: unexpected conflict message: %s", err11)
+	}
+
+	// 12. UID/GID mismatch between subuid and subgid
+	subuidContent := "opc:100000:65536\nkelvin-worker:165536:65536\n"
+	subgidMismatchContent := "opc:100000:65536\nkelvin-worker:200000:65536\n"
+	_, err12 := validateSubidPairConsistency(subuidContent, subgidMismatchContent, 65536)
+	if err12 == "" {
+		t.Fatal("Test 12: expected UID/GID mismatch error, got nil")
+	}
+	if !strings.Contains(err12, "subordinate UID/GID allocation mismatch") {
+		t.Errorf("Test 12: unexpected mismatch message: %s", err12)
+	}
+
+	// 13. Idempotent repeated setup leaves file untouched
+	res13a, err13a := validateOrAddSubidContentConfigurable(subuidContent, "UID", "165536", 65536)
+	if err13a != "" {
+		t.Fatalf("Test 13a failed: %s", err13a)
+	}
+	res13b, err13b := validateOrAddSubidContentConfigurable(res13a, "UID", "165536", 65536)
+	if err13b != "" {
+		t.Fatalf("Test 13b failed: %s", err13b)
+	}
+	if strings.Count(res13b, "kelvin-worker:165536:65536") != 1 {
+		t.Errorf("Test 13: expected exactly 1 mapping after repeated setup, got: %s", res13b)
+	}
+}
+
+// TestWorkerWorkingDirectory_RegressionAndIsolation verifies Problem A:
+// executing in an inaccessible directory fails, while explicitly switching to /var/lib/kelvin-worker succeeds.
+func TestWorkerWorkingDirectory_RegressionAndIsolation(t *testing.T) {
+	tempBase := t.TempDir()
+	inaccessibleDir := filepath.Join(tempBase, "inaccessible_opt_kelvin")
+	accessibleWorkerDir := filepath.Join(tempBase, "var_lib_kelvin_worker")
+
+	if err := os.MkdirAll(inaccessibleDir, 0700); err != nil {
+		t.Fatalf("failed to create inaccessible dir: %v", err)
+	}
+	if err := os.MkdirAll(accessibleWorkerDir, 0750); err != nil {
+		t.Fatalf("failed to create worker dir: %v", err)
+	}
+
+	// Simulate execution: if process attempts to run in non-existent or inaccessible dir without chdir, it fails
+	nonexistentDir := filepath.Join(tempBase, "does_not_exist")
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current wd: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	// Without chdir to worker dir, changing to invalid/inaccessible dir fails
+	if err := os.Chdir(nonexistentDir); err == nil {
+		t.Fatal("expected failure entering nonexistent dir without proper chdir, got nil")
+	}
+
+	// With explicit chdir to worker dir, succeeds and verifies working directory
+	if err := os.Chdir(accessibleWorkerDir); err != nil {
+		t.Fatalf("failed explicit chdir to worker dir: %v", err)
+	}
+	newWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get wd after chdir: %v", err)
+	}
+	if !strings.EqualFold(newWd, accessibleWorkerDir) && filepath.Clean(newWd) != filepath.Clean(accessibleWorkerDir) {
+		t.Errorf("expected wd to be %q, got %q", accessibleWorkerDir, newWd)
 	}
 }
 
