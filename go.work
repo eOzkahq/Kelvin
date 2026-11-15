@@ -6,5 +6,6 @@ use (
 	./packages/common
 	./packages/schemas
 	./tests/integration
+	./tests/scanners
 	./tools/reconcile-vulns
 )

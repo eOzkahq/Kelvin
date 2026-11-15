@@ -13,13 +13,13 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 
 | Phase | Total Issues | NOT_STARTED | IN_PROGRESS | PR_OPEN | MERGED | BLOCKED |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 4 | 0 | 4 | 1 | 0 |
+| **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 3 | 0 | 5 | 1 | 0 |
 | **Phase 3B: OWASP ZAP Remediation** | 7 | 6 | 0 | 0 | 1 | 0 |
 | **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 0 | 4 | 0 |
 | **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 0 | 3 | 0 |
 | **Phase 5: Controlled Scanner Release** | 2 | 0 | 0 | 0 | 2 | 0 |
 | **Phase 6: Worker Certification & Activation** | 2 | 0 | 0 | 0 | 2 | 0 |
-| **TOTAL** | **27** | **10** | **0** | **4** | **13** | **0** |
+| **TOTAL** | **27** | **9** | **0** | **5** | **13** | **0** |
 
 ---
 
@@ -33,7 +33,7 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | **#547** | `security(nuclei): remediate go-git RCE vulnerability` | `PR_OPEN` | `security/issue-547-go-git-fix` | [#586](https://github.com/eOzkull/Kelvin/pull/586) | PASS (Go unit tests) | Applied patches/go-git.patch and deploy/scanners/nuclei/go.mod pinning github.com/go-git/go-git/v5 to v5.14.0 to remediate CVE-2026-71556 |
 | **#548** | `security(nuclei): upgrade vulnerable Go dependencies` | `PR_OPEN` | `security/issue-548-nuclei-go-modules` | [#587](https://github.com/eOzkull/Kelvin/pull/587) | PASS (Go unit tests) | Reconciles all 15 third-party Go module CVEs in deploy/scanners/nuclei/modules.lock, updates go.mod, and adds patches/go-modules.patch |
 | **#549** | `feat(ci): integrate hermetic Nuclei source build pipeline` | `PR_OPEN` | `feat/issue-549-ci-source-integration` | [#588](https://github.com/eOzkull/Kelvin/pull/588) | PASS (Go unit tests) | Integrated hermetic source build arguments into .github/workflows/scanner-images.yml, scripts/scanners/build-images.sh, and scripts/scanners/verify-build.sh |
-| **#550** | `test(nuclei): add hermetic build and worker compatibility tests` | `NOT_STARTED` | `test/issue-550-nuclei-regression` | - | - | Depends on #549 |
+| **#550** | `test(nuclei): add hermetic build and worker compatibility tests` | `PR_OPEN` | `test/issue-550-nuclei-regression` | Pending | PASS (Go unit tests) | Added tests/scanners/nuclei_test.go, fixtures/templates/safe.web.v1.yaml, apps/worker/internal/adapters/nuclei_adapter_test.go |
 | **#551** | `feat(nuclei): generate source-linked SBOM and build provenance` | `NOT_STARTED` | `feat/issue-551-nuclei-sbom-provenance` | - | - | Depends on #549 |
 | **#552** | `security(nuclei): reconcile vulnerability waivers after remediation` | `NOT_STARTED` | `security/issue-552-nuclei-waiver-reconciliation` | - | - | Depends on #550, #551 |
 | **#553** | `security(zap): audit vulnerable Debian packages and runtime dependencies` | `MERGED` | `security/issue-553-zap-package-audit` | [#572](https://github.com/eOzkull/Kelvin/pull/572) | PASS (Go + Python) | Merged into main. 384/384 findings mapped across 38 packages. Linux-libc-dev (193), Firefox ESR (51), APT (1), Setuptools (1), Dev packages (11) |
