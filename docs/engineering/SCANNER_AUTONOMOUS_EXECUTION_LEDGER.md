@@ -13,13 +13,13 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 
 | Phase | Total Issues | NOT_STARTED | IN_PROGRESS | PR_OPEN | MERGED | BLOCKED |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 5 | 0 | 3 | 1 | 0 |
+| **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 7 | 0 | 1 | 1 | 0 |
 | **Phase 3B: OWASP ZAP Remediation** | 7 | 6 | 0 | 0 | 1 | 0 |
 | **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 0 | 4 | 0 |
 | **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 0 | 3 | 0 |
 | **Phase 5: Controlled Scanner Release** | 2 | 0 | 0 | 0 | 2 | 0 |
 | **Phase 6: Worker Certification & Activation** | 2 | 0 | 0 | 0 | 2 | 0 |
-| **TOTAL** | **27** | **11** | **0** | **3** | **13** | **0** |
+| **TOTAL** | **27** | **13** | **0** | **1** | **13** | **0** |
 
 ---
 
@@ -28,10 +28,10 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | Issue | Title | Status | Branch | PR | Tests | Blockers / Notes |
 | :--- | :--- | :---: | :--- | :---: | :---: | :--- |
 | **#544** | `security(nuclei): verify upstream source integrity and pinned Go toolchain` | `MERGED` | `security/issue-544-nuclei-source-verification` | [#571](https://github.com/eOzkull/Kelvin/pull/571) | PASS (Go + Python) | Merged into main. Verified upstream tag v3.11.1 @ commit a8c88feb4a1c8e961b7902534ce3af97e9d524a4, GPG signer Sandeep Singh, builder digest golang:1.26.10-alpine |
-| **#545** | `feat(nuclei): implement hermetic multi-stage source build` | `PR_OPEN` | `feat/issue-545-nuclei-hermetic-build` | [#584](https://github.com/eOzkull/Kelvin/pull/584) | PASS (Go unit tests) | Refactored Dockerfile to hermetic builder stage (golang:1.26.10-alpine) with CGO_ENABLED=0, -trimpath, -ldflags="-s -w -buildid=", nonroot distroless runtime |
-| **#546** | `security(nuclei): upgrade Go toolchain to remediate stdlib vulnerabilities` | `PR_OPEN` | `security/issue-546-nuclei-stdlib-fixes` | [#585](https://github.com/eOzkull/Kelvin/pull/585) | PASS (Go unit tests) | Reconciles all 11 reported Go stdlib CVEs in deploy/scanners/nuclei/toolchain.lock against golang:1.26.10-alpine |
-| **#547** | `security(nuclei): remediate go-git RCE vulnerability` | `PR_OPEN` | `security/issue-547-go-git-fix` | [#586](https://github.com/eOzkull/Kelvin/pull/586) | PASS (Go unit tests) | Applied patches/go-git.patch and deploy/scanners/nuclei/go.mod pinning github.com/go-git/go-git/v5 to v5.14.0 to remediate CVE-2026-71556 |
-| **#548** | `security(nuclei): upgrade vulnerable Go dependencies` | `PR_OPEN` | `security/issue-548-nuclei-go-modules` | [#587](https://github.com/eOzkull/Kelvin/pull/587) | PASS (Go unit tests) | Reconciles all 15 third-party Go module CVEs in deploy/scanners/nuclei/modules.lock, updates go.mod, and adds patches/go-modules.patch |
+| **#545** | `feat(nuclei): implement hermetic multi-stage source build` | `PR_OPEN` | `feat/issue-545-nuclei-hermetic-build` | Pending | PASS (Go unit tests) | Implemented deploy/scanners/nuclei/Dockerfile with hermetic builder stage, static CGO_ENABLED=0 compilation, .dockerignore, and build.sh |
+| **#546** | `security(nuclei): upgrade Go toolchain to remediate stdlib vulnerabilities` | `NOT_STARTED` | `security/issue-546-nuclei-stdlib-fixes` | - | - | Depends on #545 |
+| **#547** | `security(nuclei): remediate go-git RCE vulnerability` | `NOT_STARTED` | `security/issue-547-go-git-fix` | - | - | Depends on #545 |
+| **#548** | `security(nuclei): upgrade vulnerable Go dependencies` | `NOT_STARTED` | `security/issue-548-nuclei-go-modules` | - | - | Depends on #545 |
 | **#549** | `feat(ci): integrate hermetic Nuclei source build pipeline` | `NOT_STARTED` | `feat/issue-549-ci-source-integration` | - | - | Depends on #546, #547, #548 |
 | **#550** | `test(nuclei): add hermetic build and worker compatibility tests` | `NOT_STARTED` | `test/issue-550-nuclei-regression` | - | - | Depends on #549 |
 | **#551** | `feat(nuclei): generate source-linked SBOM and build provenance` | `NOT_STARTED` | `feat/issue-551-nuclei-sbom-provenance` | - | - | Depends on #549 |
