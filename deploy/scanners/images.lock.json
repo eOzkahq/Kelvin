@@ -7,7 +7,12 @@
       "upstream_digest": null,
       "version": null,
       "kelvin_image": null,
-      "kelvin_digest": null
+      "kelvin_digest": null,
+      "architecture": null,
+      "sbom_digest": null,
+      "signature_ref": null,
+      "provenance_ref": null,
+      "scorecard_status": null
     },
     "nuclei": {
       "upstream": "projectdiscovery/nuclei",
@@ -17,6 +22,11 @@
       "distroless_digest": null,
       "kelvin_image": null,
       "kelvin_digest": null,
+      "architecture": null,
+      "sbom_digest": null,
+      "signature_ref": null,
+      "provenance_ref": null,
+      "scorecard_status": null,
       "template_catalog_id": "kelvin.safe.web.v1",
       "template_catalog_digest": "sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2"
     }

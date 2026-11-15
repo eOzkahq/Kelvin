@@ -15,11 +15,11 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 8 | 0 | 0 | 1 | 0 |
 | **Phase 3B: OWASP ZAP Remediation** | 7 | 6 | 0 | 0 | 1 | 0 |
-| **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 1 | 3 | 0 |
-| **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 1 | 2 | 0 |
-| **Phase 5: Controlled Scanner Release** | 2 | 0 | 0 | 2 | 0 | 0 |
-| **Phase 6: Worker Certification & Activation** | 2 | 2 | 0 | 0 | 0 | 0 |
-| **TOTAL** | **27** | **16** | **0** | **4** | **7** | **0** |
+| **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 0 | 4 | 0 |
+| **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 0 | 3 | 0 |
+| **Phase 5: Controlled Scanner Release** | 2 | 0 | 0 | 1 | 1 | 0 |
+| **Phase 6: Worker Certification & Activation** | 2 | 1 | 0 | 1 | 0 | 0 |
+| **TOTAL** | **27** | **15** | **0** | **2** | **10** | **0** |
 
 ---
 
@@ -49,8 +49,8 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | **#563** | `feat(scanners): add scanner image security scorecard` | `MERGED` | `feat/issue-563-security-scorecard` | [#576](https://github.com/eOzkull/Kelvin/pull/576) | PASS (Go unit tests) | Merged into main. Implemented tools/scanner-scorecard; generates deterministic JSON scorecard and Markdown summary with release eligibility verdict |
 | **#564** | `feat(scanners): verify reproducible scanner image builds` | `MERGED` | `feat/issue-564-reproducible-builds` | [#577](https://github.com/eOzkull/Kelvin/pull/577) | PASS (Python + Go unit tests) | Merged into main. Canonical reproducibility lockfile deployed; SOURCE_DATE_EPOCH=1786191600; CGO_ENABLED=0 with -trimpath and -buildid= enforced; bit-for-bit determinism verified |
 | **#565** | `security(scanners): enforce image provenance and attestation verification` | `MERGED` | `security/issue-565-image-provenance-attestation` | [#578](https://github.com/eOzkull/Kelvin/pull/578) | PASS (Python + Bash + Go unit tests) | Merged into main. Deployed deploy/scanners/attestation-policy.json; scripts/scanners/verify-attestation.py and .sh; enforces Cosign OIDC certificate identity and SLSA provenance |
-| **#566** | `feat(scanners): enforce certified scanner release manifests` | `PR_OPEN` | `feat/issue-566-certified-manifests` | [#579](https://github.com/eOzkull/Kelvin/pull/579) | PASS (Go unit tests + Bash) | Extended images.lock.json schema; implemented ValidateCertifiedScannerManifest in apps/worker/internal/manifest/scanner_release.go; enforced not-released fail-closed governance |
-| **#567** | `feat(ci): implement scanner release readiness gate` | `PR_OPEN` | `feat/issue-567-release-readiness-gate` | [#580](https://github.com/eOzkull/Kelvin/pull/580) | PASS (Bash + Go unit tests) | Implemented scripts/scanners/release-readiness-check.sh and .github/workflows/scanner-release-gate.yml combining 6 validation gates with fail-closed certification |
-| **#568** | `feat(ci): implement approved scanner image publication workflow` | `PR_OPEN` | `feat/issue-568-scanner-publication-workflow` | Pending | PASS (Bash + Go unit tests) | Implemented scripts/scanners/publish-images.sh and .github/workflows/scanner-publish.yml; gated by environment: scanner-release requiring explicit maintainer review |
-| **#569** | `security(worker): enforce scanner certification before execution` | `NOT_STARTED` | `security/issue-569-worker-certification-gate` | - | - | Depends on #568 |
+| **#566** | `feat(scanners): enforce certified scanner release manifests` | `MERGED` | `feat/issue-566-certified-manifests` | [#579](https://github.com/eOzkull/Kelvin/pull/579) | PASS (Go unit tests + Bash) | Merged into main. Extended images.lock.json schema; implemented ValidateCertifiedScannerManifest in apps/worker/internal/manifest/scanner_release.go; enforced not-released fail-closed governance |
+| **#567** | `feat(ci): implement scanner release readiness gate` | `MERGED` | `feat/issue-567-release-readiness-gate` | [#580](https://github.com/eOzkull/Kelvin/pull/580) | PASS (Bash + Go unit tests) | Merged into main. Implemented scripts/scanners/release-readiness-check.sh and .github/workflows/scanner-release-gate.yml combining 6 validation gates with fail-closed certification |
+| **#568** | `feat(ci): implement approved scanner image publication workflow` | `PR_OPEN` | `feat/issue-568-scanner-publication-workflow` | [#581](https://github.com/eOzkull/Kelvin/pull/581) | PASS (Bash + Go unit tests) | Implemented scripts/scanners/publish-images.sh and .github/workflows/scanner-publish.yml; gated by environment: scanner-release requiring explicit maintainer review |
+| **#569** | `security(worker): enforce scanner certification before execution` | `PR_OPEN` | `security/issue-569-worker-certification-gate` | Pending | PASS (Go unit tests) | Implemented apps/worker/internal/runner/podman_runner.go and VerifyScannerCertificationForExecution; enforces manifest certification, digest tampering detection, rootless Podman execution, and audit logging |
 | **#570** | `feat(worker): enable certified scanner execution in staging` | `NOT_STARTED` | `feat/issue-570-staging-scanner-activation` | - | - | Requires human approval |
