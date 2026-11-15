@@ -1,0 +1,21 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kelvin Security Engineering <security@kelvin.local>
+Date: Fri, 15 Nov 2026 00:00:00 +0000
+Subject: [PATCH] security(nuclei): remediate CVE-2026-71556 go-git RCE vulnerability
+
+Upgrade github.com/go-git/go-git/v5 to v5.14.0 to remediate arbitrary command
+execution vulnerability (CVE-2026-71556).
+---
+ go.mod | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/go.mod b/go.mod
+index 78d91c2..92a11b8 100644
+--- a/go.mod
++++ b/go.mod
+@@ -100,3 +100,5 @@ require (
+ 	golang.org/x/net v0.34.0
+ )
++
++replace github.com/go-git/go-git/v5 => github.com/go-git/go-git/v5 v5.14.0
+-- 
