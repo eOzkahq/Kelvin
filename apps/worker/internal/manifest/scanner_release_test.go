@@ -589,20 +589,27 @@ func TestScannerReleaseGate_WorkflowPermissionBoundariesAndGating(t *testing.T) 
 		}
 	}
 
-	// 9. Regression test: exact verified action commit SHAs for setup-qemu-action and setup-buildx-action
+	// 9. Regression test: exact verified action commit SHAs for setup-qemu-action, setup-buildx-action, and trivy-action
 	expectedActionSHAs := map[string]string{
 		"docker/setup-qemu-action":   "49b3bc8e6bdd4a60e6116a5414239cba5943d3cf", // v3.2.0
 		"docker/setup-buildx-action": "c47758b77c9736f4b2ef4073d4d51994fabfe349", // v3.7.1
+		"aquasecurity/trivy-action":  "76071ef0d7ec797419534a183b498b4d6366cf37", // v0.31.0
 	}
 	invalidLegacySHAs := []string{
 		"49b3bc8e6bdd4480b82837412f66d573217e85c4",
 		"c47758b77c9736f4b4e79d4850a0074cbe657f63",
+		"18f2510ee396bbf400402947b394f2dd8c87dbb0", // legacy v0.29.0
 	}
 	for actionName, expectedSHA := range expectedActionSHAs {
 		expectedRef := actionName + "@" + expectedSHA
 		if !strings.Contains(content, expectedRef) {
 			t.Errorf("workflow missing verified action reference %q", expectedRef)
 		}
+	}
+	// Assert both Trivy steps (ZAP and Nuclei) are upgraded to v0.31.0
+	trivyV31Ref := "aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37"
+	if count := strings.Count(content, trivyV31Ref); count != 2 {
+		t.Errorf("expected exactly 2 occurrences of %q (for ZAP and Nuclei), got %d", trivyV31Ref, count)
 	}
 	for _, invalidSHA := range invalidLegacySHAs {
 		if strings.Contains(content, invalidSHA) {
