@@ -13,7 +13,7 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 
 | Phase | Total Issues | NOT_STARTED | IN_PROGRESS | PR_OPEN | MERGED | BLOCKED |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 8 | 0 | 0 | 1 | 0 |
+| **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 7 | 0 | 1 | 1 | 0 |
 | **Phase 3B: OWASP ZAP Remediation** | 7 | 6 | 0 | 0 | 1 | 0 |
 | **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 0 | 4 | 0 |
 | **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 0 | 3 | 0 |
@@ -28,7 +28,7 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | Issue | Title | Status | Branch | PR | Tests | Blockers / Notes |
 | :--- | :--- | :---: | :--- | :---: | :---: | :--- |
 | **#544** | `security(nuclei): verify upstream source integrity and pinned Go toolchain` | `MERGED` | `security/issue-544-nuclei-source-verification` | [#571](https://github.com/eOzkull/Kelvin/pull/571) | PASS (Go + Python) | Merged into main. Verified upstream tag v3.11.1 @ commit a8c88feb4a1c8e961b7902534ce3af97e9d524a4, GPG signer Sandeep Singh, builder digest golang:1.26.10-alpine |
-| **#545** | `feat(nuclei): implement hermetic multi-stage source build` | `NOT_STARTED` | `feat/issue-545-nuclei-hermetic-build` | - | - | Depends on #544 |
+| **#545** | `feat(nuclei): implement hermetic multi-stage source build` | `PR_OPEN` | `feat/issue-545-nuclei-hermetic-build` | Pending | PASS (Go unit tests) | Implemented deploy/scanners/nuclei/Dockerfile with hermetic builder stage, static CGO_ENABLED=0 compilation, .dockerignore, and build.sh |
 | **#546** | `security(nuclei): upgrade Go toolchain to remediate stdlib vulnerabilities` | `NOT_STARTED` | `security/issue-546-nuclei-stdlib-fixes` | - | - | Depends on #545 |
 | **#547** | `security(nuclei): remediate go-git RCE vulnerability` | `NOT_STARTED` | `security/issue-547-go-git-fix` | - | - | Depends on #545 |
 | **#548** | `security(nuclei): upgrade vulnerable Go dependencies` | `NOT_STARTED` | `security/issue-548-nuclei-go-modules` | - | - | Depends on #545 |
