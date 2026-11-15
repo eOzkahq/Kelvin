@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0",
+  "toolchain": {
+    "name": "golang",
+    "version": "1.26.10",
+    "image": "golang:1.26.10-alpine",
+    "digest": "sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696",
+    "architectures": [
+      "linux/amd64",
+      "linux/arm64"
+    ],
+    "compiler_flags": [
+      "CGO_ENABLED=0",
+      "-trimpath",
+      "-ldflags=-s -w -buildid="
+    ]
+  },
+  "remediated_stdlib_cves": [
+    {
+      "cve_id": "CVE-2026-111943",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "fixed_version": "1.26.10",
+      "status": "remediated",
+      "advisory": "https://nvd.nist.gov/vuln/detail/CVE-2026-111943"
+    },
+    {
+      "cve_id": "CVE-2026-33818",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "fixed_version": "1.26.6",
+      "status": "remediated",
+      "advisory": "https://nvd.nist.gov/vuln/detail/CVE-2026-33818"
+    },
+    {
+      "cve_id": "CVE-2026-39821",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "fixed_version": "1.26.6",
+      "status": "remediated",
+      "advisory": "https://nvd.nist.gov/vuln/detail/CVE-2026-39821"
+    },
+    {
+      "cve_id": "CVE-2026-46600",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "fixed_version": "1.26.6",
+      "status": "remediated",
+      "advisory": "https://nvd.nist.gov/vuln/detail/CVE-2026-46600"
+    },
+    {
+      "cve_id": "CVE-2026-56853",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "fixed_version": "1.26.6",
+      "status": "remediated",
+      "advisory": "https://nvd.nist.gov/vuln/detail/CVE-2026-56853"
+    },
+    {
+      "cve_id": "CVE-2026-56858",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "fixed_version": "1.26.6",
+      "status": "remediated",
+      "advisory": "https://nvd.nist.gov/vuln/detail/CVE-2026-56858"
+    },
+    {
+      "cve_id": "CVE-2026-56859",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "fixed_version": "1.26.6",
+      "status": "remediated",
+      "advisory": "https://nvd.nist.gov/vuln/detail/CVE-2026-56859"
+    },
+    {
+      "cve_id": "CVE-2026-56860",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "fixed_version": "1.26.6",
+      "status": "remediated",
+      "advisory": "https://nvd.nist.gov/vuln/detail/CVE-2026-56860"
+    },
+    {
+      "cve_id": "CVE-2026-56862",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "fixed_version": "1.26.6",
+      "status": "remediated",
+      "advisory": "https://nvd.nist.gov/vuln/detail/CVE-2026-56862"
+    },
+    {
+      "cve_id": "CVE-2026-78667",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "fixed_version": "1.26.9",
+      "status": "remediated",
+      "advisory": "https://nvd.nist.gov/vuln/detail/CVE-2026-78667"
+    },
+    {
+      "cve_id": "CVE-2026-97031",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "fixed_version": "1.26.9",
+      "status": "remediated",
+      "advisory": "https://nvd.nist.gov/vuln/detail/CVE-2026-97031"
+    }
+  ]
+}
