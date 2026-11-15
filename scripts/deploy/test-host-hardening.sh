@@ -130,48 +130,150 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# SCENARIO 5: Subuid / Subgid Validation Logic
+# SCENARIO 5: Subuid / Subgid Validation Logic & Collision Prevention
 # ------------------------------------------------------------------------------
 echo "--- Testing Subuid / Subgid Validation Logic ---"
 
+find_available_subid_range() {
+  local id_file="$1"
+  local target_count="$2"
+  local min_start="${3:-100000}"
+  local max_id=4294967295
+
+  local ranges=()
+  while IFS=: read -r user start count extra || [[ -n "${user:-}" ]]; do
+    user="$(echo "${user:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [[ -z "$user" || "$user" =~ ^# ]] && continue
+    start="$(echo "${start:-}" | tr -d ' ')"
+    count="$(echo "${count:-}" | tr -d ' ')"
+    if [[ "$start" =~ ^[0-9]+$ && "$count" =~ ^[0-9]+$ ]]; then
+      local other_end=$((start + count - 1))
+      ranges+=("$start:$other_end")
+    fi
+  done < "$id_file"
+
+  local candidate="$min_start"
+  local changed=1
+  while [[ $changed -eq 1 ]]; do
+    changed=0
+    local cand_end=$((candidate + target_count - 1))
+    if (( candidate > max_id || cand_end > max_id || cand_end < candidate )); then
+      return 1
+    fi
+    for r in "${ranges[@]}"; do
+      local r_start="${r%%:*}"
+      local r_end="${r##*:}"
+      if (( candidate <= r_end && r_start <= cand_end )); then
+        candidate=$((r_end + 1))
+        changed=1
+        break
+      fi
+    done
+  done
+
+  local cand_end=$((candidate + target_count - 1))
+  if (( candidate > max_id || cand_end > max_id || cand_end < candidate )); then
+    return 1
+  fi
+  echo "$candidate"
+  return 0
+}
+
 validate_or_add_subid() {
   local id_file="$1"
+  local id_type="${2:-UID}"
+  local configured_start="${3:-200000}"
+  local target_count="${4:-65536}"
   local target_user="kelvin-worker"
-  local target_start=100000
-  local target_count=65536
-  local target_end=$((target_start + target_count - 1))
-  local expected="${target_user}:${target_start}:${target_count}"
+  local max_id=4294967295
 
   if [[ ! -f "$id_file" ]]; then
     touch "$id_file"
   fi
 
-  # Check for range collisions with other users
-  while IFS=: read -r user start count || [[ -n "$user" ]]; do
+  # Validate target_count
+  if [[ ! "$target_count" =~ ^[0-9]+$ ]] || (( target_count <= 0 || target_count > max_id )); then
+    echo "ERROR: Invalid subordinate $id_type count: '$target_count'."
+    return 1
+  fi
+
+  # Audit existing entries in the file for malformed lines and integer overflow
+  local line_num=0
+  while IFS=: read -r user start count extra || [[ -n "${user:-}" ]]; do
+    line_num=$((line_num + 1))
+    local raw_line="${user:-}:${start:-}:${count:-}${extra:+:$extra}"
+    user="$(echo "${user:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     [[ -z "$user" || "$user" =~ ^# ]] && continue
-    if [[ "$user" != "$target_user" ]]; then
-      if [[ "$start" =~ ^[0-9]+$ && "$count" =~ ^[0-9]+$ ]]; then
-        local other_end=$((start + count - 1))
+
+    start="$(echo "${start:-}" | tr -d ' ')"
+    count="$(echo "${count:-}" | tr -d ' ')"
+
+    # Malformed check
+    if [[ -z "$start" || -z "$count" || -n "${extra:-}" || ! "$start" =~ ^[0-9]+$ || ! "$count" =~ ^[0-9]+$ || "$count" -le 0 ]]; then
+      echo "MALFORMED:$id_file:$line_num:$raw_line"
+      return 1
+    fi
+
+    # Integer overflow check
+    if (( start > max_id || count > max_id || start + count - 1 > max_id || start + count - 1 < start )); then
+      echo "OVERFLOW:$id_file:$line_num:$raw_line"
+      return 1
+    fi
+  done < "$id_file"
+
+  # Determine target start
+  local target_start
+  if [[ "$configured_start" == "auto" ]]; then
+    if ! target_start="$(find_available_subid_range "$id_file" "$target_count" 100000)"; then
+      echo "NO_AVAILABLE_RANGE:$id_file"
+      return 1
+    fi
+  else
+    if [[ ! "$configured_start" =~ ^[0-9]+$ ]]; then
+      echo "ERROR: Configured subordinate $id_type start is invalid: '$configured_start'."
+      return 1
+    fi
+    target_start="$configured_start"
+  fi
+
+  local target_end=$((target_start + target_count - 1))
+  if (( target_start > max_id || target_end > max_id || target_end < target_start )); then
+    echo "OVERFLOW:configured range $target_start:$target_count exceeds max ID"
+    return 1
+  fi
+  local expected="$target_user:$target_start:$target_count"
+
+  # Audit for range collisions with other users
+  while IFS=: read -r user start count extra || [[ -n "${user:-}" ]]; do
+    user="$(echo "${user:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [[ -z "$user" || "$user" =~ ^# ]] && continue
+    start="$(echo "${start:-}" | tr -d ' ')"
+    count="$(echo "${count:-}" | tr -d ' ')"
+
+    if [[ "$start" =~ ^[0-9]+$ && "$count" =~ ^[0-9]+$ ]]; then
+      local other_end=$((start + count - 1))
+      if [[ "$user" != "$target_user" ]]; then
         if (( start <= target_end && other_end >= target_start )); then
-          echo "COLLISION:$user:$start:$count"
+          echo "COLLISION:$id_type:$user:$start:$count"
           return 1
         fi
       fi
     fi
   done < "$id_file"
 
+  # Validate kelvin-worker's own mapping
   local existing_lines
   existing_lines="$(grep "^${target_user}:" "$id_file" 2>/dev/null || true)"
 
   if [[ -z "$existing_lines" ]]; then
     echo "$expected" >> "$id_file"
-    echo "ADDED"
+    echo "ADDED:$expected"
     return 0
   else
-    local count
-    count="$(echo "$existing_lines" | wc -l)"
-    if [[ "$count" -eq 1 && "$existing_lines" == "$expected" ]]; then
-      echo "VERIFIED"
+    local count_lines
+    count_lines="$(echo "$existing_lines" | wc -l)"
+    if [[ "$count_lines" -eq 1 && "$existing_lines" == "$expected" ]]; then
+      echo "VERIFIED:$expected"
       return 0
     else
       echo "CONFLICT:$existing_lines"
@@ -182,63 +284,138 @@ validate_or_add_subid() {
 
 TEST_DIR="$(mktemp -d /tmp/kelvin-subid-test.XXXXXX)"
 
-# Case 5a: Missing mapping -> adds correctly
+# Case 5a: Existing opc:100000:65536 preserved when valid non-overlapping Kelvin allocation (200000:65536) added
 SUBUID_A="$TEST_DIR/subuid_a"
-echo "otheruser:200000:65536" > "$SUBUID_A"
-OUT_A="$(validate_or_add_subid "$SUBUID_A")"
-if [[ "$OUT_A" == "ADDED" ]] && grep -q "kelvin-worker:100000:65536" "$SUBUID_A"; then
-  test_pass "Scenario 5a: Missing subordinate ID mapping correctly appended"
+echo "opc:100000:65536" > "$SUBUID_A"
+OUT_A="$(validate_or_add_subid "$SUBUID_A" "UID" "200000" "65536")"
+if [[ "$OUT_A" == "ADDED:kelvin-worker:200000:65536" ]] && \
+   grep -q "^opc:100000:65536$" "$SUBUID_A" && \
+   grep -q "^kelvin-worker:200000:65536$" "$SUBUID_A"; then
+  test_pass "Scenario 5a: Existing opc:100000:65536 preserved while non-overlapping kelvin-worker appended"
 else
-  test_fail "Scenario 5a: Failed to add subordinate ID mapping"
+  test_fail "Scenario 5a: Failed to preserve opc or append non-overlapping mapping: $OUT_A"
 fi
 
-# Case 5b: Existing identical mapping -> idempotent no-op
-OUT_B="$(validate_or_add_subid "$SUBUID_A")"
-COUNT_B="$(grep -c "kelvin-worker:100000:65536" "$SUBUID_A")"
-if [[ "$OUT_B" == "VERIFIED" && "$COUNT_B" -eq 1 ]]; then
-  test_pass "Scenario 5b: Existing correct mapping verified idempotently without duplicates"
+# Case 5b: Existing valid non-overlapping mapping verified idempotently without duplicates
+OUT_B="$(validate_or_add_subid "$SUBUID_A" "UID" "200000" "65536")"
+COUNT_B="$(grep -c "^kelvin-worker:200000:65536$" "$SUBUID_A")"
+COUNT_OPC_B="$(grep -c "^opc:100000:65536$" "$SUBUID_A")"
+if [[ "$OUT_B" == "VERIFIED:kelvin-worker:200000:65536" && "$COUNT_B" -eq 1 && "$COUNT_OPC_B" -eq 1 ]]; then
+  test_pass "Scenario 5b: Existing non-overlapping mapping verified idempotently without duplicates"
 else
-  test_fail "Scenario 5b: Idempotency failed: $OUT_B (count: $COUNT_B)"
+  test_fail "Scenario 5b: Idempotency failed: $OUT_B (kelvin count: $COUNT_B, opc count: $COUNT_OPC_B)"
 fi
 
-# Case 5c: Conflicting subordinate range -> aborts
+# Case 5c: UID collision detected in /etc/subuid (e.g. Kelvin configured with 100000 or 150000 overlapping opc)
 SUBUID_C="$TEST_DIR/subuid_c"
-echo "kelvin-worker:200000:65536" > "$SUBUID_C"
-if OUT_C="$(validate_or_add_subid "$SUBUID_C")"; then
-  test_fail "Scenario 5c: Conflicting mapping unexpectedly passed"
+echo "opc:100000:65536" > "$SUBUID_C"
+if OUT_C="$(validate_or_add_subid "$SUBUID_C" "UID" "100000" "65536")"; then
+  test_fail "Scenario 5c: Overlapping UID range unexpectedly passed"
 else
-  if echo "$OUT_C" | grep -q "CONFLICT"; then
-    test_pass "Scenario 5c: Conflicting subordinate range rejected with conflict error"
+  if echo "$OUT_C" | grep -q "COLLISION:UID:opc:100000:65536"; then
+    test_pass "Scenario 5c: UID collision with opc strictly detected and rejected"
   else
-    test_fail "Scenario 5c: Conflict not reported: $OUT_C"
+    test_fail "Scenario 5c: Unexpected collision output: $OUT_C"
   fi
 fi
 
-# Case 5d: Multiple duplicate conflicting lines -> aborts
-SUBUID_D="$TEST_DIR/subuid_d"
-cat << 'EOF' > "$SUBUID_D"
-kelvin-worker:100000:65536
-kelvin-worker:200000:65536
-EOF
-if OUT_D="$(validate_or_add_subid "$SUBUID_D")"; then
-  test_fail "Scenario 5d: Multiple duplicate lines unexpectedly passed"
+# Case 5d: GID collision detected independently in /etc/subgid
+SUBGID_D="$TEST_DIR/subgid_d"
+echo "opc:100000:65536" > "$SUBGID_D"
+echo "dockergroup:200000:65536" >> "$SUBGID_D"
+if OUT_D="$(validate_or_add_subid "$SUBGID_D" "GID" "200000" "65536")"; then
+  test_fail "Scenario 5d: GID collision unexpectedly passed"
 else
-  test_pass "Scenario 5d: Multiple mappings rejected with conflict error"
+  if echo "$OUT_D" | grep -q "COLLISION:GID:dockergroup:200000:65536"; then
+    test_pass "Scenario 5d: GID collision in /etc/subgid audited independently and rejected"
+  else
+    test_fail "Scenario 5d: Unexpected GID collision output: $OUT_D"
+  fi
 fi
 
-# Case 5e: Subordinate ID range collision with another user -> aborts
+# Case 5e: Collision with another user's overlapping range (e.g. otheruser:150000:60000 overlapping 200000:65536)
 SUBUID_E="$TEST_DIR/subuid_e"
-cat << 'EOF' > "$SUBUID_E"
-otheruser:50000:60000
-EOF
-if OUT_E="$(validate_or_add_subid "$SUBUID_E")"; then
-  test_fail "Scenario 5e: Subordinate ID range collision with another user unexpectedly passed"
+echo "otheruser:150000:60000" > "$SUBUID_E" # 150000-209999
+if OUT_E="$(validate_or_add_subid "$SUBUID_E" "UID" "200000" "65536")"; then
+  test_fail "Scenario 5e: Collision with another user's range unexpectedly passed"
 else
-  if echo "$OUT_E" | grep -q "COLLISION:otheruser:50000:60000"; then
-    test_pass "Scenario 5e: Subordinate ID range collision with another user strictly rejected"
+  if echo "$OUT_E" | grep -q "COLLISION:UID:otheruser:150000:60000"; then
+    test_pass "Scenario 5e: Subordinate ID collision with another user's range rejected"
   else
     test_fail "Scenario 5e: Unexpected collision output: $OUT_E"
   fi
+fi
+
+# Case 5f: Multiple conflicting Kelvin mappings in subordinate ID file
+SUBUID_F="$TEST_DIR/subuid_f"
+cat << 'EOF' > "$SUBUID_F"
+kelvin-worker:200000:65536
+kelvin-worker:300000:65536
+EOF
+if OUT_F="$(validate_or_add_subid "$SUBUID_F" "UID" "200000" "65536")"; then
+  test_fail "Scenario 5f: Multiple duplicate lines unexpectedly passed"
+else
+  if echo "$OUT_F" | grep -q "CONFLICT"; then
+    test_pass "Scenario 5f: Multiple conflicting Kelvin mappings strictly rejected"
+  else
+    test_fail "Scenario 5f: Unexpected multiple mappings output: $OUT_F"
+  fi
+fi
+
+# Case 5g: No available range when ID space is exhausted
+SUBUID_G="$TEST_DIR/subuid_g"
+echo "exhaustuser:100000:4294867296" > "$SUBUID_G"
+if OUT_G="$(validate_or_add_subid "$SUBUID_G" "UID" "auto" "65536")"; then
+  test_fail "Scenario 5g: Exhausted range unexpectedly passed"
+else
+  if echo "$OUT_G" | grep -q "NO_AVAILABLE_RANGE"; then
+    test_pass "Scenario 5g: Exhausted subordinate ID space fails closed (no available range)"
+  else
+    test_fail "Scenario 5g: Unexpected exhausted space output: $OUT_G"
+  fi
+fi
+
+# Case 5h: Integer overflow detection (start + count exceeds 32-bit UINT_MAX 4294967295)
+SUBUID_H="$TEST_DIR/subuid_h"
+echo "overflowuser:4294950000:65536" > "$SUBUID_H"
+if OUT_H="$(validate_or_add_subid "$SUBUID_H" "UID" "200000" "65536")"; then
+  test_fail "Scenario 5h: Integer overflow entry unexpectedly passed"
+else
+  if echo "$OUT_H" | grep -q "OVERFLOW"; then
+    test_pass "Scenario 5h: Integer overflow subordinate entry strictly rejected"
+  else
+    test_fail "Scenario 5h: Unexpected overflow output: $OUT_H"
+  fi
+fi
+
+# Case 5i: Malformed subordinate-ID entries (missing colons, non-numeric values, count 0)
+SUBUID_I="$TEST_DIR/subuid_i"
+cat << 'EOF' > "$SUBUID_I"
+malformed_no_colons
+bad_numeric:notanumber:65536
+EOF
+if OUT_I="$(validate_or_add_subid "$SUBUID_I" "UID" "200000" "65536")"; then
+  test_fail "Scenario 5i: Malformed entry unexpectedly passed"
+else
+  if echo "$OUT_I" | grep -q "MALFORMED"; then
+    test_pass "Scenario 5i: Malformed subordinate-ID entries strictly rejected"
+  else
+    test_fail "Scenario 5i: Unexpected malformed output: $OUT_I"
+  fi
+fi
+
+# Case 5j: Automatic contiguous non-overlapping range discovery
+SUBUID_J="$TEST_DIR/subuid_j"
+cat << 'EOF' > "$SUBUID_J"
+opc:100000:65536
+developer:165536:34464
+EOF
+OUT_J="$(validate_or_add_subid "$SUBUID_J" "UID" "auto" "65536")"
+if [[ "$OUT_J" == "ADDED:kelvin-worker:200000:65536" ]] && \
+   grep -q "^kelvin-worker:200000:65536$" "$SUBUID_J"; then
+  test_pass "Scenario 5j: Dynamic allocation automatically selected first non-overlapping range (200000:65536)"
+else
+  test_fail "Scenario 5j: Dynamic range allocation failed: $OUT_J"
 fi
 
 rm -rf "$TEST_DIR"

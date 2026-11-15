@@ -23,6 +23,7 @@ fi
 echo "Verified target host architecture: $ARCH"
 
 ENV_FILE="${KELVIN_ENV_FILE:-/etc/kelvin/worker.env}"
+export KELVIN_ENV_FILE="$ENV_FILE"
 BIN_DIR="${KELVIN_BIN_DIR:-/opt/kelvin/bin}"
 SKIP_HOST_VALIDATE="${KELVIN_SKIP_HOST_VALIDATE:-0}"
 
