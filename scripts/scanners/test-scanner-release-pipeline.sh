@@ -707,6 +707,37 @@ sys.exit(0)
   else
     test_fail "Scenario 16k: Trivy scan steps missing explicit verified version v0.70.0 in $workflow_file"
   fi
+
+  # 16l: Independent scanner execution, evidence preservation, and fail-closed security gating
+  if python -c "
+import yaml, sys
+with open('$workflow_file', 'r') as f:
+    wf = yaml.safe_load(f)
+
+build_steps = wf.get('jobs', {}).get('build-and-scan', {}).get('steps', [])
+zap_step = next((s for s in build_steps if s.get('id') == 'scan_zap'), None)
+nuclei_step = next((s for s in build_steps if s.get('id') == 'scan_nuclei'), None)
+diag_step = next((s for s in build_steps if 'Generate human-readable vulnerability diagnostic reports' in s.get('name', '')), None)
+evidence_step = next((s for s in build_steps if 'Upload scanner runtime image evidence' in s.get('name', '')), None)
+gate_step = next((s for s in build_steps if 'Enforce vulnerability scan security gate' in s.get('name', '')), None)
+
+if not zap_step or zap_step.get('continue-on-error') != True:
+    sys.exit(1)
+if not nuclei_step or nuclei_step.get('continue-on-error') != True:
+    sys.exit(2)
+if not diag_step:
+    sys.exit(3)
+if not evidence_step or evidence_step.get('if') != 'always()':
+    sys.exit(4)
+if not gate_step or 'scan_zap.outcome' not in gate_step.get('run', '') or 'scan_nuclei.outcome' not in gate_step.get('run', ''):
+    sys.exit(5)
+
+sys.exit(0)
+"; then
+    test_pass "Scenario 16l: Independent scan execution with diagnostic evidence collection and fail-closed gate enforcement"
+  else
+    test_fail "Scenario 16l: Independent scan execution or fail-closed gate missing in $workflow_file"
+  fi
 fi
 
 # ------------------------------------------------------------------------------
