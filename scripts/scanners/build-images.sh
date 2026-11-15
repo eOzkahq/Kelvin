@@ -87,6 +87,13 @@ validate_architecture() {
 : "${NUCLEI_SOURCE_IMAGE:?set NUCLEI_SOURCE_IMAGE to the official Nuclei image pinned by digest}"
 : "${NUCLEI_VERSION:?set NUCLEI_VERSION to the version verified from the selected image}"
 : "${DISTROLESS_BASE_IMAGE:?set DISTROLESS_BASE_IMAGE to a pinned distroless/static image}"
+NUCLEI_COMMIT="${NUCLEI_COMMIT:-a8c88feb4a1c8e961b7902534ce3af97e9d524a4}"
+GO_BUILDER_IMAGE="${GO_BUILDER_IMAGE:-golang:1.26.10-alpine@sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696}"
+if [[ -f "deploy/scanners/nuclei/source.env" ]]; then
+  # Source pinned defaults if not explicitly passed
+  # shellcheck source=/dev/null
+  source "deploy/scanners/nuclei/source.env" || true
+fi
 OUT_DIR="${OUT_DIR:-artifacts/scanner-images}"
 PLATFORM="${PLATFORM:-linux/arm64}"
 CATALOG_DIR="deploy/scanners/templates/kelvin.safe.web.v1"
@@ -143,6 +150,8 @@ docker buildx build --platform "$PLATFORM" --load \
   --metadata-file "$OUT_DIR/nuclei-build-metadata.json" \
   --build-arg "NUCLEI_SOURCE_IMAGE=$NUCLEI_SOURCE_IMAGE" \
   --build-arg "NUCLEI_VERSION=$NUCLEI_VERSION" \
+  --build-arg "NUCLEI_COMMIT=$NUCLEI_COMMIT" \
+  --build-arg "GO_BUILDER_IMAGE=$GO_BUILDER_IMAGE" \
   --build-arg "DISTROLESS_BASE_IMAGE=$DISTROLESS_BASE_IMAGE" \
   --tag "kelvin/scanner-nuclei:$NUCLEI_VERSION" \
   --file deploy/scanners/nuclei/Dockerfile .
