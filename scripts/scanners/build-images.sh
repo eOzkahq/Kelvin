@@ -217,17 +217,18 @@ docker run --rm --read-only \
   --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   "kelvin/scanner-nuclei:$NUCLEI_VERSION" -version >/dev/null
 
-# Verify Nuclei runtime version
+# Verify Nuclei runtime version: build input is semantic version without 'v' (e.g. 3.11.1),
+# while Nuclei binary executable reports version with leading 'v' (e.g. v3.11.1).
 nuclei_version_output="$(docker run --rm --read-only \
   --memory=1.5g --cpus=1.0 --pids-limit=256 \
   --cap-drop=ALL --security-opt=no-new-privileges:true \
   --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   "kelvin/scanner-nuclei:$NUCLEI_VERSION" -version 2>&1)"
-if ! grep -Fq "$NUCLEI_VERSION" <<<"$nuclei_version_output"; then
+if ! grep -Eq "(^|[^0-9A-Za-z])v?${NUCLEI_VERSION}([^0-9A-Za-z]|$)" <<<"$nuclei_version_output"; then
   echo "ERROR: Nuclei runtime version does not match declared NUCLEI_VERSION=$NUCLEI_VERSION (got: $nuclei_version_output)" >&2
   exit 1
 fi
-echo "  [OK] Nuclei runtime version verified: $NUCLEI_VERSION"
+echo "  [OK] Nuclei runtime version verified: $NUCLEI_VERSION (runtime output matched)"
 
 # 7. Generate Build Record & Evidence
 git_commit="$(git rev-parse HEAD 2>/dev/null || echo "unknown")"

@@ -82,11 +82,35 @@ func TestScannerReleaseGate_InvalidVersions(t *testing.T) {
 		}
 	}
 
-	invalidVersions := []string{"latest", "stable", "v", "dev-nightly", ""}
+	invalidVersions := []string{"latest", "stable", "v", "dev-nightly", "v3.11.1", ""}
 	for _, v := range invalidVersions {
 		if err := ValidateSemanticVersion(v); err == nil || !errors.Is(err, ErrInvalidVersion) {
 			t.Errorf("expected ErrInvalidVersion for %q, got: %v", v, err)
 		}
+	}
+
+	// Nuclei semantic version handling: build input is "3.11.1" (without 'v'),
+	// while verified binary reports "v3.11.1"
+	nucleiBuildInput := "3.11.1"
+	validRuntimeOutputs := []string{
+		"[INF] Current nuclei version: v3.11.1 (latest)",
+		"Nuclei Engine v3.11.1",
+		"nuclei version 3.11.1",
+	}
+	for _, out := range validRuntimeOutputs {
+		if err := ValidateNucleiVersionMatch(nucleiBuildInput, out); err != nil {
+			t.Errorf("expected build input %q to match runtime output %q, got: %v", nucleiBuildInput, out, err)
+		}
+	}
+
+	// Reject build input with leading 'v'
+	if err := ValidateNucleiVersionMatch("v3.11.1", "[INF] Current nuclei version: v3.11.1"); err == nil {
+		t.Error("expected build input 'v3.11.1' with leading 'v' to be rejected")
+	}
+
+	// Reject mismatched runtime version
+	if err := ValidateNucleiVersionMatch("3.11.1", "[INF] Current nuclei version: v3.10.0"); err == nil {
+		t.Error("expected mismatched runtime version v3.10.0 to fail for input 3.11.1")
 	}
 }
 
@@ -291,7 +315,7 @@ func TestScannerReleaseGate_InvalidCosignSignature(t *testing.T) {
 
 // Condition 11: Invalid provenance identity
 func TestScannerReleaseGate_InvalidProvenanceIdentity(t *testing.T) {
-	identityPattern := regexp.MustCompile(`^https://github\.com/Inkesk-Dozing/Kelvin/\.github/workflows/.*`)
+	identityPattern := regexp.MustCompile(`^https://github\.com/eOzkull/Kelvin/\.github/workflows/.*`)
 	expectedIssuer := "https://token.actions.githubusercontent.com"
 
 	verifyIdentity := func(certURI, issuer string) error {
@@ -304,14 +328,15 @@ func TestScannerReleaseGate_InvalidProvenanceIdentity(t *testing.T) {
 		return nil
 	}
 
-	validURI := "https://github.com/Inkesk-Dozing/Kelvin/.github/workflows/scanner-images.yml@refs/heads/main"
+	validURI := "https://github.com/eOzkull/Kelvin/.github/workflows/scanner-images.yml@refs/heads/main"
 	if err := verifyIdentity(validURI, expectedIssuer); err != nil {
 		t.Fatalf("expected valid identity to pass, got: %v", err)
 	}
 
 	untrustedURIs := []string{
+		"https://github.com/Inkesk-Dozing/Kelvin/.github/workflows/scanner-images.yml",
 		"https://github.com/Attacker/Kelvin/.github/workflows/scanner-images.yml",
-		"https://github.com/Inkesk-Dozing/OtherRepo/.github/workflows/workflow.yml",
+		"https://github.com/eOzkull/OtherRepo/.github/workflows/workflow.yml",
 		"https://evil.com/payload",
 	}
 	for _, uri := range untrustedURIs {
@@ -400,7 +425,7 @@ func TestScannerReleaseGate_IncompleteManifestCertification(t *testing.T) {
 					Upstream: "ghcr.io/zaproxy/zaproxy:stable",
 					// missing upstream digest
 					Version:      strPtr("2.15.0"),
-					KelvinImage:  strPtr("ghcr.io/inkesk-dozing/kelvin/scanner-zap"),
+					KelvinImage:  strPtr("ghcr.io/eozkull/kelvin/scanner-zap"),
 					KelvinDigest: strPtr("sha256:1111111111111111111111111111111111111111111111111111111111111111"),
 				},
 			},
@@ -413,7 +438,7 @@ func TestScannerReleaseGate_IncompleteManifestCertification(t *testing.T) {
 					Upstream:       "ghcr.io/zaproxy/zaproxy:stable",
 					UpstreamDigest: strPtr(EmptySHA256Digest), // empty placeholder hash!
 					Version:        strPtr("2.15.0"),
-					KelvinImage:    strPtr("ghcr.io/inkesk-dozing/kelvin/scanner-zap"),
+					KelvinImage:    strPtr("ghcr.io/eozkull/kelvin/scanner-zap"),
 					KelvinDigest:   strPtr("sha256:1111111111111111111111111111111111111111111111111111111111111111"),
 				},
 				"nuclei": {
@@ -422,7 +447,7 @@ func TestScannerReleaseGate_IncompleteManifestCertification(t *testing.T) {
 					Version:               strPtr("3.3.7"),
 					DistrolessBase:        strPtr("gcr.io/distroless/static-debian12:nonroot"),
 					DistrolessDigest:      strPtr("sha256:3333333333333333333333333333333333333333333333333333333333333333"),
-					KelvinImage:           strPtr("ghcr.io/inkesk-dozing/kelvin/scanner-nuclei"),
+					KelvinImage:           strPtr("ghcr.io/eozkull/kelvin/scanner-nuclei"),
 					KelvinDigest:          strPtr("sha256:4444444444444444444444444444444444444444444444444444444444444444"),
 					TemplateCatalogID:     "kelvin.safe.web.v1",
 					TemplateCatalogDigest: strPtr("sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2"),

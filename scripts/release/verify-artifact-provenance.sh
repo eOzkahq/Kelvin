@@ -6,7 +6,7 @@ IMAGE_REF="${1:-}"
 
 if [ -z "$IMAGE_REF" ]; then
   echo "Usage: $0 <image-digest-reference>"
-  echo "Example: $0 ghcr.io/inkesk-dozing/kelvin-api@sha256:7f9...3b"
+  echo "Example: $0 ghcr.io/eozkull/kelvin-api@sha256:7f9...3b"
   exit 1
 fi
 
@@ -25,7 +25,7 @@ fi
 echo "[+] Checking Cosign signature on $IMAGE_REF..."
 if command -v cosign &> /dev/null; then
   cosign verify \
-    --certificate-identity-regexp "https://github.com/Inkesk-Dozing/Kelvin/.github/workflows/.*" \
+    --certificate-identity-regexp "https://github.com/eOzkull/Kelvin/.github/workflows/.*" \
     --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
     "$IMAGE_REF"
 else
@@ -37,7 +37,7 @@ echo "[+] Checking SLSA Provenance Attestation..."
 if command -v cosign &> /dev/null; then
   cosign verify-attestation \
     --type slsaprovenance \
-    --certificate-identity-regexp "https://github.com/Inkesk-Dozing/Kelvin/.github/workflows/.*" \
+    --certificate-identity-regexp "https://github.com/eOzkull/Kelvin/.github/workflows/.*" \
     --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
     "$IMAGE_REF"
 fi
