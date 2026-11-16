@@ -60,6 +60,19 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Free disk space on runner
+        shell: bash
+        run: |
+          echo "Disk space before initial cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo docker system prune --all --volumes --force || true
+          echo "Disk space after initial cleanup:"
+          df -h
+
       - name: Checkout repository source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -217,6 +230,14 @@ jobs:
         shell: bash
         run: bash scripts/scanners/verify-release-manifest.sh deploy/scanners/images.lock.json
 
+      - name: Prune builder cache and free disk space
+        if: ${{ inputs.publish == true }}
+        shell: bash
+        run: |
+          docker builder prune --all --force || true
+          rm -rf ~/.cache/trivy /tmp/trivy* || true
+          df -h
+
       - name: Save container images for release publishing
         if: ${{ inputs.publish == true }}
         shell: bash
@@ -225,14 +246,14 @@ jobs:
           docker save \
             "kelvin/scanner-zap:${{ inputs.zap_version }}" \
             "kelvin/scanner-nuclei:${{ inputs.nuclei_version }}" \
-            -o artifacts/docker-images/scanner-images.tar
+            | gzip > artifacts/docker-images/scanner-images.tar.gz
 
       - name: Upload scanner container images
         if: ${{ inputs.publish == true }}
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: scanner-container-images
-          path: artifacts/docker-images/scanner-images.tar
+          path: artifacts/docker-images/scanner-images.tar.gz
           if-no-files-found: error
           retention-days: 1
 
@@ -273,6 +294,19 @@ jobs:
       id-token: write
       attestations: write
     steps:
+      - name: Free disk space on runner
+        shell: bash
+        run: |
+          echo "Disk space before initial cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo docker system prune --all --volumes --force || true
+          echo "Disk space after initial cleanup:"
+          df -h
+
       - name: Checkout repository source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -290,7 +324,15 @@ jobs:
 
       - name: Load scanner container images into Docker daemon
         shell: bash
-        run: docker load -i artifacts/docker-images/scanner-images.tar
+        run: |
+          if [[ -f artifacts/docker-images/scanner-images.tar.gz ]]; then
+            docker load -i artifacts/docker-images/scanner-images.tar.gz
+          elif [[ -f artifacts/docker-images/scanner-images.tar ]]; then
+            docker load -i artifacts/docker-images/scanner-images.tar
+          else
+            echo "ERROR: scanner container images archive not found" >&2
+            exit 1
+          fi
 
       - name: Install Sigstore Cosign
         uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
