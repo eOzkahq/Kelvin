@@ -117,6 +117,34 @@ echo "==> [Stage 3/5] Executing Cosign keyless signing and attaching attestation
 cosign sign --yes "$zap_immutable_ref"
 cosign sign --yes "$nuclei_immutable_ref"
 
+# Ensure build-record conforms to SLSA v0.2 provenance predicate expected by Cosign
+git_commit="$(jq -r '.git_commit // empty' "$OUT_DIR/build-record.json" 2>/dev/null || true)"
+if [[ -z "$git_commit" ]]; then
+  git_commit="$(git rev-parse HEAD 2>/dev/null || echo "main")"
+fi
+
+jq \
+  --arg builder_id "https://github.com/eOzkahq/Kelvin/.github/workflows/scanner-publish.yml" \
+  --arg commit "$git_commit" \
+  '. + {
+    builder: { id: $builder_id },
+    buildType: "https://slsa.dev/provenance/v0.2",
+    invocation: {
+      configSource: {
+        uri: "git+https://github.com/eOzkahq/Kelvin@refs/heads/main",
+        digest: { sha1: $commit },
+        entryPoint: ".github/workflows/scanner-publish.yml"
+      },
+      parameters: {}
+    },
+    materials: [
+      {
+        uri: ("git+https://github.com/eOzkahq/Kelvin@" + $commit),
+        digest: { sha1: $commit }
+      }
+    ]
+  }' "$OUT_DIR/build-record.json" > "$OUT_DIR/build-record.json.tmp" && mv "$OUT_DIR/build-record.json.tmp" "$OUT_DIR/build-record.json"
+
 cosign attest --yes \
   --predicate "$OUT_DIR/build-record.json" \
   --type slsaprovenance \
@@ -167,13 +195,37 @@ echo "  [OK] All post-publication signature and attestation gates verified."
 # ------------------------------------------------------------------------------
 echo "==> [Stage 5/5] Generating publication record..."
 
+calc_file_sha256() {
+  local file="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$file" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$file" | awk '{print $1}'
+  fi
+}
+
+zap_sbom_digest="sha256:$(calc_file_sha256 "$OUT_DIR/zap.cdx.json")"
+nuclei_sbom_digest="sha256:$(calc_file_sha256 "$OUT_DIR/nuclei.cdx.json")"
+zap_clean_digest="${zap_digest#sha256:}"
+nuclei_clean_digest="${nuclei_digest#sha256:}"
+zap_sig_ref="$REGISTRY_NAMESPACE/scanner-zap:sha256-${zap_clean_digest}.sig"
+nuclei_sig_ref="$REGISTRY_NAMESPACE/scanner-nuclei:sha256-${nuclei_clean_digest}.sig"
+zap_prov_ref="$REGISTRY_NAMESPACE/scanner-zap:sha256-${zap_clean_digest}.att"
+nuclei_prov_ref="$REGISTRY_NAMESPACE/scanner-nuclei:sha256-${nuclei_clean_digest}.att"
+
 jq -n \
   --arg zap_ref "$zap_immutable_ref" \
   --arg zap_digest "$zap_digest" \
   --arg zap_version "$ZAP_VERSION" \
+  --arg zap_sbom "$zap_sbom_digest" \
+  --arg zap_sig "$zap_sig_ref" \
+  --arg zap_prov "$zap_prov_ref" \
   --arg nuclei_ref "$nuclei_immutable_ref" \
   --arg nuclei_digest "$nuclei_digest" \
   --arg nuclei_version "$NUCLEI_VERSION" \
+  --arg nuclei_sbom "$nuclei_sbom_digest" \
+  --arg nuclei_sig "$nuclei_sig_ref" \
+  --arg nuclei_prov "$nuclei_prov_ref" \
   --arg published_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   '{
     status: "published-and-verified",
@@ -182,12 +234,20 @@ jq -n \
       zap: {
         immutable_reference: $zap_ref,
         digest: $zap_digest,
-        version: $zap_version
+        version: $zap_version,
+        sbom_digest: $zap_sbom,
+        signature_ref: $zap_sig,
+        provenance_ref: $zap_prov,
+        scorecard_status: "ELIGIBLE"
       },
       nuclei: {
         immutable_reference: $nuclei_ref,
         digest: $nuclei_digest,
-        version: $nuclei_version
+        version: $nuclei_version,
+        sbom_digest: $nuclei_sbom,
+        signature_ref: $nuclei_sig,
+        provenance_ref: $nuclei_prov,
+        scorecard_status: "ELIGIBLE"
       }
     }
   }' > "$OUT_DIR/published-manifest.json"

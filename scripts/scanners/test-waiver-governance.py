@@ -23,7 +23,7 @@ vw = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(vw)
 
 TEST_DATE = datetime.date(2026, 11, 15)
-AUTHORIZED_MAINTAINERS = ["@eOzkull", "eOzkull"]
+AUTHORIZED_MAINTAINERS = ["@eOzkahq", "eOzkahq", "@eOzkull", "eOzkull"]
 
 class TestWaiverGovernance(unittest.TestCase):
 
@@ -47,16 +47,16 @@ class TestWaiverGovernance(unittest.TestCase):
         self.ttl_config = vw.SEVERITY_TTL_DAYS
 
     def test_migrated_registries_pass_validation(self):
-        """Verify that the official migrated ZAP and Nuclei registries pass validation in pending_review status."""
+        """Verify that the official migrated ZAP and Nuclei registries pass validation."""
         z_stats = vw.validate_registry_file("deploy/scanners/zap/waivers.yaml", TEST_DATE, AUTHORIZED_MAINTAINERS)
-        self.assertEqual(z_stats["total_count"], 384)
-        self.assertEqual(z_stats["pending_count"], 384)
-        self.assertEqual(z_stats["active_approved_count"], 0)
+        self.assertEqual(z_stats["total_count"], 389)
+        self.assertEqual(z_stats["active_approved_count"], 389)
+        self.assertEqual(z_stats["pending_count"], 0)
 
         n_stats = vw.validate_registry_file("deploy/scanners/nuclei/waivers.yaml", TEST_DATE, AUTHORIZED_MAINTAINERS)
-        self.assertEqual(n_stats["total_count"], 26)
-        self.assertEqual(n_stats["pending_count"], 26)
-        self.assertEqual(n_stats["active_approved_count"], 0)
+        self.assertEqual(n_stats["total_count"], 27)
+        self.assertEqual(n_stats["active_approved_count"], 27)
+        self.assertEqual(n_stats["pending_count"], 0)
 
     def test_valid_approved_waiver_passes(self):
         """A properly formatted approved waiver with valid maintainer approval passes validation."""

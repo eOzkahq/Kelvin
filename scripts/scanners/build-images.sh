@@ -253,6 +253,28 @@ if command -v jq >/dev/null 2>&1; then
     --arg git_commit "$git_commit" \
     --arg built_at "$built_at" \
     '{
+      builder: {
+        id: "https://github.com/eOzkahq/Kelvin/.github/workflows/scanner-images.yml"
+      },
+      buildType: "https://slsa.dev/provenance/v0.2",
+      invocation: {
+        configSource: {
+          uri: "git+https://github.com/eOzkahq/Kelvin@refs/heads/main",
+          digest: {
+            sha1: $git_commit
+          },
+          entryPoint: ".github/workflows/scanner-images.yml"
+        },
+        parameters: {}
+      },
+      materials: [
+        {
+          uri: ("git+https://github.com/eOzkahq/Kelvin@" + $git_commit),
+          digest: {
+            sha1: $git_commit
+          }
+        }
+      ],
       schema_version: "1",
       target_platform: $platform,
       git_commit: $git_commit,
@@ -280,6 +302,21 @@ elif command -v python >/dev/null 2>&1; then
   python -c "
 import json, sys
 data = {
+  'builder': {
+    'id': 'https://github.com/eOzkahq/Kelvin/.github/workflows/scanner-images.yml'
+  },
+  'buildType': 'https://slsa.dev/provenance/v0.2',
+  'invocation': {
+    'configSource': {
+      'uri': 'git+https://github.com/eOzkahq/Kelvin@refs/heads/main',
+      'digest': {'sha1': sys.argv[2]},
+      'entryPoint': '.github/workflows/scanner-images.yml'
+    },
+    'parameters': {}
+  },
+  'materials': [
+    {'uri': f'git+https://github.com/eOzkahq/Kelvin@{sys.argv[2]}', 'digest': {'sha1': sys.argv[2]}}
+  ],
   'schema_version': '1',
   'target_platform': sys.argv[1],
   'git_commit': sys.argv[2],

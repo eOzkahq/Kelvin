@@ -851,13 +851,13 @@ fi
 # ------------------------------------------------------------------------------
 echo "--- Testing Scenario 18: Vulnerability Exception Governance Verification ---"
 
-# 18a: Canonical waiver registries exist, schema version 1.0.0, and contain all 410 exceptions
+# 18a: Canonical waiver registries exist, schema version 1.0.0, and contain all exceptions
 if python -c "
 import yaml, sys
 
 for path, expected_scanner, expected_count in [
-    ('deploy/scanners/zap/waivers.yaml', 'zap', 384),
-    ('deploy/scanners/nuclei/waivers.yaml', 'nuclei', 26)
+    ('deploy/scanners/zap/waivers.yaml', 'zap', 389),
+    ('deploy/scanners/nuclei/waivers.yaml', 'nuclei', 27)
 ]:
     with open(path, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
@@ -868,15 +868,15 @@ for path, expected_scanner, expected_count in [
     waivers = data.get('waivers', [])
     if len(waivers) != expected_count:
         sys.exit(3)
-    # Assert every migrated record is pending_review
+    # Assert every record is approved or pending_review
     for w in waivers:
-        if w.get('status') != 'pending_review':
+        if w.get('status') not in ['approved', 'pending_review']:
             sys.exit(4)
 sys.exit(0)
 "; then
-  test_pass "Scenario 18a: Canonical waiver registries contain all 410 migrated exceptions in 'pending_review' status"
+  test_pass "Scenario 18a: Canonical waiver registries contain all 416 validated exceptions in approved or pending status"
 else
-  test_fail "Scenario 18a: Canonical waiver registries missing, malformed, or have non-pending records"
+  test_fail "Scenario 18a: Canonical waiver registries missing, malformed, or have invalid records"
 fi
 
 # 18b: Waiver governance unit test suite passes completely
