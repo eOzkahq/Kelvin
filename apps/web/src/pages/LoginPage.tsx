@@ -24,9 +24,9 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      navigate(returnUrl);
+      navigate(returnUrl, { replace: true });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
+      setError(err instanceof Error ? err.message : "Authentication failed. Check your email and password.");
     }
   };
 

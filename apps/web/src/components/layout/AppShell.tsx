@@ -4,14 +4,16 @@ import { Breadcrumbs } from "./Breadcrumbs";
 import { TenantSwitcher } from "./TenantSwitcher";
 import { UserMenu } from "./UserMenu";
 import { CustomCursor, BackgroundParticles } from "../ui";
+import { useAuth } from "../../features/auth/AuthContext";
 import { isDemoMode } from "../../config/env";
 
 export interface AppShellProps {
   children: React.ReactNode;
-  userRole?: string;
 }
 
-export const AppShell: React.FC<AppShellProps> = ({ children, userRole = "OrgAdmin" }) => {
+export const AppShell: React.FC<AppShellProps> = ({ children }) => {
+  const { user } = useAuth();
+  const userRole = user?.role ?? "READ_ONLY_AUDITOR";
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     return localStorage.getItem("kelvin_sidebar_collapsed") === "true";
   });
