@@ -37,8 +37,8 @@ func TestScannerAttestation_PolicyInvariants(t *testing.T) {
 		t.Fatalf("failed to parse attestation-policy.json: %v", err)
 	}
 
-	if policy.IdentityRequirements.Repository != "eOzkull/Kelvin" {
-		t.Errorf("expected repository eOzkull/Kelvin, got: %s", policy.IdentityRequirements.Repository)
+	if policy.IdentityRequirements.Repository != "eOzkahq/Kelvin" {
+		t.Errorf("expected canonical repository eOzkahq/Kelvin, got: %s", policy.IdentityRequirements.Repository)
 	}
 
 	if policy.IdentityRequirements.OIDCIssuer != "https://token.actions.githubusercontent.com" {
@@ -55,9 +55,15 @@ func TestScannerAttestation_PolicyInvariants(t *testing.T) {
 		t.Fatalf("invalid certificate identity regex: %v", err)
 	}
 
-	validID := "https://github.com/eOzkull/Kelvin/.github/workflows/scanner-publish.yml@refs/heads/main"
+	validID := "https://github.com/eOzkahq/Kelvin/.github/workflows/scanner-publish.yml@refs/heads/main"
 	if !re.MatchString(validID) {
 		t.Errorf("expected regex to match valid workflow identity %s", validID)
+	}
+
+	// Legacy eOzkull identity must be rejected under active trust policy
+	legacyID := "https://github.com/eOzkull/Kelvin/.github/workflows/scanner-publish.yml@refs/heads/main"
+	if re.MatchString(legacyID) {
+		t.Errorf("expected regex to reject deprecated legacy repository identity %s", legacyID)
 	}
 
 	// Attacker identity must fail

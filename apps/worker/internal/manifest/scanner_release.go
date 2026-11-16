@@ -127,9 +127,10 @@ func ValidateCertifiedScannerManifest(lock *ScannerImageLock, catalogPath string
 		if img.KelvinImage == nil || strings.TrimSpace(*img.KelvinImage) == "" {
 			return fmt.Errorf("%w: scanner %q missing kelvin image", ErrIncompleteCertification, scannerID)
 		}
-		expectedPrefix := fmt.Sprintf("ghcr.io/eozkull/kelvin/scanner-%s", scannerID)
-		if !strings.HasPrefix(*img.KelvinImage, expectedPrefix) {
-			return fmt.Errorf("%w: scanner %q image %q must be in official repository %q", ErrInvalidUpstreamReference, scannerID, *img.KelvinImage, expectedPrefix)
+		canonicalPrefix := fmt.Sprintf("ghcr.io/eozkahq/kelvin/scanner-%s", scannerID)
+		legacyPrefix := fmt.Sprintf("ghcr.io/eozkull/kelvin/scanner-%s", scannerID)
+		if !strings.HasPrefix(*img.KelvinImage, canonicalPrefix) && !strings.HasPrefix(*img.KelvinImage, legacyPrefix) {
+			return fmt.Errorf("%w: scanner %q image %q must be in official repository (%q or %q)", ErrInvalidUpstreamReference, scannerID, *img.KelvinImage, canonicalPrefix, legacyPrefix)
 		}
 
 		if img.KelvinDigest == nil || strings.TrimSpace(*img.KelvinDigest) == "" {

@@ -14,7 +14,7 @@ import re
 import sys
 import yaml
 
-DEFAULT_MAINTAINERS = ["@eOzkull", "eOzkull"]
+DEFAULT_MAINTAINERS = ["@eOzkahq", "eOzkahq", "@eOzkull", "eOzkull"]
 SEVERITY_TTL_DAYS = {
     "CRITICAL": 30,
     "HIGH": 90,

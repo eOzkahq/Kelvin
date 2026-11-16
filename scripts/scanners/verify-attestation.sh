@@ -24,14 +24,14 @@ fi
 if command -v cosign >/dev/null 2>&1; then
   echo "[+] Verifying Cosign signature with GitHub Actions OIDC identity..."
   cosign verify \
-    --certificate-identity-regexp "^https://github.com/eOzkull/Kelvin/\\.github/workflows/scanner-.*@refs/heads/main$" \
+    --certificate-identity-regexp "^https://github.com/eOzkahq/Kelvin/\\.github/workflows/scanner-.*@refs/heads/main$" \
     --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
     "$IMAGE_REF"
 
   echo "[+] Verifying SLSA provenance attestation..."
   cosign verify-attestation \
     --type slsaprovenance \
-    --certificate-identity-regexp "^https://github.com/eOzkull/Kelvin/\\.github/workflows/scanner-.*@refs/heads/main$" \
+    --certificate-identity-regexp "^https://github.com/eOzkahq/Kelvin/\\.github/workflows/scanner-.*@refs/heads/main$" \
     --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
     "$IMAGE_REF"
 else
