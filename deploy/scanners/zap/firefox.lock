@@ -1,0 +1,366 @@
+{
+  "schema_version": "1.0",
+  "package": "firefox-esr",
+  "installed_version": "153.6.0esr-1~deb12u2",
+  "fixed_version": "153.7.0esr-1~deb12u1",
+  "cve_count": 51,
+  "remediated_cves": [
+    {
+      "cve_id": "CVE-2026-118007",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-118007"
+    },
+    {
+      "cve_id": "CVE-2026-124853",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124853"
+    },
+    {
+      "cve_id": "CVE-2026-124854",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124854"
+    },
+    {
+      "cve_id": "CVE-2026-124855",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124855"
+    },
+    {
+      "cve_id": "CVE-2026-124856",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124856"
+    },
+    {
+      "cve_id": "CVE-2026-124857",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124857"
+    },
+    {
+      "cve_id": "CVE-2026-124858",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124858"
+    },
+    {
+      "cve_id": "CVE-2026-124859",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124859"
+    },
+    {
+      "cve_id": "CVE-2026-124860",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124860"
+    },
+    {
+      "cve_id": "CVE-2026-124861",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124861"
+    },
+    {
+      "cve_id": "CVE-2026-124862",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124862"
+    },
+    {
+      "cve_id": "CVE-2026-124863",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124863"
+    },
+    {
+      "cve_id": "CVE-2026-124864",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124864"
+    },
+    {
+      "cve_id": "CVE-2026-124865",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124865"
+    },
+    {
+      "cve_id": "CVE-2026-124866",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124866"
+    },
+    {
+      "cve_id": "CVE-2026-124868",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124868"
+    },
+    {
+      "cve_id": "CVE-2026-124869",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124869"
+    },
+    {
+      "cve_id": "CVE-2026-124870",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124870"
+    },
+    {
+      "cve_id": "CVE-2026-124872",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124872"
+    },
+    {
+      "cve_id": "CVE-2026-124873",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124873"
+    },
+    {
+      "cve_id": "CVE-2026-124874",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124874"
+    },
+    {
+      "cve_id": "CVE-2026-124875",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124875"
+    },
+    {
+      "cve_id": "CVE-2026-124876",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124876"
+    },
+    {
+      "cve_id": "CVE-2026-124877",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124877"
+    },
+    {
+      "cve_id": "CVE-2026-124879",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124879"
+    },
+    {
+      "cve_id": "CVE-2026-124880",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124880"
+    },
+    {
+      "cve_id": "CVE-2026-124881",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124881"
+    },
+    {
+      "cve_id": "CVE-2026-124882",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124882"
+    },
+    {
+      "cve_id": "CVE-2026-124883",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124883"
+    },
+    {
+      "cve_id": "CVE-2026-124884",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124884"
+    },
+    {
+      "cve_id": "CVE-2026-124885",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124885"
+    },
+    {
+      "cve_id": "CVE-2026-124886",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124886"
+    },
+    {
+      "cve_id": "CVE-2026-124887",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124887"
+    },
+    {
+      "cve_id": "CVE-2026-124888",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124888"
+    },
+    {
+      "cve_id": "CVE-2026-124889",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124889"
+    },
+    {
+      "cve_id": "CVE-2026-124890",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124890"
+    },
+    {
+      "cve_id": "CVE-2026-124891",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124891"
+    },
+    {
+      "cve_id": "CVE-2026-124892",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124892"
+    },
+    {
+      "cve_id": "CVE-2026-124893",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124893"
+    },
+    {
+      "cve_id": "CVE-2026-124894",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124894"
+    },
+    {
+      "cve_id": "CVE-2026-124895",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124895"
+    },
+    {
+      "cve_id": "CVE-2026-124896",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124896"
+    },
+    {
+      "cve_id": "CVE-2026-124897",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124897"
+    },
+    {
+      "cve_id": "CVE-2026-124898",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124898"
+    },
+    {
+      "cve_id": "CVE-2026-124899",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124899"
+    },
+    {
+      "cve_id": "CVE-2026-124901",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124901"
+    },
+    {
+      "cve_id": "CVE-2026-124902",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124902"
+    },
+    {
+      "cve_id": "CVE-2026-124903",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124903"
+    },
+    {
+      "cve_id": "CVE-2026-124905",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124905"
+    },
+    {
+      "cve_id": "CVE-2026-124906",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124906"
+    },
+    {
+      "cve_id": "CVE-2026-124907",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "153.7.0esr-1~deb12u1",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-124907"
+    }
+  ]
+}

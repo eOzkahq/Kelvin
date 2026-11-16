@@ -1,0 +1,7 @@
+# Kelvin Pinned Debian Packages for OWASP ZAP Runtime
+# Governed by ADR-0008 (Hermetic, Minimal Scanner Footprint)
+Package: firefox-esr
+Pin: version 153.7.0esr-1~deb12u1*
+Pin-Priority: 1001
+
+firefox-esr=153.7.0esr-1~deb12u1

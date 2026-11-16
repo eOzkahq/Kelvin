@@ -10,6 +10,18 @@ LABEL org.opencontainers.image.title="Kelvin OWASP ZAP Baseline runtime" \
       org.opencontainers.image.source.image="${ZAP_BASE_IMAGE}" \
       org.opencontainers.image.vendor="Kelvin"
 
+USER root
+
+# Upgrade firefox-esr to remediate 51 reported CVEs (pinned in packages.list)
+COPY deploy/scanners/zap/packages.list /etc/apt/preferences.d/kelvin-pinned-packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      firefox-esr=153.7.0esr-1~deb12u1* || \
+    apt-get install -y --no-install-recommends \
+      firefox-esr && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # The upstream image is read-only at runtime. ZAP writes transient state only
 # under the worker-provided /tmp tmpfs. Preserve its official scan scripts and
 # installation while enforcing the worker UID.
