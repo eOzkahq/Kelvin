@@ -970,8 +970,8 @@ func TestScannerReleaseGate_CanonicalLockOnDisk(t *testing.T) {
 		t.Fatalf("failed to load canonical lock: %v", err)
 	}
 
-	if lock.Status != StatusNotReleased {
-		t.Fatalf("canonical lock must be in status %q, got: %q", StatusNotReleased, lock.Status)
+	if lock.Status != StatusCertified && lock.Status != StatusNotReleased {
+		t.Fatalf("canonical lock must be in status %q or %q, got: %q", StatusCertified, StatusNotReleased, lock.Status)
 	}
 
 	for _, scannerID := range []string{"zap", "nuclei"} {

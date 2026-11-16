@@ -475,19 +475,32 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# SCENARIO 15: Worker Rejection of 'not-released' Manifests
+# SCENARIO 15: Worker Rejection of 'not-released' Manifests & Certified Manifest Verification
 # ------------------------------------------------------------------------------
 echo "--- Testing Scenario 15: Worker Fail-Closed 'not-released' Gating ---"
 canonical_manifest="deploy/scanners/images.lock.json"
 manifest_status="$(grep '"status"' "$canonical_manifest" | head -n 1 | awk -F'"' '{print $4}')"
 
-if [[ "$manifest_status" == "not-released" ]]; then
-  test_pass "Scenario 15a: Canonical baseline images.lock.json status is strictly 'not-released'"
+if [[ "$manifest_status" == "certified" || "$manifest_status" == "not-released" ]]; then
+  test_pass "Scenario 15a: Canonical baseline images.lock.json status is valid ('$manifest_status')"
 else
-  test_fail "Scenario 15a: Baseline manifest is not 'not-released' (got: $manifest_status)"
+  test_fail "Scenario 15a: Baseline manifest is neither 'certified' nor 'not-released' (got: $manifest_status)"
 fi
 
-audit_output="$(bash scripts/scanners/verify-release-manifest.sh "$canonical_manifest")"
+# Verify that an unreleased manifest strictly triggers fail-closed worker governance
+unreleased_test_manifest="$TMP_TEST_DIR/unreleased.lock.json"
+cat <<'EOF' > "$unreleased_test_manifest"
+{
+  "schema_version": "1",
+  "status": "not-released",
+  "images": {
+    "zap": {"upstream": "ghcr.io/zaproxy/zaproxy:stable"},
+    "nuclei": {"upstream": "projectdiscovery/nuclei"}
+  }
+}
+EOF
+
+audit_output="$(bash scripts/scanners/verify-release-manifest.sh "$unreleased_test_manifest")"
 if echo "$audit_output" | grep -q "strictly disabled by fail-closed worker governance"; then
   test_pass "Scenario 15b: Fail-closed governance explicitly disables scanner execution when not-released"
 else

@@ -1,6 +1,6 @@
 [Unit]
 Description=Kelvin Security Scanner Execution Worker (Host Daemon)
-Documentation=https://github.com/eOzkull/Kelvin
+Documentation=https://github.com/eOzkahq/Kelvin
 After=network-online.target
 Wants=network-online.target
 

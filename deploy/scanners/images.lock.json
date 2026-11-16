@@ -1,35 +1,35 @@
 {
   "schema_version": "1",
-  "status": "not-released",
+  "status": "certified",
   "images": {
     "zap": {
       "upstream": "ghcr.io/zaproxy/zaproxy:stable",
-      "upstream_digest": null,
-      "version": null,
-      "kelvin_image": null,
-      "kelvin_digest": null,
-      "architecture": null,
-      "sbom_digest": null,
-      "signature_ref": null,
-      "provenance_ref": null,
-      "scorecard_status": null
+      "upstream_digest": "sha256:0b8847b2c722b16f0964431aabcbb499560a1f17e8698d52326d82db29efac1d",
+      "version": "2.17.0",
+      "kelvin_image": "ghcr.io/eozkahq/kelvin/scanner-zap",
+      "kelvin_digest": "sha256:3ae56fdc713fb3b3f678502df357e4e9e525fcf2db2f5a5df9a417754ee36217",
+      "architecture": "linux/arm64",
+      "sbom_digest": "sha256:4175220984adb3e97e9552f8ac37e7736e92a1cf5b2f1656f78f4ed179a1cc44",
+      "signature_ref": "ghcr.io/eozkahq/kelvin/scanner-zap:sha256-3ae56fdc713fb3b3f678502df357e4e9e525fcf2db2f5a5df9a417754ee36217.sig",
+      "provenance_ref": "ghcr.io/eozkahq/kelvin/scanner-zap:sha256-3ae56fdc713fb3b3f678502df357e4e9e525fcf2db2f5a5df9a417754ee36217.att",
+      "scorecard_status": "ELIGIBLE"
     },
     "nuclei": {
       "upstream": "projectdiscovery/nuclei",
-      "upstream_digest": null,
-      "version": null,
-      "distroless_base": null,
-      "distroless_digest": null,
-      "kelvin_image": null,
-      "kelvin_digest": null,
-      "architecture": null,
-      "sbom_digest": null,
-      "signature_ref": null,
-      "provenance_ref": null,
-      "scorecard_status": null,
+      "upstream_digest": "sha256:f1c96471d38ee2d55e308dd4a20aac0cc983d4cf2e1caa3e12282bf444573c51",
+      "version": "3.11.1",
+      "distroless_base": "gcr.io/distroless/static-debian12:nonroot",
+      "distroless_digest": "sha256:06c3c14b7fa252d9f4285242d2d665ce3b51f74b02d3c529464f220f2912aecb",
+      "kelvin_image": "ghcr.io/eozkahq/kelvin/scanner-nuclei",
+      "kelvin_digest": "sha256:3653bf7c9a700afb3e68bc4c8ccd8d727465b7ebad36650a94d1a024844e480f",
+      "architecture": "linux/arm64",
+      "sbom_digest": "sha256:ff6f78171d662ced9557a7d0a1226e8e1739df30e5bd1cb6d41e72c9f58e4086",
+      "signature_ref": "ghcr.io/eozkahq/kelvin/scanner-nuclei:sha256-3653bf7c9a700afb3e68bc4c8ccd8d727465b7ebad36650a94d1a024844e480f.sig",
+      "provenance_ref": "ghcr.io/eozkahq/kelvin/scanner-nuclei:sha256-3653bf7c9a700afb3e68bc4c8ccd8d727465b7ebad36650a94d1a024844e480f.att",
+      "scorecard_status": "ELIGIBLE",
       "template_catalog_id": "kelvin.safe.web.v1",
       "template_catalog_digest": "sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2"
     }
   },
-  "release_note": "Populate only from a reviewed build workflow run. No scanner image or template catalog is certified by this manifest."
+  "release_note": "Certified immutable container images release for ProjectDiscovery Nuclei v3.11.1 and OWASP ZAP v2.17.0 under ADR-0008, signed and attested via Sigstore Cosign on GitHub Actions run 43841769574."
 }
