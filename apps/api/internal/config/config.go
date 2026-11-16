@@ -120,6 +120,8 @@ type Config struct {
 	Idempotency      IdempotencyConfig `mapstructure:"idempotency"`
 	Evidence         EvidenceConfig    `mapstructure:"evidence"`
 	Retention        RetentionConfig   `mapstructure:"retention"`
+	CanaryOnly       bool              `mapstructure:"canary_only"`
+	CanaryAllowedTargets []string      `mapstructure:"canary_allowed_targets"`
 }
 
 // Load loads, parses, and validates the API control plane configuration using spf13/viper.
@@ -158,6 +160,15 @@ func Load() (Config, error) {
 	v.SetDefault("retention.active_days", 90)
 	v.SetDefault("retention.archived_days", 270)
 	v.SetDefault("retention.purge_grace_days", 7)
+
+	// Canary execution policy defaults (Milestone 6/7 anti-SSRF canary boundary)
+	v.SetDefault("canary_only", true)
+	v.SetDefault("canary_allowed_targets", []string{
+		"scanner-mock.kelvin.internal",
+		"mock-target.kelvin.internal",
+		"localhost",
+		"127.0.0.1",
+	})
 
 	// Direct environment bindings for compatibility with KELVIN_* and service-specific envs
 	bindEnvWithFallback(v, "env", "KELVIN_ENV")
@@ -400,6 +411,29 @@ func Load() (Config, error) {
 		}
 	}
 
+	rawCanaryTargets := v.GetStringSlice("canary_allowed_targets")
+	if len(rawCanaryTargets) == 0 {
+		if raw := v.GetString("canary_allowed_targets"); raw != "" {
+			rawCanaryTargets = append(rawCanaryTargets, raw)
+		}
+	}
+	var canaryTargets []string
+	for _, item := range rawCanaryTargets {
+		for _, part := range strings.Split(item, ",") {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				canaryTargets = append(canaryTargets, trimmed)
+			}
+		}
+	}
+	if len(canaryTargets) == 0 {
+		canaryTargets = []string{
+			"scanner-mock.kelvin.internal",
+			"mock-target.kelvin.internal",
+			"localhost",
+			"127.0.0.1",
+		}
+	}
+
 	cfg := Config{
 		Env:              env,
 		LogLevel:         logLevel,
@@ -464,6 +498,8 @@ func Load() (Config, error) {
 			ArchivedDays:   v.GetInt("retention.archived_days"),
 			PurgeGraceDays: v.GetInt("retention.purge_grace_days"),
 		},
+		CanaryOnly:           v.GetBool("canary_only"),
+		CanaryAllowedTargets: canaryTargets,
 	}
 
 	return cfg, nil
