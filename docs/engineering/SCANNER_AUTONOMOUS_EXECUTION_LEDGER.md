@@ -14,12 +14,12 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | Phase | Total Issues | NOT_STARTED | IN_PROGRESS | PR_OPEN | MERGED | BLOCKED |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 0 | 0 | 0 | 9 | 0 |
-| **Phase 3B: OWASP ZAP Remediation** | 7 | 6 | 0 | 0 | 1 | 0 |
+| **Phase 3B: OWASP ZAP Remediation** | 7 | 5 | 0 | 0 | 2 | 0 |
 | **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 0 | 4 | 0 |
 | **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 0 | 3 | 0 |
 | **Phase 5: Controlled Scanner Release** | 2 | 0 | 0 | 0 | 2 | 0 |
 | **Phase 6: Worker Certification & Activation** | 2 | 0 | 0 | 0 | 2 | 0 |
-| **TOTAL** | **27** | **6** | **0** | **0** | **21** | **0** |
+| **TOTAL** | **27** | **5** | **0** | **0** | **22** | **0** |
 
 ---
 
@@ -37,7 +37,7 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | **#551** | `feat(nuclei): generate source-linked SBOM and build provenance` | `MERGED` | `feat/issue-551-nuclei-sbom-provenance` | [#590](https://github.com/eOzkahq/Kelvin/pull/590) | PASS (Go unit tests) | Merged into main. Implemented deploy/scanners/nuclei/sbom.cyclonedx.json, scripts/scanners/generate-sbom.sh, and integrated into workflow |
 | **#552** | `security(nuclei): reconcile vulnerability waivers after remediation` | `MERGED` | `security/issue-552-nuclei-waiver-reconciliation` | [#591](https://github.com/eOzkahq/Kelvin/pull/591) | PASS (Go unit tests) | Merged into main. Reconciled all 26 findings as fixed in deploy/scanners/nuclei/waivers.json and authored docs/security/waivers/NUCLEI_REMEDIATION_REPORT.md |
 | **#553** | `security(zap): audit vulnerable Debian packages and runtime dependencies` | `MERGED` | `security/issue-553-zap-package-audit` | [#572](https://github.com/eOzkahq/Kelvin/pull/572) | PASS (Go + Python) | Merged into main. 384/384 findings mapped across 38 packages. Linux-libc-dev (193), Firefox ESR (51), APT (1), Setuptools (1), Dev packages (11) |
-| **#554** | `security(zap): upgrade vulnerable firefox-esr packages` | `NOT_STARTED` | `security/issue-554-zap-firefox-upgrade` | - | - | Depends on #553 |
+| **#554** | `security(zap): upgrade vulnerable firefox-esr packages` | `MERGED` | `security/issue-554-zap-firefox-upgrade` | [#592](https://github.com/eOzkahq/Kelvin/pull/592) | PASS (Go unit tests) | Merged into main. Pinned firefox-esr to 153.7.0esr-1~deb12u1 in packages.list and Dockerfile; reconciled all 51 reported CVEs in deploy/scanners/zap/firefox.lock |
 | **#555** | `security(zap): upgrade vulnerable apt package dependencies` | `NOT_STARTED` | `security/issue-555-zap-apt-upgrade` | - | - | Depends on #553 |
 | **#556** | `security(zap): remediate vulnerable setuptools dependency` | `NOT_STARTED` | `security/issue-556-zap-setuptools-fix` | - | - | Depends on #553 |
 | **#557** | `refactor(zap): minimize scanner runtime package footprint` | `NOT_STARTED` | `refactor/issue-557-zap-minimization` | - | - | Depends on #553 |
