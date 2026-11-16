@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kelvin/kelvin/apps/api/internal/assessments"
 	"github.com/kelvin/kelvin/apps/api/internal/auth"
 	"github.com/kelvin/kelvin/apps/api/internal/config"
 	"github.com/kelvin/kelvin/apps/api/internal/database"
@@ -20,6 +22,7 @@ import (
 	"github.com/kelvin/kelvin/apps/api/internal/storage"
 	"github.com/kelvin/kelvin/apps/api/pkg/job"
 	"github.com/kelvin/kelvin/packages/common/logging"
+	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
 	commonredis "github.com/kelvin/kelvin/packages/common/redis"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -49,6 +52,9 @@ func main() {
 
 	isProduction := cfg.Env == config.EnvProduction || (!cfg.Development && cfg.Env != config.EnvTesting)
 
+	var dbPool *pgxpool.Pool
+	var redisClient *commonredis.Client
+
 	// 1. PostgreSQL connection & repositories
 	if cfg.Database.URL != "" {
 		poolCfg := database.DefaultPoolConfig()
@@ -61,16 +67,17 @@ func main() {
 		if cfg.Database.SSLRootCert != "" {
 			poolCfg.SSLRootCert = cfg.Database.SSLRootCert
 		}
-		pool, err := database.NewPool(context.Background(), cfg.Database.URL, poolCfg, log)
+		var err error
+		dbPool, err = database.NewPool(context.Background(), cfg.Database.URL, poolCfg, log)
 		if err != nil {
 			log.Fatal("database connection failed", zap.Error(err))
 		}
-		defer pool.Close()
-		ready.DB = pool
+		defer dbPool.Close()
+		ready.DB = dbPool
 
 		// Composition Root: Wire Job Store and Findings Repository
-		server.SetJobStore(job.Store{DB: pool})
-		findingRepo := findings.NewPostgresFindingRepository(pool)
+		server.SetJobStore(job.Store{DB: dbPool})
+		findingRepo := findings.NewPostgresFindingRepository(dbPool)
 		server.SetFindingStore(findingRepo)
 	} else if isProduction {
 		log.Fatal("database connection is required in production")
@@ -98,7 +105,8 @@ func main() {
 			ReadTimeout:  commonredis.DefaultReadTimeout,
 			WriteTimeout: commonredis.DefaultWriteTimeout,
 		}
-		redisClient, err := commonredis.NewClient(redisCfg)
+		var err error
+		redisClient, err = commonredis.NewClient(redisCfg)
 		if err != nil {
 			log.Fatal("redis initialization failed", zap.Error(err))
 		}
@@ -117,6 +125,23 @@ func main() {
 	} else if isProduction {
 		log.Fatal("redis broker is required in production")
 	}
+
+	// 2.5 Assessment Domain Service & Job Dispatcher
+	var asmtRepo assessments.Repository
+	if dbPool != nil {
+		asmtRepo = assessments.NewPostgresRepository(dbPool)
+	} else {
+		asmtRepo = assessments.NewMemoryRepository()
+	}
+
+	var jobQueue commonqueue.IJobQueue
+	if redisClient != nil {
+		jobQueue, _ = commonqueue.NewRedis(redisClient.UniversalClient(), commonqueue.RedisConfig{
+			Prefix: "kelvin:jobs",
+			Group:  "workers",
+		})
+	}
+	server.SetAssessmentService(assessments.NewService(asmtRepo, jobQueue, cfg.CanaryOnly, cfg.CanaryAllowedTargets, log))
 
 	server.SetReadyCheckers(ready)
 

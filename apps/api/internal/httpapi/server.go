@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"crypto/sha256"
+	"github.com/kelvin/kelvin/apps/api/internal/assessments"
 	"github.com/kelvin/kelvin/apps/api/internal/config"
 	"github.com/kelvin/kelvin/apps/api/internal/evidence"
 	"github.com/kelvin/kelvin/apps/api/internal/findings"
@@ -16,6 +17,7 @@ import (
 	"github.com/kelvin/kelvin/apps/api/internal/middleware"
 	"github.com/kelvin/kelvin/apps/api/pkg/job"
 	kelvinerrors "github.com/kelvin/kelvin/packages/common/errors"
+	"github.com/kelvin/kelvin/packages/common/tenant"
 	"go.uber.org/zap"
 )
 
@@ -28,6 +30,7 @@ type Server struct {
 	mux              *http.ServeMux
 	readyCheckers    ReadyCheckers
 	jobStore         jobStoreIface     // nil means cancel endpoint returns 503
+	assessmentService assessmentServiceIface
 	idempotencyStore idempotency.Store // nil means idempotency middleware is disabled
 	findingStore     findingStoreIface // nil means finding endpoints return 503
 	evidenceSigner   *evidence.Signer
@@ -86,6 +89,11 @@ func (s *Server) SetJobStore(store jobStoreIface) {
 	s.jobStore = store
 }
 
+// SetAssessmentService assigns the assessment service handler.
+func (s *Server) SetAssessmentService(svc assessmentServiceIface) {
+	s.assessmentService = svc
+}
+
 // SetIdempotencyStore assigns the idempotency store used by the idempotency
 // middleware on state-mutating endpoints. If nil, idempotency checks are
 // disabled and requests pass through unchanged.
@@ -134,6 +142,16 @@ func (s *Server) routes() {
 	// State-mutating endpoints are wrapped with idempotency middleware when a
 	// store is configured. The middleware is a no-op for requests without an
 	// Idempotency-Key header.
+	var createAssessmentHandler http.Handler = http.HandlerFunc(s.handleCreateAssessment)
+	if s.idempotencyStore != nil {
+		createAssessmentHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(createAssessmentHandler)
+	}
+	s.mux.Handle("POST /api/v1/assessments", s.protect(createAssessmentHandler))
+	s.mux.Handle("GET /api/v1/assessments", s.protect(http.HandlerFunc(s.handleListAssessments)))
+	s.mux.Handle("GET /api/v1/assessments/profiles", s.protect(http.HandlerFunc(s.handleGetAssessmentProfiles)))
+	s.mux.Handle("GET /api/v1/targets", s.protect(http.HandlerFunc(s.handleGetTargets)))
+	s.mux.Handle("GET /api/v1/assessments/{id}", s.protect(http.HandlerFunc(s.handleGetAssessment)))
+
 	var cancelHandler http.Handler = http.HandlerFunc(s.handleCancelAssessment)
 	if s.idempotencyStore != nil {
 		cancelHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(cancelHandler)
@@ -245,6 +263,33 @@ func (s *Server) handleNotFound(w http.ResponseWriter, r *http.Request) {
 // Requires the job to be in QUEUED, Validating, or RUNNING state; terminal
 // states reject with 409. Returns 503 if no job store is configured.
 func (s *Server) handleCancelAssessment(w http.ResponseWriter, r *http.Request) {
+	if s.assessmentService != nil {
+		id := r.PathValue("id")
+		if id == "" {
+			WriteProblem(w, r, kelvinerrors.NewValidation([]kelvinerrors.FieldError{{
+				Field:   "id",
+				Code:    "missing_assessment_id",
+				Message: "assessment id is required",
+			}}))
+			return
+		}
+		tenantID, _ := tenant.ID(r.Context())
+		if err := s.assessmentService.CancelAssessment(r.Context(), tenantID.String(), id); err != nil {
+			if errors.Is(err, assessments.ErrAssessmentNotFound) {
+				WriteProblem(w, r, kelvinerrors.NewNotFound("assessment not found"))
+				return
+			}
+			if errors.Is(err, assessments.ErrInvalidStateTransition) {
+				WriteProblem(w, r, kelvinerrors.NewConflict(err.Error()))
+				return
+			}
+			WriteProblem(w, r, kelvinerrors.NewInternal(err))
+			return
+		}
+		WriteSuccess(w, r, http.StatusOK, map[string]any{"success": true, "message": "assessment cancelled"}, nil)
+		return
+	}
+
 	if s.jobStore == nil {
 		WriteProblem(w, r, &kelvinerrors.API{
 			Type:   kelvinerrors.ProblemServiceUnavailable,
