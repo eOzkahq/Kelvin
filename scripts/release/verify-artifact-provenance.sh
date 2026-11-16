@@ -25,7 +25,7 @@ fi
 echo "[+] Checking Cosign signature on $IMAGE_REF..."
 if command -v cosign &> /dev/null; then
   cosign verify \
-    --certificate-identity-regexp "https://github.com/eOzkull/Kelvin/.github/workflows/.*" \
+    --certificate-identity-regexp "https://github.com/eOzkahq/Kelvin/.github/workflows/.*" \
     --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
     "$IMAGE_REF"
 else
@@ -37,7 +37,7 @@ echo "[+] Checking SLSA Provenance Attestation..."
 if command -v cosign &> /dev/null; then
   cosign verify-attestation \
     --type slsaprovenance \
-    --certificate-identity-regexp "https://github.com/eOzkull/Kelvin/.github/workflows/.*" \
+    --certificate-identity-regexp "https://github.com/eOzkahq/Kelvin/.github/workflows/.*" \
     --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
     "$IMAGE_REF"
 fi

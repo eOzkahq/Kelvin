@@ -88,7 +88,7 @@ jobs:
       - name: Execute Publication, Signing, and Supply-Chain Attestation
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
-          REGISTRY_NAMESPACE: 'ghcr.io/eozkull/kelvin'
+          REGISTRY_NAMESPACE: 'ghcr.io/eozkahq/kelvin'
         run: |
           bash scripts/scanners/publish-images.sh
 

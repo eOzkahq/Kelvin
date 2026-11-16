@@ -38,4 +38,4 @@ jobs:
       - name: Verify Provenance Policy
         run: |
           echo "Simulating immutable digest provenance check..."
-          bash scripts/release/verify-artifact-provenance.sh "ghcr.io/eozkull/kelvin-api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          bash scripts/release/verify-artifact-provenance.sh "ghcr.io/eozkahq/kelvin-api@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

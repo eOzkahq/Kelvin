@@ -55,7 +55,7 @@ def main():
     with open(POLICY_FILE, "r", encoding="utf-8") as f:
         policy = json.load(f)
 
-    target_image = sys.argv[1] if len(sys.argv) > 1 else "ghcr.io/eozkull/kelvin/scanner-nuclei@sha256:1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff"
+    target_image = sys.argv[1] if len(sys.argv) > 1 else "ghcr.io/eozkahq/kelvin/scanner-nuclei@sha256:1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff"
 
     try:
         validate_image_reference(target_image)
