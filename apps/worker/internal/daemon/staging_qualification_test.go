@@ -93,6 +93,20 @@ func setupMockTargetServer(t *testing.T) *httptest.Server {
 		_, _ = fmt.Fprintln(w, "slow response completed")
 	})
 
+	// 8. Mock environment file for safe discovery testing
+	mux.HandleFunc("/.env", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintln(w, "APP_ENV=staging\nDB_PASSWORD=mock_insecure_password_123\nDATABASE_URL=postgres://mock:mock@localhost:5432/mock_db")
+	})
+
+	// 9. Mock robots.txt for discovery testing
+	mux.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintln(w, "User-agent: *\nDisallow: /admin\nDisallow: /vulnerable/")
+	})
+
 	ts := httptest.NewServer(mux)
 	t.Cleanup(func() { ts.Close() })
 	return ts
