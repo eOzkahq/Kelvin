@@ -13,13 +13,13 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 
 | Phase | Total Issues | NOT_STARTED | IN_PROGRESS | PR_OPEN | MERGED | BLOCKED |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 2 | 0 | 6 | 1 | 0 |
+| **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 0 | 0 | 8 | 1 | 0 |
 | **Phase 3B: OWASP ZAP Remediation** | 7 | 6 | 0 | 0 | 1 | 0 |
 | **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 0 | 4 | 0 |
 | **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 0 | 3 | 0 |
 | **Phase 5: Controlled Scanner Release** | 2 | 0 | 0 | 0 | 2 | 0 |
 | **Phase 6: Worker Certification & Activation** | 2 | 0 | 0 | 0 | 2 | 0 |
-| **TOTAL** | **27** | **8** | **0** | **6** | **13** | **0** |
+| **TOTAL** | **27** | **6** | **0** | **8** | **13** | **0** |
 
 ---
 
@@ -35,7 +35,7 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | **#549** | `feat(ci): integrate hermetic Nuclei source build pipeline` | `PR_OPEN` | `feat/issue-549-ci-source-integration` | [#588](https://github.com/eOzkull/Kelvin/pull/588) | PASS (Go unit tests) | Integrated hermetic source build arguments into .github/workflows/scanner-images.yml, scripts/scanners/build-images.sh, and scripts/scanners/verify-build.sh |
 | **#550** | `test(nuclei): add hermetic build and worker compatibility tests` | `PR_OPEN` | `test/issue-550-nuclei-regression` | [#589](https://github.com/eOzkull/Kelvin/pull/589) | PASS (Go unit tests) | Added tests/scanners/nuclei_test.go, fixtures/templates/safe.web.v1.yaml, apps/worker/internal/adapters/nuclei_adapter_test.go |
 | **#551** | `feat(nuclei): generate source-linked SBOM and build provenance` | `PR_OPEN` | `feat/issue-551-nuclei-sbom-provenance` | [#590](https://github.com/eOzkull/Kelvin/pull/590) | PASS (Go unit tests) | Implemented deploy/scanners/nuclei/sbom.cyclonedx.json, scripts/scanners/generate-sbom.sh, and integrated into workflow |
-| **#552** | `security(nuclei): reconcile vulnerability waivers after remediation` | `NOT_STARTED` | `security/issue-552-nuclei-waiver-reconciliation` | - | - | Depends on #550, #551 |
+| **#552** | `security(nuclei): reconcile vulnerability waivers after remediation` | `PR_OPEN` | `security/issue-552-nuclei-waiver-reconciliation` | Pending | PASS (Go unit tests) | Reconciled all 26 findings as fixed in deploy/scanners/nuclei/waivers.json and authored docs/security/waivers/NUCLEI_REMEDIATION_REPORT.md |
 | **#553** | `security(zap): audit vulnerable Debian packages and runtime dependencies` | `MERGED` | `security/issue-553-zap-package-audit` | [#572](https://github.com/eOzkull/Kelvin/pull/572) | PASS (Go + Python) | Merged into main. 384/384 findings mapped across 38 packages. Linux-libc-dev (193), Firefox ESR (51), APT (1), Setuptools (1), Dev packages (11) |
 | **#554** | `security(zap): upgrade vulnerable firefox-esr packages` | `NOT_STARTED` | `security/issue-554-zap-firefox-upgrade` | - | - | Depends on #553 |
 | **#555** | `security(zap): upgrade vulnerable apt package dependencies` | `NOT_STARTED` | `security/issue-555-zap-apt-upgrade` | - | - | Depends on #553 |
