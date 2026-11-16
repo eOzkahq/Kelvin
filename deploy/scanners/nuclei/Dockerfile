@@ -15,7 +15,7 @@ ARG NUCLEI_COMMIT=a8c88feb4a1c8e961b7902534ce3af97e9d524a4
 # ------------------------------------------------------------------------------
 # Stage 1: Hermetic Multi-Stage Source Builder (Go 1.26.10)
 # ------------------------------------------------------------------------------
-FROM ${GO_BUILDER_IMAGE} AS builder
+FROM --platform=$BUILDPLATFORM ${GO_BUILDER_IMAGE} AS builder
 
 ARG NUCLEI_VERSION
 ARG NUCLEI_COMMIT
