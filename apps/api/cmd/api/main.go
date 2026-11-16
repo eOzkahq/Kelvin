@@ -143,6 +143,10 @@ func main() {
 	}
 	server.SetAssessmentService(assessments.NewService(asmtRepo, jobQueue, cfg.CanaryOnly, cfg.CanaryAllowedTargets, log))
 
+	// 2.6 Reporting Service
+	signingKeyBytes := []byte(cfg.Evidence.SigningKey)
+	server.SetReportService(httpapi.NewBuiltinReportService(asmtRepo, signingKeyBytes))
+
 	server.SetReadyCheckers(ready)
 
 	// 3. Supabase Storage Provider
