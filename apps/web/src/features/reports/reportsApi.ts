@@ -1,4 +1,5 @@
 import { request } from "../../services/api";
+import { isDemoMode } from "../../config/env";
 import type { GenerateReportPayload, ReportItem } from "./types";
 
 let mockReportsStore: ReportItem[] = [
@@ -47,24 +48,18 @@ let mockReportsStore: ReportItem[] = [
 ];
 
 export async function fetchReports(): Promise<ReportItem[]> {
-  try {
-    const res = await request<ReportItem[]>("/reports");
-    if (res && Array.isArray(res)) return res;
-  } catch {
-    // Local mock fallback
+  if (isDemoMode()) {
+    return [...mockReportsStore];
   }
-  return [...mockReportsStore];
+  return request<ReportItem[]>("/reports");
 }
 
 export async function generateReport(payload: GenerateReportPayload): Promise<ReportItem> {
-  try {
-    const res = await request<ReportItem>("/reports/generate", {
+  if (!isDemoMode()) {
+    return request<ReportItem>("/reports/generate", {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    if (res && res.id) return res;
-  } catch {
-    // Local mock generation
   }
 
   const templateTitleMap: Record<string, string> = {

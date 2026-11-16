@@ -1,4 +1,5 @@
 import { apiClient } from "../../services/api";
+import { isDemoMode } from "../../config/env";
 import { type DashboardMetrics, type RecentFinding, type ActiveJob } from "./types";
 
 export interface DashboardResponse {
@@ -11,13 +12,14 @@ export async function fetchDashboardData(
   timeRange: string = "30d",
   signal?: AbortSignal,
 ): Promise<DashboardResponse> {
-  try {
+  if (!isDemoMode()) {
     return await apiClient.get<DashboardResponse>(`/dashboard/stats?range=${timeRange}`, {
       signal,
     });
-  } catch {
-    // Return baseline production dataset if offline or staging control plane mock
-    return {
+  }
+
+  // Demo mode dataset
+  return {
       metrics: {
         totalAssessments: 142,
         activeJobs: 2,
@@ -96,5 +98,4 @@ export async function fetchDashboardData(
         },
       ],
     };
-  }
 }
