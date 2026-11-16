@@ -8,7 +8,7 @@ IMAGE_REF="${1:-}"
 
 if [[ -z "$IMAGE_REF" ]]; then
   echo "Usage: $0 <image-digest-reference>"
-  echo "Example: $0 ghcr.io/eozkull/kelvin/scanner-nuclei@sha256:<64-hex>"
+  echo "Example: $0 ghcr.io/eozkahq/kelvin/scanner-nuclei@sha256:<64-hex>"
   exit 1
 fi
 

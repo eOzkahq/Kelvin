@@ -776,6 +776,25 @@ func TestScannerReleaseGate_CertifiedManifestValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("valid certified manifest with canonical eOzkahq namespace passes", func(t *testing.T) {
+		m := createValidCertifiedManifest()
+		zap := m.Images["zap"]
+		zap.KelvinImage = sPtr("ghcr.io/eozkahq/kelvin/scanner-zap")
+		zap.SignatureRef = sPtr("ghcr.io/eozkahq/kelvin/scanner-zap:sha256-2222222222222222222222222222222222222222222222222222222222222222.sig")
+		zap.ProvenanceRef = sPtr("ghcr.io/eozkahq/kelvin/scanner-zap:sha256-2222222222222222222222222222222222222222222222222222222222222222.att")
+		m.Images["zap"] = zap
+
+		nuclei := m.Images["nuclei"]
+		nuclei.KelvinImage = sPtr("ghcr.io/eozkahq/kelvin/scanner-nuclei")
+		nuclei.SignatureRef = sPtr("ghcr.io/eozkahq/kelvin/scanner-nuclei:sha256-6666666666666666666666666666666666666666666666666666666666666666.sig")
+		nuclei.ProvenanceRef = sPtr("ghcr.io/eozkahq/kelvin/scanner-nuclei:sha256-6666666666666666666666666666666666666666666666666666666666666666.att")
+		m.Images["nuclei"] = nuclei
+
+		if err := ValidateCertifiedScannerManifest(m, ""); err != nil {
+			t.Fatalf("expected canonical eOzkahq namespace to pass validation, got: %v", err)
+		}
+	})
+
 	t.Run("nil manifest rejected", func(t *testing.T) {
 		if err := ValidateCertifiedScannerManifest(nil, ""); err == nil {
 			t.Fatal("expected error for nil manifest")

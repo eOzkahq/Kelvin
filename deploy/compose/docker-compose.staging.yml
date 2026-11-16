@@ -13,7 +13,7 @@ services:
       dockerfile: apps/api/Dockerfile
       args:
         TARGETARCH: arm64
-    image: ghcr.io/eozkull/kelvin/api:staging
+    image: ghcr.io/eozkahq/kelvin/api:staging
     container_name: kelvin-staging-api
     restart: unless-stopped
     read_only: true
@@ -73,7 +73,7 @@ services:
       dockerfile: apps/worker/Dockerfile
       args:
         TARGETARCH: arm64
-    image: ghcr.io/eozkull/kelvin/worker:staging
+    image: ghcr.io/eozkahq/kelvin/worker:staging
     container_name: kelvin-staging-worker
     restart: unless-stopped
     read_only: true
@@ -125,7 +125,7 @@ services:
   # Blocks access to 127.0.0.1, RFC 1918 subnets, and cloud metadata (169.254.169.254)
   # ----------------------------------------------------------------------------
   anti-ssrf-proxy:
-    image: ghcr.io/eozkull/kelvin/anti-ssrf-proxy:staging
+    image: ghcr.io/eozkahq/kelvin/anti-ssrf-proxy:staging
     container_name: kelvin-staging-anti-ssrf-proxy
     restart: unless-stopped
     read_only: true

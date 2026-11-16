@@ -108,8 +108,8 @@ if [[ ! "$zap_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
   echo "ERROR: ZAP version must be valid semver (got: '$zap_version')" >&2
   exit 1
 fi
-if [[ "$zap_image" != "ghcr.io/eozkull/kelvin/scanner-zap"* ]]; then
-  echo "ERROR: ZAP kelvin_image must be in official namespace 'ghcr.io/eozkull/kelvin/scanner-zap' (got: '$zap_image')" >&2
+if [[ "$zap_image" != "ghcr.io/eozkahq/kelvin/scanner-zap"* && "$zap_image" != "ghcr.io/eozkull/kelvin/scanner-zap"* ]]; then
+  echo "ERROR: ZAP kelvin_image must be in official namespace 'ghcr.io/eozkahq/kelvin/scanner-zap' (got: '$zap_image')" >&2
   exit 1
 fi
 if [[ ! "$zap_digest" =~ ^sha256:[0-9a-f]{64}$ || "$zap_digest" == "$EMPTY_SHA256" ]]; then
@@ -176,8 +176,8 @@ if [[ ! "$distroless_digest" =~ ^sha256:[0-9a-f]{64}$ || "$distroless_digest" ==
   echo "ERROR: Nuclei distroless digest must be valid non-empty sha256 (got: '$distroless_digest')" >&2
   exit 1
 fi
-if [[ "$nuclei_image" != "ghcr.io/eozkull/kelvin/scanner-nuclei"* ]]; then
-  echo "ERROR: Nuclei kelvin_image must be in official namespace 'ghcr.io/eozkull/kelvin/scanner-nuclei' (got: '$nuclei_image')" >&2
+if [[ "$nuclei_image" != "ghcr.io/eozkahq/kelvin/scanner-nuclei"* && "$nuclei_image" != "ghcr.io/eozkull/kelvin/scanner-nuclei"* ]]; then
+  echo "ERROR: Nuclei kelvin_image must be in official namespace 'ghcr.io/eozkahq/kelvin/scanner-nuclei' (got: '$nuclei_image')" >&2
   exit 1
 fi
 if [[ ! "$nuclei_digest" =~ ^sha256:[0-9a-f]{64}$ || "$nuclei_digest" == "$EMPTY_SHA256" ]]; then
