@@ -13,19 +13,19 @@ LABEL org.opencontainers.image.title="Kelvin OWASP ZAP Baseline runtime" \
 USER root
 
 # Upgrade apt, libapt-pkg, and firefox-esr to remediate reported Debian CVEs
+# Hard fail-closed: unpinned fallbacks are strictly prohibited to prevent silent CVE drift
 COPY deploy/scanners/zap/packages.list /etc/apt/preferences.d/kelvin-pinned-packages
 RUN apt-get update && \
-    (apt-get install -y --no-install-recommends apt=2.6.2* libapt-pkg6.0=2.6.2* || \
-     apt-get install -y --no-install-recommends apt libapt-pkg6.0) && \
-    (apt-get install -y --no-install-recommends firefox-esr=153.7.0esr-1~deb12u1* || \
-     apt-get install -y --no-install-recommends firefox-esr) && \
+    apt-get install -y --no-install-recommends \
+        apt=2.6.2* \
+        libapt-pkg6.0=2.6.2* \
+        firefox-esr=153.7.0esr-1~deb12u1* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # Upgrade Python setuptools to remediate CVE-2025-47273
 COPY deploy/scanners/zap/requirements.txt /tmp/requirements.txt
-RUN (pip install --no-cache-dir -r /tmp/requirements.txt || \
-     pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt || true) && \
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm -f /tmp/requirements.txt
 
 # Minimize runtime footprint: purge compilers, -dev headers, and static packages
@@ -40,7 +40,7 @@ RUN apt-get purge -y --auto-remove \
       g++ \
       make \
       dpkg-dev \
-      git-man || true && \
+      git-man && \
     rm -rf /usr/share/man/* /usr/share/doc/* /var/cache/apt/* /var/lib/apt/lists/* /tmp/slim-packages.list
 
 # The upstream image is read-only at runtime. ZAP writes transient state only
