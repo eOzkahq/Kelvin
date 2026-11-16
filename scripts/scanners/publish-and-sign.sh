@@ -52,10 +52,11 @@ echo "==> [Phase 6] Capturing and verifying registry manifest digests..."
 
 extract_registry_digest() {
   local tag="$1"
+  local repo_name="${tag%%:*}"
   local digest=""
   
-  # Try docker inspect RepoDigests first
-  digest="$(docker image inspect "$tag" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null | grep "$tag" | awk -F'@' '{print $2}' | head -n 1 || true)"
+  # Try docker inspect RepoDigests matching repo name
+  digest="$(docker image inspect "$tag" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null | grep -E "(^$repo_name@|$tag)" | awk -F'@' '{print $2}' | head -n 1 || true)"
   
   if [[ -z "$digest" ]]; then
     # Fallback to index 0

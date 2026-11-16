@@ -87,8 +87,9 @@ docker push "$nuclei_full_tag"
 
 extract_registry_digest() {
   local tag="$1"
+  local repo_name="${tag%%:*}"
   local digest=""
-  digest="$(docker image inspect "$tag" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null | grep "$tag" | awk -F'@' '{print $2}' | head -n 1 || true)"
+  digest="$(docker image inspect "$tag" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null | grep -E "(^$repo_name@|$tag)" | awk -F'@' '{print $2}' | head -n 1 || true)"
   if [[ -z "$digest" ]]; then
     digest="$(docker image inspect "$tag" --format '{{index .RepoDigests 0}}' 2>/dev/null | awk -F'@' '{print $2}' || true)"
   fi

@@ -266,6 +266,7 @@ jobs:
     needs: [build-and-scan]
     if: inputs.enable_ci == true && inputs.publish == true
     runs-on: ubuntu-latest
+    environment: scanner-release # Explicit maintainer approval gate required
     permissions:
       contents: read
       packages: write
