@@ -71,15 +71,23 @@ type ResourceLimits struct {
 
 // Config is the immutable runtime configuration of the worker daemon (.env.example).
 type Config struct {
-	Env          Environment    `mapstructure:"env"`
-	LogLevel     string         `mapstructure:"log_level"`
-	WorkerID     string         `mapstructure:"worker_id"`
-	PollInterval time.Duration  `mapstructure:"poll_interval"`
-	Development  bool           `mapstructure:"development"`
-	Database     DatabaseConfig `mapstructure:"database"`
-	Redis        RedisConfig    `mapstructure:"redis"`
-	Storage      StorageConfig  `mapstructure:"storage"`
-	Limits       ResourceLimits `mapstructure:"limits"`
+	Env                  Environment    `mapstructure:"env"`
+	LogLevel             string         `mapstructure:"log_level"`
+	WorkerID             string         `mapstructure:"worker_id"`
+	PollInterval         time.Duration  `mapstructure:"poll_interval"`
+	Development          bool           `mapstructure:"development"`
+	CanaryOnly           bool           `mapstructure:"canary_only"`
+	CanaryAllowedTargets []string       `mapstructure:"canary_allowed_targets"`
+	Database             DatabaseConfig `mapstructure:"database"`
+	Redis                RedisConfig    `mapstructure:"redis"`
+	Storage              StorageConfig  `mapstructure:"storage"`
+	Limits               ResourceLimits `mapstructure:"limits"`
+}
+
+// ToLimits converts config values into a limits.Limits, applying safe defaults
+// for unset fields.
+func (c Config) ToLimits() (limits.Limits, error) {
+	return c.toLimits()
 }
 
 // toLimits converts config values into a limits.Limits, applying safe defaults
@@ -146,6 +154,11 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "log_level", "KELVIN_LOG_LEVEL")
 	bindEnvWithFallback(v, "worker.id", "KELVIN_WORKER_ID")
 	bindEnvWithFallback(v, "worker.poll_interval", "KELVIN_WORKER_POLL_INTERVAL")
+
+	v.SetDefault("canary_only", false)
+	v.SetDefault("canary_allowed_targets", "")
+	bindEnvWithFallback(v, "canary_only", "KELVIN_CANARY_ONLY")
+	bindEnvWithFallback(v, "canary_allowed_targets", "KELVIN_CANARY_ALLOWED_TARGETS")
 
 	bindEnvWithFallback(v, "limits.cpu_quota", "KELVIN_LIMITS_CPU_QUOTA")
 	bindEnvWithFallback(v, "limits.memory_limit", "KELVIN_LIMITS_MEMORY_LIMIT")
@@ -273,12 +286,25 @@ func Load() (Config, error) {
 		}
 	}
 
+	var allowedTargets []string
+	rawAllowed := v.GetString("canary_allowed_targets")
+	if strings.TrimSpace(rawAllowed) != "" {
+		for _, t := range strings.Split(rawAllowed, ",") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				allowedTargets = append(allowedTargets, t)
+			}
+		}
+	}
+
 	cfg := Config{
-		Env:          env,
-		LogLevel:     logLevel,
-		WorkerID:     workerID,
-		PollInterval: pollInterval,
-		Development:  env == EnvDevelopment || env == EnvTesting,
+		Env:                  env,
+		LogLevel:             logLevel,
+		WorkerID:             workerID,
+		PollInterval:         pollInterval,
+		Development:          env == EnvDevelopment || env == EnvTesting,
+		CanaryOnly:           v.GetBool("canary_only"),
+		CanaryAllowedTargets: allowedTargets,
 		Database: DatabaseConfig{
 			URL:         dbURL,
 			SSLRootCert: v.GetString("database.sslrootcert"),

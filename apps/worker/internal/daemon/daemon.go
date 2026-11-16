@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
@@ -23,18 +25,20 @@ import (
 )
 
 type Config struct {
-	WorkerID         string
-	Env              string
-	PollInterval     time.Duration
-	HeartbeatEvery   time.Duration
-	Executor         sandbox.Executor
-	Limits           limits.Limits
-	Metrics          *metrics.Registry
-	ReadinessChecker *readiness.Checker
-	WorkspaceManager    *workspace.Manager
-	ScopePolicyProvider adapters.ScopePolicyProvider
-	ProgressPublisher   progress.Publisher
+	WorkerID              string
+	Env                   string
+	PollInterval          time.Duration
+	HeartbeatEvery        time.Duration
+	Executor              sandbox.Executor
+	Limits                limits.Limits
+	Metrics               *metrics.Registry
+	ReadinessChecker      *readiness.Checker
+	WorkspaceManager      *workspace.Manager
+	ScopePolicyProvider   adapters.ScopePolicyProvider
+	ProgressPublisher     progress.Publisher
 	ConcurrencyController concurrency.Controller
+	CanaryOnly            bool
+	CanaryAllowedTargets  []string
 }
 
 func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, registry *adapters.Registry) error {
@@ -140,6 +144,18 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 	if err != nil {
 		fail(jobLog, q, ctx, job, err.Error())
 		return
+	}
+
+	// Fail closed if CanaryOnly is active and the target is not on the canary allowlist
+	if cfg.CanaryOnly {
+		if !isCanaryTargetAllowed(task.Target, cfg.CanaryAllowedTargets) {
+			jobLog.Warn("job rejected by canary-only execution policy: target not permitted",
+				zap.String("job_id", job.ID),
+				zap.String("target", task.Target),
+			)
+			fail(jobLog, q, ctx, job, fmt.Sprintf("rejected by canary-only execution policy: target %q not permitted", task.Target))
+			return
+		}
 	}
 
 	// Prevent workers from accepting unvalidated execution requests
@@ -370,4 +386,53 @@ func specFromTask(task adapters.Task, imageReference string, invocation sandbox.
 			"profile_id": task.ProfileID,
 		},
 	}
+}
+
+func isCanaryTargetAllowed(target string, allowed []string) bool {
+	if strings.TrimSpace(target) == "" {
+		return false
+	}
+	targetCandidate := strings.TrimSpace(target)
+	if strings.Contains(targetCandidate, "://") {
+		if u, err := url.Parse(targetCandidate); err == nil && u.Hostname() != "" {
+			targetCandidate = u.Hostname()
+		}
+	} else if strings.Contains(targetCandidate, ":") {
+		parts := strings.Split(targetCandidate, ":")
+		targetCandidate = parts[0]
+	}
+	targetCandidate = strings.ToLower(targetCandidate)
+
+	defaultCanaryHosts := []string{
+		"scanner-mock.kelvin.internal",
+		"mock-target.kelvin.internal",
+		"localhost",
+		"127.0.0.1",
+	}
+
+	for _, d := range defaultCanaryHosts {
+		if targetCandidate == d || strings.HasSuffix(targetCandidate, "."+d) {
+			return true
+		}
+	}
+
+	for _, a := range allowed {
+		a = strings.TrimSpace(strings.ToLower(a))
+		if a == "" {
+			continue
+		}
+		if strings.Contains(a, "://") {
+			if au, err := url.Parse(a); err == nil && au.Hostname() != "" {
+				a = au.Hostname()
+			}
+		} else if strings.Contains(a, ":") {
+			parts := strings.Split(a, ":")
+			a = parts[0]
+		}
+		if targetCandidate == a || strings.HasSuffix(targetCandidate, "."+a) {
+			return true
+		}
+	}
+
+	return false
 }

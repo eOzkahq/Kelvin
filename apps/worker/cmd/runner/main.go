@@ -11,7 +11,6 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/config"
 	"github.com/kelvin/kelvin/apps/worker/internal/daemon"
-	"github.com/kelvin/kelvin/apps/worker/internal/limits"
 	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
@@ -161,13 +160,21 @@ func main() {
 	}
 
 	// 4. Run Daemon loop with concurrency and resource bounds
+	configuredLimits, err := cfg.ToLimits()
+	if err != nil {
+		log.Fatal("invalid worker resource limits", zap.Error(err))
+	}
+
 	err = daemon.Run(ctx, log, daemon.Config{
-		WorkerID:     cfg.WorkerID,
-		Env:          string(cfg.Env),
-		PollInterval: cfg.PollInterval,
-		Executor:     executor,
-		Limits:       limits.DefaultLimits(),
-		Metrics:      metrics.Default(),
+		WorkerID:             cfg.WorkerID,
+		Env:                  string(cfg.Env),
+		PollInterval:         cfg.PollInterval,
+		Executor:             executor,
+		Limits:               configuredLimits,
+		Metrics:              metrics.Default(),
+		ScopePolicyProvider:  adapters.DefaultScopePolicyProvider,
+		CanaryOnly:           cfg.CanaryOnly,
+		CanaryAllowedTargets: cfg.CanaryAllowedTargets,
 	}, workQueue, registry)
 	if err != nil {
 		log.Fatal("worker daemon failed", zap.Error(err))

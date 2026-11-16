@@ -397,3 +397,46 @@ func TestConfig_RejectsPlaceholderCredentialsInStagingProduction(t *testing.T) {
 		})
 	}
 }
+
+func TestCanaryOnlyAndResourceLimitsConfig(t *testing.T) {
+	os.Clearenv()
+	_ = os.Setenv("KELVIN_ENV", "staging")
+	_ = os.Setenv("KELVIN_WORKER_ID", "oracle-arm64-worker-01")
+	_ = os.Setenv("KELVIN_CANARY_ONLY", "true")
+	_ = os.Setenv("KELVIN_CANARY_ALLOWED_TARGETS", "scanner-mock.kelvin.internal,mock-target.kelvin.internal,127.0.0.1")
+	_ = os.Setenv("KELVIN_LIMITS_CPU_QUOTA", "1.0")
+	_ = os.Setenv("KELVIN_LIMITS_MEMORY_LIMIT", "2048M")
+	_ = os.Setenv("KELVIN_LIMITS_MAX_PIDS", "64")
+	_ = os.Setenv("KELVIN_DATABASE_URL", "postgres://user:pass@db.internal:5432/kelvin?sslmode=verify-full")
+	_ = os.Setenv("KELVIN_REDIS_ADDR", "redis.internal:6379")
+	_ = os.Setenv("REDIS_TLS_ENABLED", "true")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("expected successful config load, got: %v", err)
+	}
+
+	if !cfg.CanaryOnly {
+		t.Errorf("expected CanaryOnly=true, got false")
+	}
+	if len(cfg.CanaryAllowedTargets) != 3 {
+		t.Fatalf("expected 3 allowed targets, got %d: %v", len(cfg.CanaryAllowedTargets), cfg.CanaryAllowedTargets)
+	}
+	if cfg.CanaryAllowedTargets[0] != "scanner-mock.kelvin.internal" {
+		t.Errorf("expected target 0 to be scanner-mock.kelvin.internal, got %s", cfg.CanaryAllowedTargets[0])
+	}
+
+	lim, err := cfg.ToLimits()
+	if err != nil {
+		t.Fatalf("expected valid limits, got: %v", err)
+	}
+	if lim.CPUQuota != "1.0" {
+		t.Errorf("expected CPUQuota '1.0', got %s", lim.CPUQuota)
+	}
+	if lim.MemoryLimit != "2048M" {
+		t.Errorf("expected MemoryLimit '2048M', got %s", lim.MemoryLimit)
+	}
+	if lim.MaxPIDs != 64 {
+		t.Errorf("expected MaxPIDs 64, got %d", lim.MaxPIDs)
+	}
+}

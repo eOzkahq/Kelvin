@@ -13,6 +13,9 @@
 # ==============================================================================
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 PASS_COUNT=0
 FAIL_COUNT=0
 
@@ -654,6 +657,51 @@ else
 fi
 
 rm -rf "$TEST_WORKDIR_DIR"
+
+# ------------------------------------------------------------------------------
+# SCENARIO 10: Conservative Host Service Cgroups v2 Resource Bounds
+# ------------------------------------------------------------------------------
+echo "--- Testing Conservative Host Resource Limits ---"
+
+SERVICE_FILE="$REPO_ROOT/deploy/systemd/kelvin-worker.service"
+if [[ -f "$SERVICE_FILE" ]]; then
+  CPU_LIMIT="$(grep -E '^CPUQuota=' "$SERVICE_FILE" | cut -d= -f2- | tr -d ' ')"
+  MEM_HIGH="$(grep -E '^MemoryHigh=' "$SERVICE_FILE" | cut -d= -f2- | tr -d ' ')"
+  MEM_MAX="$(grep -E '^MemoryMax=' "$SERVICE_FILE" | cut -d= -f2- | tr -d ' ')"
+
+  if [[ "$CPU_LIMIT" == "100%" ]]; then
+    test_pass "Scenario 10a: Host worker CPUQuota is conservatively set to 100% (1 vCPU of 2 vCPU host)"
+  else
+    test_fail "Scenario 10a: Expected CPUQuota=100%, got '$CPU_LIMIT'"
+  fi
+
+  if [[ "$MEM_HIGH" == "3G" && "$MEM_MAX" == "4G" ]]; then
+    test_pass "Scenario 10b: Host worker MemoryHigh=3G and MemoryMax=4G conservatively protect host 10 GiB RAM"
+  else
+    test_fail "Scenario 10b: Expected MemoryHigh=3G and MemoryMax=4G, got MemoryHigh='$MEM_HIGH', MemoryMax='$MEM_MAX'"
+  fi
+else
+  test_fail "Scenario 10: Service file $SERVICE_FILE not found"
+fi
+
+# ------------------------------------------------------------------------------
+# SCENARIO 11: Rollback Evidence & Log Preservation Runbook
+# ------------------------------------------------------------------------------
+echo "--- Testing Rollback Evidence Preservation ---"
+
+ROLLBACK_SCRIPT="$REPO_ROOT/scripts/deploy/staging-rollback.sh"
+if [[ -f "$ROLLBACK_SCRIPT" ]]; then
+  if grep -q "ROLLBACK_ARCHIVE_DIR=" "$ROLLBACK_SCRIPT" && \
+     grep -q "reports-and-evidence.tar.gz" "$ROLLBACK_SCRIPT" && \
+     grep -q "systemd-journal.log" "$ROLLBACK_SCRIPT" && \
+     grep -q "containers.txt" "$ROLLBACK_SCRIPT"; then
+    test_pass "Scenario 11: Rollback preserves journal logs, audit evidence, and container state before cleanup"
+  else
+    test_fail "Scenario 11: Rollback script lacks non-destructive evidence preservation steps"
+  fi
+else
+  test_fail "Scenario 11: Rollback script $ROLLBACK_SCRIPT not found"
+fi
 
 echo "=============================================================================="
 echo "Hardening Test Suite Results: $PASS_COUNT PASSED, $FAIL_COUNT FAILED"
