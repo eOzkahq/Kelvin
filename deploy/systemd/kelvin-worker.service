@@ -29,7 +29,10 @@ KillMode=control-group
 # Enable cgroups v2 resource delegation to rootless containers (ADR-0008)
 Delegate=yes
 
-# Resource bounds on host daemon
+# Resource bounds on host daemon (conservative for 2 vCPU / 10 GiB RAM host)
+CPUQuota=100%
+MemoryHigh=3G
+MemoryMax=4G
 LimitNOFILE=65535
 
 # Systemd process sandboxing

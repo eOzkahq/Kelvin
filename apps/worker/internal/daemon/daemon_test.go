@@ -410,3 +410,70 @@ func TestDaemonAcquiresAndReleasesSlotOnSuccess(t *testing.T) {
 		t.Fatalf("expected 0 active slots after job completed, got %d", snap.Global.Active)
 	}
 }
+
+func TestDaemonCanaryOnlyPolicy(t *testing.T) {
+	q, registry := newRecordingQueue(), adapters.NewRegistry()
+	if err := registerStub(registry); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, zap.NewNop(), Config{
+			WorkerID:     "canary-worker",
+			PollInterval: time.Millisecond,
+			Executor:     sandbox.NewFake(),
+			CanaryOnly:   true,
+			CanaryAllowedTargets: []string{
+				"scanner-mock.kelvin.internal",
+				"mock-target.kelvin.internal",
+			},
+		}, q, registry)
+	}()
+
+	// 1. Enqueue job with unauthorized external target
+	unauthorizedJob := queue.Job{
+		ID:           "11111111-1111-1111-1111-111111111111",
+		AssessmentID: "22222222-2222-2222-2222-222222222222",
+		TenantID:     "123e4567-e89b-12d3-a456-426614174000",
+		Type:         adapters.ScannerNuclei,
+		Payload:      []byte(`{"target":"https://production-target.com","profile_id":"standard","hard_deadline_seconds":10}`),
+	}
+	q.inner.Push(unauthorizedJob)
+	waitEvent(t, q)
+
+	q.mu.Lock()
+	if len(q.failed) != 1 {
+		t.Fatalf("expected 1 failed job for unauthorized canary target, got %d", len(q.failed))
+	}
+	if !strings.Contains(q.failedReasons[0], "rejected by canary-only execution policy") {
+		t.Errorf("unexpected failure reason: %s", q.failedReasons[0])
+	}
+	q.mu.Unlock()
+
+	// 2. Enqueue job with allowed canary target
+	authorizedJob := queue.Job{
+		ID:           "33333333-3333-3333-3333-333333333333",
+		AssessmentID: "44444444-4444-4444-4444-444444444444",
+		TenantID:     "123e4567-e89b-12d3-a456-426614174000",
+		Type:         adapters.ScannerNuclei,
+		Payload:      []byte(`{"target":"https://scanner-mock.kelvin.internal/vulnerable","profile_id":"standard","hard_deadline_seconds":10}`),
+	}
+	q.inner.Push(authorizedJob)
+	waitEvent(t, q)
+
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.completed) != 1 {
+		t.Fatalf("expected 1 completed canary job, got %d", len(q.completed))
+	}
+	if q.completed[0].ID != authorizedJob.ID {
+		t.Errorf("expected completed job ID %s, got %s", authorizedJob.ID, q.completed[0].ID)
+	}
+}
