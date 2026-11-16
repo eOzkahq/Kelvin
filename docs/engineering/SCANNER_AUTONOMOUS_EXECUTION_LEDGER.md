@@ -14,12 +14,12 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | Phase | Total Issues | NOT_STARTED | IN_PROGRESS | PR_OPEN | MERGED | BLOCKED |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 0 | 0 | 1 | 8 | 0 |
-| **Phase 3B: OWASP ZAP Remediation** | 7 | 1 | 0 | 5 | 1 | 0 |
+| **Phase 3B: OWASP ZAP Remediation** | 7 | 0 | 0 | 6 | 1 | 0 |
 | **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 0 | 4 | 0 |
 | **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 0 | 3 | 0 |
 | **Phase 5: Controlled Scanner Release** | 2 | 0 | 0 | 0 | 2 | 0 |
 | **Phase 6: Worker Certification & Activation** | 2 | 0 | 0 | 0 | 2 | 0 |
-| **TOTAL** | **27** | **1** | **0** | **6** | **20** | **0** |
+| **TOTAL** | **27** | **0** | **0** | **7** | **20** | **0** |
 
 ---
 
@@ -42,7 +42,7 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | **#556** | `security(zap): remediate vulnerable setuptools dependency` | `PR_OPEN` | `security/issue-556-zap-setuptools-fix` | [#594](https://github.com/eOzkahq/Kelvin/pull/594) | PASS (Go unit tests) | Pinned setuptools>=78.1.1 in requirements.txt and Dockerfile; reconciled CVE-2025-47273 in deploy/scanners/zap/setuptools.lock |
 | **#557** | `refactor(zap): minimize scanner runtime package footprint` | `PR_OPEN` | `refactor/issue-557-zap-minimization` | [#595](https://github.com/eOzkahq/Kelvin/pull/595) | PASS (Go unit tests) | Purged development packages and compilers in slim-packages.list and Dockerfile; reduced attack surface while preserving headless runtime |
 | **#558** | `test(zap): enforce runtime hardening and container security contracts` | `PR_OPEN` | `test/issue-558-zap-hardening-tests` | [#596](https://github.com/eOzkahq/Kelvin/pull/596) | PASS (Go unit tests) | Implemented tests/scanners/zap_hardening_test.go, zap_container_spec_test.go, and apps/worker/internal/adapters/zap_adapter_test.go |
-| **#559** | `security(zap): reconcile vulnerability waivers after package remediation` | `NOT_STARTED` | `security/issue-559-zap-waiver-reconciliation` | - | - | Depends on #558 |
+| **#559** | `security(zap): reconcile vulnerability waivers after package remediation` | `PR_OPEN` | `security/issue-559-zap-waiver-reconciliation` | [#597](https://github.com/eOzkahq/Kelvin/pull/597) | PASS (Go unit tests) | Reconciled all 384 baseline findings in deploy/scanners/zap/waivers.json; authored docs/security/waivers/ZAP_REMEDIATION_REPORT.md; zero active or pending waivers |
 | **#560** | `feat(scanners): implement vulnerability reconciliation engine` | `MERGED` | `feat/issue-560-reconciliation-engine` | [#573](https://github.com/eOzkahq/Kelvin/pull/573) | PASS (Go unit tests + CLI) | Merged into main. Ingests CycloneDX SBOMs & YAML waiver registries; categorizes into fixed, approved, pending, expired, unhandled with deterministic report |
 | **#561** | `security(scanners): enforce waiver evidence and advisory verification` | `MERGED` | `security/issue-561-waiver-evidence-validation` | [#574](https://github.com/eOzkahq/Kelvin/pull/574) | PASS (18 Python + Go unit tests) | Merged into main. Enforces purl format, approved upstream advisory sources, and min 10-char justification without placeholders |
 | **#562** | `test(scanners): add scanner vulnerability regression suite` | `MERGED` | `test/issue-562-scanner-regression-suite` | [#575](https://github.com/eOzkahq/Kelvin/pull/575) | PASS (Go integration suite) | Merged into main. Automated regression suite validating Nuclei baseline (26), ZAP baseline (384), synthetic CVE fail-closed detection, severity TTLs, and CycloneDX schema |

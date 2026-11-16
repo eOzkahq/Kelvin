@@ -1,0 +1,2705 @@
+{
+  "schema_version": "1.0.0",
+  "audit_date": "2026-11-16",
+  "scanner": "zap",
+  "total_raw_findings": 0,
+  "total_registered_waivers": 384,
+  "summary": {
+    "fixed": 384,
+    "approved": 0,
+    "pending": 0,
+    "expired": 0,
+    "unhandled": 0
+  },
+  "verdict": "PASS",
+  "findings": [
+    {
+      "cve_id": "CVE-2013-7445",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2019-19449",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2019-19814",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2021-3847",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2021-3864",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-25193",
+      "component": "pkg:deb/debian/libharfbuzz0b@6.0.0%2Bdfsg-3?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-2953",
+      "component": "pkg:deb/debian/libldap-2.5-0@2.5.13%2Bdfsg-5?arch=arm64\u0026distro=debian-12.15",
+      "severity": "LOW",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-39616",
+      "component": "pkg:deb/debian/libaom3@3.6.0-1%2Bdeb12u3?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-45853",
+      "component": "pkg:deb/debian/zlib1g-dev@1.2.13.dfsg-1?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-52355",
+      "component": "pkg:deb/debian/libtiff6@4.5.0-6%2Bdeb12u4?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-52452",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-52586",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-52624",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-52751",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-53218",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-5574",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2023-6879",
+      "component": "pkg:deb/debian/libaom3@3.6.0-1%2Bdeb12u3?arch=arm64\u0026distro=debian-12.15",
+      "severity": "CRITICAL",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-21803",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-21963",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-26669",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-26836",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-26913",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-26914",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-26944",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-38570",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-38630",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-41045",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-41935",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-42118",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-42162",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-44941",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-44942",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-44951",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-46729",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-46811",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-46813",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-47691",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-50217",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-50226",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-50282",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-53068",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-53147",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-53168",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-53179",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-53218",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-56538",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-56775",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-57900",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2024-57982",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-21927",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-21967",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-21969",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-21985",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-23133",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-37750",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-37776",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-37777",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-37861",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-37952",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-37957",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38069",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38081",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38182",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38204",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38248",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38369",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38582",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38585",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38595",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38636",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38722",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-38734",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-39744",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-39797",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-39810",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-39859",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-39952",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-40137",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-40333",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-40354",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-47273",
+      "component": "pkg:pypi/setuptools@70.3.0",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-6020",
+      "component": "pkg:deb/debian/libpam-modules-bin@1.5.2-6%2Bdeb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-68431",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-68809",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-69720",
+      "component": "pkg:deb/debian/libncursesw6@6.4-4?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-70103",
+      "component": "pkg:deb/debian/libjxl0.7@0.7.0-10%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-71068",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-71073",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-71152",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2025-7458",
+      "component": "pkg:deb/debian/libsqlite3-0@3.40.1-2%2Bdeb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "CRITICAL",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-0004",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-100072",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-101258",
+      "component": "pkg:deb/debian/libgs-common@10.0.0~dfsg-11%2Bdeb12u8?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-103226",
+      "component": "pkg:deb/debian/libgs-common@10.0.0~dfsg-11%2Bdeb12u8?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-105437",
+      "component": "pkg:deb/debian/git-man@2.39.5-0%2Bdeb12u3?arch=all\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-106553",
+      "component": "pkg:deb/debian/openssh-client@9.2p1-2%2Bdeb12u10?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-106555",
+      "component": "pkg:deb/debian/openssh-client@9.2p1-2%2Bdeb12u10?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-106583",
+      "component": "pkg:deb/debian/openssh-client@9.2p1-2%2Bdeb12u10?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-107364",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-109089",
+      "component": "pkg:deb/debian/libxi6@1.8-1%2Bb1?arch=arm64\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-109090",
+      "component": "pkg:deb/debian/libxi6@1.8-1%2Bb1?arch=arm64\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-109091",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-109092",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-109093",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-109095",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-109096",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-109518",
+      "component": "pkg:deb/debian/apt@2.6.1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-109903",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-111760",
+      "component": "pkg:deb/debian/git-man@2.39.5-0%2Bdeb12u3?arch=all\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-112315",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-112316",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-112317",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-112318",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-112319",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-112320",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-112321",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-112322",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-112323",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-113351",
+      "component": "pkg:deb/debian/libexpat1-dev@2.5.0-1%2Bdeb12u5?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-114466",
+      "component": "pkg:deb/debian/git-man@2.39.5-0%2Bdeb12u3?arch=all\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-114820",
+      "component": "pkg:deb/debian/openjdk-17-jdk-headless@17.0.21%2B9-1~deb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-115506",
+      "component": "pkg:deb/debian/libexpat1-dev@2.5.0-1%2Bdeb12u5?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-117610",
+      "component": "pkg:deb/debian/libexpat1-dev@2.5.0-1%2Bdeb12u5?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-118007",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-11822",
+      "component": "pkg:deb/debian/libsqlite3-0@3.40.1-2%2Bdeb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-11824",
+      "component": "pkg:deb/debian/libsqlite3-0@3.40.1-2%2Bdeb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-118370",
+      "component": "pkg:deb/debian/libexpat1-dev@2.5.0-1%2Bdeb12u5?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-118380",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-119079",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-119373",
+      "component": "pkg:deb/debian/libsqlite3-0@3.40.1-2%2Bdeb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-119374",
+      "component": "pkg:deb/debian/libsqlite3-0@3.40.1-2%2Bdeb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-119379",
+      "component": "pkg:deb/debian/libsqlite3-0@3.40.1-2%2Bdeb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-11940",
+      "component": "pkg:deb/debian/libpython3.11-dev@3.11.2-6%2Bdeb12u9?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-120208",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-12064",
+      "component": "pkg:deb/debian/curl@7.88.1-10%2Bdeb12u15?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124853",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124854",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124855",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124856",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124857",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124858",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124859",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124860",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124861",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124862",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124863",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124864",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124865",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124866",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124868",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124869",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124870",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124872",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124873",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124874",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124875",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124876",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124877",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124879",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124880",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124881",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124882",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124883",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124884",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124885",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124886",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124887",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124888",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124889",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124890",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124891",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124892",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124893",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124894",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124895",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124896",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124897",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124898",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124899",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124901",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124902",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124903",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124905",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124906",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-124907",
+      "component": "pkg:deb/debian/firefox-esr@153.6.0esr-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-125204",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-125209",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-12912",
+      "component": "pkg:deb/debian/libtiff6@4.5.0-6%2Bdeb12u4?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-16742",
+      "component": "pkg:deb/debian/libnss-systemd@252.39-1~deb12u2?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-23171",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-23208",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-23226",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-23327",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-23361",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-31432",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-31493",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-31527",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-31568",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-31729",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-32740",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-32741",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-32882",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-34980",
+      "component": "pkg:deb/debian/libcups2@2.4.2-3%2Bdeb12u9?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-36849",
+      "component": "pkg:deb/debian/libtiff6@4.5.0-6%2Bdeb12u4?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-41071",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-41992",
+      "component": "pkg:deb/debian/gzip@1.12-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-43049",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-43125",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-43185",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-43250",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-45893",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-45943",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-45957",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-46054",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-46068",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-46130",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-46181",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-46219",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-46241",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-46293",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-47178",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-50142",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-52296",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-52490",
+      "component": "pkg:deb/debian/libtiff6@4.5.0-6%2Bdeb12u4?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-52991",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53000",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53091",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53115",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53117",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53118",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53120",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53129",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53143",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53156",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53179",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53262",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53272",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53330",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53613",
+      "component": "pkg:deb/debian/bsdutils@2.38.1-5%2Bdeb12u3?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-53615",
+      "component": "pkg:deb/debian/bsdutils@2.38.1-5%2Bdeb12u3?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-54369",
+      "component": "pkg:deb/debian/libacl1@2.3.1-3?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-55453",
+      "component": "pkg:deb/debian/libcups2@2.4.2-3%2Bdeb12u9?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-55999",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-56000",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-58010",
+      "component": "pkg:deb/debian/libglib2.0-0@2.74.6-2%2Bdeb12u9?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-58011",
+      "component": "pkg:deb/debian/libglib2.0-0@2.74.6-2%2Bdeb12u9?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-58012",
+      "component": "pkg:deb/debian/libglib2.0-0@2.74.6-2%2Bdeb12u9?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-58013",
+      "component": "pkg:deb/debian/libglib2.0-0@2.74.6-2%2Bdeb12u9?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-58014",
+      "component": "pkg:deb/debian/libglib2.0-0@2.74.6-2%2Bdeb12u9?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-58015",
+      "component": "pkg:deb/debian/libglib2.0-0@2.74.6-2%2Bdeb12u9?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-58016",
+      "component": "pkg:deb/debian/libglib2.0-0@2.74.6-2%2Bdeb12u9?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-58049",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-58471",
+      "component": "pkg:deb/debian/wget@1.21.3-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-58472",
+      "component": "pkg:deb/debian/wget@1.21.3-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-59999",
+      "component": "pkg:deb/debian/openssh-client@9.2p1-2%2Bdeb12u10?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-60000",
+      "component": "pkg:deb/debian/openssh-client@9.2p1-2%2Bdeb12u10?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-60002",
+      "component": "pkg:deb/debian/openssh-client@9.2p1-2%2Bdeb12u10?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-62289",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-62292",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-6276",
+      "component": "pkg:deb/debian/curl@7.88.1-10%2Bdeb12u15?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-63826",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64001",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64017",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64026",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64138",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64305",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64320",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64341",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64348",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64389",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64392",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "CRITICAL",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64400",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64424",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64556",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64830",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64832",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64833",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64834",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-64835",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-66036",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-66039",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-66040",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-6653",
+      "component": "pkg:deb/debian/libxml2@2.9.14%2Bdfsg-1.3~deb12u6?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-68409",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-68426",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-68470",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-70628",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-70632",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-71199",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-71200",
+      "component": "pkg:deb/debian/krb5-locales@1.20.1-2%2Bdeb12u5?arch=all\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-72042",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-72098",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-7210",
+      "component": "pkg:deb/debian/libpython3.11-dev@3.11.2-6%2Bdeb12u9?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-72130",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-74269",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-74345",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "CRITICAL",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-74752",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-74860",
+      "component": "pkg:deb/debian/libxml2@2.9.14%2Bdfsg-1.3~deb12u6?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-75141",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-75142",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-75143",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-75144",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-75146",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-76844",
+      "component": "pkg:deb/debian/zlib1g-dev@1.2.13.dfsg-1?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-78410",
+      "component": "pkg:deb/debian/bsdutils@2.38.1-5%2Bdeb12u3?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-80837",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-80841",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-8286",
+      "component": "pkg:deb/debian/curl@7.88.1-10%2Bdeb12u15?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-84384",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-84444",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-84446",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-84447",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-84450",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-84451",
+      "component": "pkg:deb/debian/libheif1@1.15.1-1%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-8458",
+      "component": "pkg:deb/debian/curl@7.88.1-10%2Bdeb12u15?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-8461",
+      "component": "pkg:deb/debian/libavcodec59@5.1.9-0%2Bdeb12u1?arch=arm64\u0026distro=debian-12.15\u0026epoch=7",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-85091",
+      "component": "pkg:deb/debian/zlib1g-dev@1.2.13.dfsg-1?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-86138",
+      "component": "pkg:deb/debian/libxml2@2.9.14%2Bdfsg-1.3~deb12u6?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-86140",
+      "component": "pkg:deb/debian/libxml2@2.9.14%2Bdfsg-1.3~deb12u6?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-86142",
+      "component": "pkg:deb/debian/libxml2@2.9.14%2Bdfsg-1.3~deb12u6?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-86143",
+      "component": "pkg:deb/debian/libxml2@2.9.14%2Bdfsg-1.3~deb12u6?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-86144",
+      "component": "pkg:deb/debian/libxml2@2.9.14%2Bdfsg-1.3~deb12u6?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-88806",
+      "component": "pkg:deb/debian/libx11-6@1.8.4-2%2Bdeb12u2?arch=arm64\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-88807",
+      "component": "pkg:deb/debian/libxrender1@0.9.10-1.1?arch=arm64\u0026distro=debian-12.15\u0026epoch=1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-88812",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-8927",
+      "component": "pkg:deb/debian/curl@7.88.1-10%2Bdeb12u15?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89465",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89526",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89530",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89545",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89564",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89631",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89633",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89638",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89652",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89659",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89675",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89676",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89708",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89713",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89761",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89811",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-89972",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-90036",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-90111",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-90206",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-90227",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-90315",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-91403",
+      "component": "pkg:deb/debian/openjdk-17-jdk-headless@17.0.21%2B9-1~deb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-93516",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-93521",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-93523",
+      "component": "pkg:deb/debian/xserver-common@21.1.7-3%2Bdeb12u13?arch=all\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-93817",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-94286",
+      "component": "pkg:deb/debian/libxtst6@1.2.3-1.1?arch=arm64\u0026distro=debian-12.15\u0026epoch=2",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-9538",
+      "component": "pkg:deb/debian/libperl5.36@5.36.0-7%2Bdeb12u4?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-96889",
+      "component": "pkg:deb/debian/librsvg2-2@2.54.7%2Bdfsg-1~deb12u1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98107",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98111",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98222",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98364",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98466",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98490",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98549",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98715",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98716",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98725",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98741",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98742",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98769",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98805",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98853",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-98857",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99056",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99083",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99109",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99152",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99153",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99233",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99236",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99246",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99272",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99281",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99284",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    },
+    {
+      "cve_id": "CVE-2026-99288",
+      "component": "pkg:deb/debian/linux-libc-dev@6.1.190-1?arch=arm64\u0026distro=debian-12.15",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)"
+    }
+  ]
+}
