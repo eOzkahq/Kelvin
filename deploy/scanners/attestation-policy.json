@@ -4,8 +4,8 @@
   "description": "Kelvin Scanner Image Provenance & Cosign Cryptographic Attestation Policy",
   "identity_requirements": {
     "oidc_issuer": "https://token.actions.githubusercontent.com",
-    "repository": "eOzkull/Kelvin",
-    "certificate_identity_regexp": "^https://github.com/eOzkull/Kelvin/\\.github/workflows/scanner-.*@refs/heads/main$",
+    "repository": "eOzkahq/Kelvin",
+    "certificate_identity_regexp": "^https://github.com/eOzkahq/Kelvin/\\.github/workflows/scanner-.*@refs/heads/main$",
     "allowed_workflows": [
       ".github/workflows/scanner-images.yml",
       ".github/workflows/scanner-publish.yml"
@@ -14,7 +14,7 @@
   "attestation_requirements": {
     "type": "https://slsa.dev/provenance/v1",
     "predicate_type": "https://slsa.dev/provenance/v1",
-    "builder_id": "https://github.com/eOzkull/Kelvin/.github/workflows/scanner-publish.yml",
+    "builder_id": "https://github.com/eOzkahq/Kelvin/.github/workflows/scanner-publish.yml",
     "enforce_immutable_digest": true
   }
 }
