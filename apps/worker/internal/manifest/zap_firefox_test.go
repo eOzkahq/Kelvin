@@ -81,8 +81,16 @@ func TestZAPFirefoxRemediation_51CVEsAccountedFor(t *testing.T) {
 	if !strings.Contains(dfContent, "packages.list") {
 		t.Errorf("ZAP Dockerfile missing COPY packages.list")
 	}
-	if !strings.Contains(dfContent, "firefox-esr") {
-		t.Errorf("ZAP Dockerfile missing firefox-esr upgrade command")
+	if !strings.Contains(dfContent, "firefox-esr=153.7.0esr-1~deb12u1*") {
+		t.Errorf("ZAP Dockerfile must strictly specify pinned firefox-esr=153.7.0esr-1~deb12u1*")
+	}
+
+	// Invariant: Zero unpinned fallbacks or error suppressors
+	if strings.Contains(dfContent, "|| apt-get install") {
+		t.Errorf("ZAP Dockerfile must not contain unpinned fallback: '|| apt-get install'")
+	}
+	if strings.Contains(dfContent, "|| true") {
+		t.Errorf("ZAP Dockerfile must not contain error-suppressing '|| true' in package/dependency installations")
 	}
 
 	// Verify user 10001:10001 is preserved in final stage
@@ -96,5 +104,28 @@ func TestZAPFirefoxRemediation_51CVEsAccountedFor(t *testing.T) {
 	}
 	if lastUserLine != "USER 10001:10001" {
 		t.Errorf("ZAP Dockerfile must conclude with USER 10001:10001, got: %q", lastUserLine)
+	}
+}
+
+func TestZAPFirefox_StrictDebianAptPreferencesFormat(t *testing.T) {
+	rootPath := filepath.Join("..", "..", "..", "..")
+	pkgListPath := filepath.Join(rootPath, "deploy", "scanners", "zap", "packages.list")
+	data, err := os.ReadFile(pkgListPath)
+	if err != nil {
+		t.Fatalf("failed to read packages.list: %v", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	for i, l := range lines {
+		trimmed := strings.TrimSpace(l)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		// Valid Debian apt preferences line must start with Package:, Pin:, or Pin-Priority:
+		if !strings.HasPrefix(trimmed, "Package:") &&
+			!strings.HasPrefix(trimmed, "Pin:") &&
+			!strings.HasPrefix(trimmed, "Pin-Priority:") {
+			t.Errorf("packages.list line %d has invalid apt preferences syntax: %q", i+1, trimmed)
+		}
 	}
 }
