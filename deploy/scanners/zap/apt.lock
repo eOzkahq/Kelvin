@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "packages": [
+    "apt",
+    "libapt-pkg6.0"
+  ],
+  "installed_version": "2.6.1",
+  "fixed_version": "2.6.2",
+  "remediated_cves": [
+    {
+      "cve_id": "CVE-2026-109518",
+      "severity": "HIGH",
+      "status": "remediated",
+      "fixed_version": "2.6.2",
+      "tracking_reference": "https://security-tracker.debian.org/tracker/CVE-2026-109518"
+    }
+  ]
+}

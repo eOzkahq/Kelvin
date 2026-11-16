@@ -12,13 +12,13 @@ LABEL org.opencontainers.image.title="Kelvin OWASP ZAP Baseline runtime" \
 
 USER root
 
-# Upgrade firefox-esr to remediate 51 reported CVEs (pinned in packages.list)
+# Upgrade apt, libapt-pkg, and firefox-esr to remediate reported Debian CVEs
 COPY deploy/scanners/zap/packages.list /etc/apt/preferences.d/kelvin-pinned-packages
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      firefox-esr=153.7.0esr-1~deb12u1* || \
-    apt-get install -y --no-install-recommends \
-      firefox-esr && \
+    (apt-get install -y --no-install-recommends apt=2.6.2* libapt-pkg6.0=2.6.2* || \
+     apt-get install -y --no-install-recommends apt libapt-pkg6.0) && \
+    (apt-get install -y --no-install-recommends firefox-esr=153.7.0esr-1~deb12u1* || \
+     apt-get install -y --no-install-recommends firefox-esr) && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

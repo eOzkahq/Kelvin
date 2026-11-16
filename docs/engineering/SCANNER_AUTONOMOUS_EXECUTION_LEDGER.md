@@ -14,12 +14,12 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | Phase | Total Issues | NOT_STARTED | IN_PROGRESS | PR_OPEN | MERGED | BLOCKED |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 0 | 0 | 1 | 8 | 0 |
-| **Phase 3B: OWASP ZAP Remediation** | 7 | 5 | 0 | 1 | 1 | 0 |
+| **Phase 3B: OWASP ZAP Remediation** | 7 | 4 | 0 | 2 | 1 | 0 |
 | **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 0 | 4 | 0 |
 | **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 0 | 3 | 0 |
 | **Phase 5: Controlled Scanner Release** | 2 | 0 | 0 | 0 | 2 | 0 |
 | **Phase 6: Worker Certification & Activation** | 2 | 0 | 0 | 0 | 2 | 0 |
-| **TOTAL** | **27** | **5** | **0** | **2** | **20** | **0** |
+| **TOTAL** | **27** | **4** | **0** | **3** | **20** | **0** |
 
 ---
 
@@ -38,7 +38,7 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | **#552** | `security(nuclei): reconcile vulnerability waivers after remediation` | `PR_OPEN` | `security/issue-552-nuclei-waiver-reconciliation` | [#591](https://github.com/eOzkahq/Kelvin/pull/591) | PASS (Go unit tests) | Reconciled all 26 findings as fixed in deploy/scanners/nuclei/waivers.json and authored docs/security/waivers/NUCLEI_REMEDIATION_REPORT.md |
 | **#553** | `security(zap): audit vulnerable Debian packages and runtime dependencies` | `MERGED` | `security/issue-553-zap-package-audit` | [#572](https://github.com/eOzkahq/Kelvin/pull/572) | PASS (Go + Python) | Merged into main. 384/384 findings mapped across 38 packages. Linux-libc-dev (193), Firefox ESR (51), APT (1), Setuptools (1), Dev packages (11) |
 | **#554** | `security(zap): upgrade vulnerable firefox-esr packages` | `PR_OPEN` | `security/issue-554-zap-firefox-upgrade` | [#592](https://github.com/eOzkahq/Kelvin/pull/592) | PASS (Go unit tests) | Pinned firefox-esr to 153.7.0esr-1~deb12u1 in packages.list and Dockerfile; reconciled all 51 reported CVEs in deploy/scanners/zap/firefox.lock |
-| **#555** | `security(zap): upgrade vulnerable apt package dependencies` | `NOT_STARTED` | `security/issue-555-zap-apt-upgrade` | - | - | Depends on #553 |
+| **#555** | `security(zap): upgrade vulnerable apt package dependencies` | `PR_OPEN` | `security/issue-555-zap-apt-upgrade` | Pending | PASS (Go unit tests) | Pinned apt and libapt-pkg6.0 to 2.6.2 in packages.list and Dockerfile; reconciled CVE-2026-109518 in deploy/scanners/zap/apt.lock |
 | **#556** | `security(zap): remediate vulnerable setuptools dependency` | `NOT_STARTED` | `security/issue-556-zap-setuptools-fix` | - | - | Depends on #553 |
 | **#557** | `refactor(zap): minimize scanner runtime package footprint` | `NOT_STARTED` | `refactor/issue-557-zap-minimization` | - | - | Depends on #553 |
 | **#558** | `test(zap): enforce runtime hardening and container security contracts` | `NOT_STARTED` | `test/issue-558-zap-hardening-tests` | - | - | Depends on #554, #555, #556, #557 |
