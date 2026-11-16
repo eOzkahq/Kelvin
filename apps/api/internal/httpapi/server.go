@@ -31,6 +31,7 @@ type Server struct {
 	readyCheckers    ReadyCheckers
 	jobStore         jobStoreIface     // nil means cancel endpoint returns 503
 	assessmentService assessmentServiceIface
+	reportService    reportServiceIface
 	idempotencyStore idempotency.Store // nil means idempotency middleware is disabled
 	findingStore     findingStoreIface // nil means finding endpoints return 503
 	evidenceSigner   *evidence.Signer
@@ -92,6 +93,11 @@ func (s *Server) SetJobStore(store jobStoreIface) {
 // SetAssessmentService assigns the assessment service handler.
 func (s *Server) SetAssessmentService(svc assessmentServiceIface) {
 	s.assessmentService = svc
+}
+
+// SetReportService assigns the report service handler.
+func (s *Server) SetReportService(svc reportServiceIface) {
+	s.reportService = svc
 }
 
 // SetIdempotencyStore assigns the idempotency store used by the idempotency
@@ -159,6 +165,15 @@ func (s *Server) routes() {
 	s.mux.Handle("POST /api/v1/assessments/{id}/cancel", s.protect(cancelHandler))
 	// Assessment-to-assessment delta comparison (P3-35)
 	s.mux.Handle("GET /api/v1/assessments/{base_id}/compare/{target_id}", s.protect(http.HandlerFunc(s.handleCompareAssessments)))
+
+	// Report generation, listing, and signed download endpoints (Milestone 7)
+	var generateReportHandler http.Handler = http.HandlerFunc(s.handleGenerateReport)
+	if s.idempotencyStore != nil {
+		generateReportHandler = idempotency.NewMiddleware(s.idempotencyStore).Wrap(generateReportHandler)
+	}
+	s.mux.Handle("POST /api/v1/reports/generate", s.protect(generateReportHandler))
+	s.mux.Handle("GET /api/v1/reports", s.protect(http.HandlerFunc(s.handleListReports)))
+	s.mux.Handle("GET /api/v1/reports/{id}/download", s.protect(http.HandlerFunc(s.handleDownloadReport)))
 
 	// Findings search, filtering and dashboard endpoints (P3-44)
 	s.mux.Handle("GET /api/v1/findings", s.protect(http.HandlerFunc(s.handleListFindingsQuery)))
