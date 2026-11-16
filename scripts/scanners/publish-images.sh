@@ -9,7 +9,7 @@ set -euo pipefail
 REGISTRY_NAMESPACE="${REGISTRY_NAMESPACE:-ghcr.io/eozkull/kelvin}"
 OUT_DIR="${OUT_DIR:-artifacts/scanner-images}"
 MANIFEST_PATH="${MANIFEST_PATH:-deploy/scanners/images.lock.json}"
-CERT_IDENTITY_REGEXP="${CERT_IDENTITY_REGEXP:-^https://github.com/eOzkull/Kelvin/.github/workflows/.*}"
+CERT_IDENTITY_REGEXP="${CERT_IDENTITY_REGEXP:-^https://github.com/eOzkahq/Kelvin/.github/workflows/.*}"
 CERT_OIDC_ISSUER="${CERT_OIDC_ISSUER:-https://token.actions.githubusercontent.com}"
 DRY_RUN="${DRY_RUN:-false}"
 

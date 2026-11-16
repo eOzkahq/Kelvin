@@ -241,9 +241,9 @@ if [[ -f "deploy/scanners/attestation-policy.json" ]]; then
     log_fail "provenance_attestation" "Attestation policy missing required identity_requirements (repo='$trusted_repo', issuer='$trusted_issuer')"
   elif [[ "$trusted_issuer" != "https://token.actions.githubusercontent.com" ]]; then
     log_fail "provenance_attestation" "Attestation policy specifies unauthorized OIDC issuer '$trusted_issuer'"
-  elif [[ "$trusted_repo" != "eOzkull/Kelvin" && "$trusted_repo" != "eOzkahq/Kelvin" ]]; then
-    log_fail "provenance_attestation" "Attestation policy specifies unauthorized repository '$trusted_repo'"
-  elif [[ -z "$cert_regex" || "$enforce_digest" != "true" ]]; then
+  elif [[ "$trusted_repo" != "eOzkahq/Kelvin" ]]; then
+    log_fail "provenance_attestation" "Attestation policy specifies unauthorized repository '$trusted_repo' (must be canonical eOzkahq/Kelvin)"
+  elif [[ -z "$cert_regex" || ( "$enforce_digest" != "true" && "$enforce_digest" != "True" ) ]]; then
     log_fail "provenance_attestation" "Attestation policy missing cert regex or immutable digest enforcement"
   else
     log_pass "provenance_attestation" "Attestation policy enforces trusted GitHub Actions OIDC identity ($trusted_repo)"

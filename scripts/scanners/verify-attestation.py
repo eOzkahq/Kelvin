@@ -80,7 +80,7 @@ def main():
         ],
         "predicate": {
             "builder": {
-                "id": "https://github.com/eOzkull/Kelvin/.github/workflows/scanner-publish.yml@refs/heads/main"
+                "id": "https://github.com/eOzkahq/Kelvin/.github/workflows/scanner-publish.yml@refs/heads/main"
             }
         }
     }
