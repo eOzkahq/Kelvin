@@ -37,6 +37,7 @@ type ZAPSettings struct {
 	SafetyProfile string `json:"safety_profile"`
 	MaxChildren   int    `json:"max_children"`
 	MaxDepth      int    `json:"max_depth"`
+	ActiveScan    bool   `json:"active_scan,omitempty"`
 }
 
 type NucleiSettings struct {
@@ -128,8 +129,12 @@ func (cfg ScannerConfigV1) Validate() error {
 	if cfg.SchemaVersion != ScannerConfigVersion {
 		return fmt.Errorf("adapters: unsupported scanner config version %q", cfg.SchemaVersion)
 	}
-	if cfg.ExecutionMode != "PASSIVE" {
-		return fmt.Errorf("adapters: only PASSIVE execution mode is enabled for MVP")
+	if cfg.ExecutionMode == "ACTIVE" {
+		if cfg.ScannerID != ScannerZAPBaseline || cfg.ZAP == nil || !cfg.ZAP.ActiveScan {
+			return fmt.Errorf("adapters: execution_mode ACTIVE requires zap scanner with zap.active_scan=true")
+		}
+	} else if cfg.ExecutionMode != "PASSIVE" {
+		return fmt.Errorf("adapters: unsupported execution_mode %q", cfg.ExecutionMode)
 	}
 	if cfg.RequestTimeoutSeconds < 1 || cfg.RequestTimeoutSeconds > 30 {
 		return fmt.Errorf("adapters: request_timeout_seconds must be in 1..30")

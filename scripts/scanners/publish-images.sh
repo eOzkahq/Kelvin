@@ -6,7 +6,7 @@
 # ==============================================================================
 set -euo pipefail
 
-REGISTRY_NAMESPACE="${REGISTRY_NAMESPACE:-ghcr.io/eozkull/kelvin}"
+REGISTRY_NAMESPACE="${REGISTRY_NAMESPACE:-ghcr.io/eozkahq/kelvin}"
 OUT_DIR="${OUT_DIR:-artifacts/scanner-images}"
 MANIFEST_PATH="${MANIFEST_PATH:-deploy/scanners/images.lock.json}"
 CERT_IDENTITY_REGEXP="${CERT_IDENTITY_REGEXP:-^https://github.com/eOzkahq/Kelvin/.github/workflows/.*}"

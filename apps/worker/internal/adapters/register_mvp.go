@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 
+	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/packages/common/scope"
 )
@@ -36,24 +37,59 @@ func DefaultScopePolicyProvider(_ context.Context, task Task) (scope.Policy, err
 
 // DefaultNucleiVerifier returns the pinned, locked version policy for Nuclei.
 func DefaultNucleiVerifier(_ context.Context) (RuntimeVersionInfo, error) {
-	return RuntimeVersionInfo{
+	info := RuntimeVersionInfo{
 		ScannerVersion:         PinnedNucleiScannerVersion,
 		AdapterVersion:         PinnedNucleiAdapterVersion,
 		ImageReference:         PinnedNucleiImageReference,
 		ImageDigest:            PinnedNucleiImageDigest,
 		TemplateCatalogVersion: PinnedNucleiTemplateCatalogVersion,
 		TemplateCatalogDigest:  PinnedNucleiTemplateCatalogDigest,
-	}, nil
+	}
+	if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+		if lock.Status == manifest.StatusCertified || lock.Status == "released" {
+			if img, ok := lock.Images["nuclei"]; ok {
+				if img.Version != nil && *img.Version != "" {
+					info.ScannerVersion = *img.Version
+				}
+				if img.KelvinImage != nil && *img.KelvinImage != "" {
+					info.ImageReference = *img.KelvinImage
+				}
+				if img.KelvinDigest != nil && *img.KelvinDigest != "" {
+					info.ImageDigest = *img.KelvinDigest
+				}
+				if img.TemplateCatalogDigest != nil && *img.TemplateCatalogDigest != "" {
+					info.TemplateCatalogDigest = *img.TemplateCatalogDigest
+				}
+			}
+		}
+	}
+	return info, nil
 }
 
 // DefaultZAPVerifier returns the pinned, locked version policy for OWASP ZAP baseline.
 func DefaultZAPVerifier(_ context.Context) (RuntimeVersionInfo, error) {
-	return RuntimeVersionInfo{
+	info := RuntimeVersionInfo{
 		ScannerVersion: PinnedZAPScannerVersion,
 		AdapterVersion: PinnedZAPAdapterVersion,
 		ImageReference: PinnedZAPImageReference,
 		ImageDigest:    PinnedZAPImageDigest,
-	}, nil
+	}
+	if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+		if lock.Status == manifest.StatusCertified || lock.Status == "released" {
+			if img, ok := lock.Images["zap"]; ok {
+				if img.Version != nil && *img.Version != "" {
+					info.ScannerVersion = *img.Version
+				}
+				if img.KelvinImage != nil && *img.KelvinImage != "" {
+					info.ImageReference = *img.KelvinImage
+				}
+				if img.KelvinDigest != nil && *img.KelvinDigest != "" {
+					info.ImageDigest = *img.KelvinDigest
+				}
+			}
+		}
+	}
+	return info, nil
 }
 
 // NewOCINucleiRunner creates a runner that executes Nuclei inside the isolated OCI container sandbox.
@@ -62,10 +98,20 @@ func NewOCINucleiRunner(executor sandbox.Executor) NucleiReportRunner {
 		if executor == nil {
 			return nil, errors.New("adapters: sandbox executor is unavailable")
 		}
+		imgRef := PinnedNucleiImageReference
+		imgDigest := PinnedNucleiImageDigest
+		if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+			if (lock.Status == manifest.StatusCertified || lock.Status == "released") && lock.Images["nuclei"].KelvinImage != nil {
+				imgRef = *lock.Images["nuclei"].KelvinImage
+				if lock.Images["nuclei"].KelvinDigest != nil {
+					imgDigest = *lock.Images["nuclei"].KelvinDigest
+				}
+			}
+		}
 		spec := sandbox.Spec{
 			Scanner:        "nuclei",
-			Image:          PinnedNucleiImageReference,
-			ImageDigest:    PinnedNucleiImageDigest,
+			Image:          imgRef,
+			ImageDigest:    imgDigest,
 			Invocation: sandbox.ProcessInvocation{
 				Executable: "/nuclei",
 				Args:       []string{"-u", task.Target, "-jsonl", "-silent"},
@@ -90,18 +136,33 @@ func NewOCINucleiRunner(executor sandbox.Executor) NucleiReportRunner {
 	}
 }
 
-// NewOCIZAPRunner creates a runner that executes ZAP baseline inside the isolated OCI container sandbox.
+// NewOCIZAPRunner creates a runner that executes ZAP baseline or active scan inside the isolated OCI container sandbox.
 func NewOCIZAPRunner(executor sandbox.Executor) ZAPReportRunner {
 	return func(ctx context.Context, task Task) ([]byte, error) {
 		if executor == nil {
 			return nil, errors.New("adapters: sandbox executor is unavailable")
 		}
+		imgRef := PinnedZAPImageReference
+		imgDigest := PinnedZAPImageDigest
+		if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+			if (lock.Status == manifest.StatusCertified || lock.Status == "released") && lock.Images["zap"].KelvinImage != nil {
+				imgRef = *lock.Images["zap"].KelvinImage
+				if lock.Images["zap"].KelvinDigest != nil {
+					imgDigest = *lock.Images["zap"].KelvinDigest
+				}
+			}
+		}
+		executable := "/zap/zap-baseline.py"
+		cfg, _ := zapConfig(task.Payload)
+		if cfg.ExecutionMode == "ACTIVE" || (cfg.ZAP != nil && cfg.ZAP.ActiveScan) {
+			executable = "/zap/zap-full-scan.py"
+		}
 		spec := sandbox.Spec{
 			Scanner:          "zap",
-			Image:            PinnedZAPImageReference,
-			ImageDigest:      PinnedZAPImageDigest,
+			Image:            imgRef,
+			ImageDigest:      imgDigest,
 			Invocation: sandbox.ProcessInvocation{
-				Executable: "/zap/zap-baseline.py",
+				Executable: executable,
 				Args:       []string{"-t", task.Target, "-J", "/tmp/kelvin-zap-report.json"},
 			},
 			Labels:           map[string]string{"scanner": "zap"},

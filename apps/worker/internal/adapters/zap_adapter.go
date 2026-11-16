@@ -93,6 +93,13 @@ func (a *ZAPBaselineAdapter) executeReport(ctx context.Context, task Task) (Resu
 	if err := a.ValidateConfig(task.Payload); err != nil {
 		return Result{}, err
 	}
+	cfg, _ := zapConfig(task.Payload)
+	if cfg.ExecutionMode == "ACTIVE" || (cfg.ZAP != nil && cfg.ZAP.ActiveScan) {
+		profile, err := GetAssessmentProfile(task.ProfileID)
+		if err != nil || profile.TrafficLevel != "active" || !profile.AdminSignoffRequired {
+			return Result{}, fmt.Errorf("adapters: ZAP active scanning requires explicit authorization under an active assessment profile (got profile: %q)", task.ProfileID)
+		}
+	}
 	runtime, err := a.VerifyRuntimeVersion(ctx)
 	if err != nil {
 		return Result{}, err

@@ -9,7 +9,7 @@ set -euo pipefail
 : "${ZAP_VERSION:?set ZAP_VERSION to the verified version}"
 : "${NUCLEI_VERSION:?set NUCLEI_VERSION to the verified version}"
 
-REGISTRY_NAMESPACE="${REGISTRY_NAMESPACE:-ghcr.io/eozkull/kelvin}"
+REGISTRY_NAMESPACE="${REGISTRY_NAMESPACE:-ghcr.io/eozkahq/kelvin}"
 OUT_DIR="${OUT_DIR:-artifacts/scanner-images}"
 CERT_IDENTITY_REGEXP="${CERT_IDENTITY_REGEXP:-^https://github.com/eOzkahq/Kelvin/.github/workflows/.*}"
 CERT_OIDC_ISSUER="${CERT_OIDC_ISSUER:-https://token.actions.githubusercontent.com}"
