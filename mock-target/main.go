@@ -105,6 +105,20 @@ func main() {
 }`)
 	})
 
+	// 7. Mock environment file for safe discovery testing
+	mux.HandleFunc("/.env", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintln(w, "APP_ENV=staging\nDB_PASSWORD=mock_insecure_password_123\nDATABASE_URL=postgres://mock:mock@localhost:5432/mock_db")
+	})
+
+	// 8. Mock robots.txt for discovery testing
+	mux.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintln(w, "User-agent: *\nDisallow: /admin\nDisallow: /vulnerable/")
+	})
+
 	addr := ":" + port
 	log.Printf("[mock-target] Listening on %s ...", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
