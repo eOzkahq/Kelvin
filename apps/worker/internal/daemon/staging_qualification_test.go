@@ -566,18 +566,54 @@ func TestControlledStagingQualificationSuite(t *testing.T) {
 	})
 
 	// -------------------------------------------------------------------------
-	// Scenario 14: Uncertified manifest rejected
+	// Scenario 14: Uncertified manifest rejected & certified manifest verified
 	// -------------------------------------------------------------------------
 	t.Run("Scenario_14_Uncertified_Manifest_Rejected", func(t *testing.T) {
 		// When lockfile is status "not-released", execution must fail closed
+		tmpDir := t.TempDir()
+		unreleasedManifest := filepath.Join(tmpDir, "images.lock.json")
+		content := `{
+			"schema_version": "1",
+			"status": "not-released",
+			"images": {
+				"nuclei": {
+					"upstream": "projectdiscovery/nuclei"
+				}
+			}
+		}`
+		if err := os.WriteFile(unreleasedManifest, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to write temp manifest: %v", err)
+		}
 		err := manifest.VerifyScannerCertificationForExecution(
-			filepath.Join("..", "..", "..", "..", "deploy", "scanners", "images.lock.json"),
+			unreleasedManifest,
 			"nuclei",
 			"ghcr.io/eozkahq/kelvin/scanner-nuclei@sha256:bb1a9829910d9faef8dcf16ad8dc94c50be4ce9356ef30ef834c2b9fae068b55",
 			"production",
 		)
 		if !errors.Is(err, manifest.ErrScannerNotReleased) {
 			t.Errorf("expected ErrScannerNotReleased on not-released manifest, got: %v", err)
+		}
+
+		// Verify that with the certified manifest, tampered digest is rejected with ErrManifestConflict
+		errTampered := manifest.VerifyScannerCertificationForExecution(
+			filepath.Join("..", "..", "..", "..", "deploy", "scanners", "images.lock.json"),
+			"nuclei",
+			"ghcr.io/eozkahq/kelvin/scanner-nuclei@sha256:bb1a9829910d9faef8dcf16ad8dc94c50be4ce9356ef30ef834c2b9fae068b55",
+			"production",
+		)
+		if !errors.Is(errTampered, manifest.ErrManifestConflict) {
+			t.Errorf("expected ErrManifestConflict on tampered digest, got: %v", errTampered)
+		}
+
+		// Verify that with the certified manifest and genuine matching certified digest, verification succeeds
+		errValid := manifest.VerifyScannerCertificationForExecution(
+			filepath.Join("..", "..", "..", "..", "deploy", "scanners", "images.lock.json"),
+			"nuclei",
+			"ghcr.io/eozkahq/kelvin/scanner-nuclei@sha256:3653bf7c9a700afb3e68bc4c8ccd8d727465b7ebad36650a94d1a024844e480f",
+			"production",
+		)
+		if errValid != nil {
+			t.Errorf("expected valid certified nuclei execution to succeed, got: %v", errValid)
 		}
 	})
 

@@ -63,8 +63,8 @@ func TestScannerVulnRegression_NucleiBaseline(t *testing.T) {
 	if reg.Scanner != "nuclei" {
 		t.Errorf("expected scanner 'nuclei', got %q", reg.Scanner)
 	}
-	if len(reg.Waivers) != 26 {
-		t.Errorf("expected exactly 26 registered Nuclei waivers, got %d", len(reg.Waivers))
+	if len(reg.Waivers) != 27 {
+		t.Errorf("expected exactly 27 registered Nuclei waivers, got %d", len(reg.Waivers))
 	}
 
 	for _, w := range reg.Waivers {
@@ -114,8 +114,8 @@ func TestScannerVulnRegression_ZAPBaseline(t *testing.T) {
 	if reg.Scanner != "zap" {
 		t.Errorf("expected scanner 'zap', got %q", reg.Scanner)
 	}
-	if len(reg.Waivers) != 384 {
-		t.Errorf("expected exactly 384 registered ZAP waivers, got %d", len(reg.Waivers))
+	if len(reg.Waivers) != 389 {
+		t.Errorf("expected exactly 389 registered ZAP waivers, got %d", len(reg.Waivers))
 	}
 
 	trivyData, err := os.ReadFile(trivyignorePath)
