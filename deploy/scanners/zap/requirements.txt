@@ -1,0 +1,3 @@
+# Kelvin Pinned Python Dependencies for OWASP ZAP Runtime
+# Remediates CVE-2025-47273 (setuptools vulnerability)
+setuptools>=78.1.1

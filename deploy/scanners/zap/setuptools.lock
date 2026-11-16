@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "package": "setuptools",
+  "ecosystem": "pypi",
+  "installed_version": "70.3.0",
+  "fixed_version": "78.1.1",
+  "remediated_cves": [
+    {
+      "cve_id": "CVE-2025-47273",
+      "severity": "MEDIUM",
+      "status": "remediated",
+      "fixed_version": "78.1.1",
+      "tracking_reference": "https://nvd.nist.gov/vuln/detail/CVE-2025-47273"
+    }
+  ]
+}

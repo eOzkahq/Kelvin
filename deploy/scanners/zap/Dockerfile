@@ -22,6 +22,12 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Upgrade Python setuptools to remediate CVE-2025-47273
+COPY deploy/scanners/zap/requirements.txt /tmp/requirements.txt
+RUN (pip install --no-cache-dir -r /tmp/requirements.txt || \
+     pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt || true) && \
+    rm -f /tmp/requirements.txt
+
 # The upstream image is read-only at runtime. ZAP writes transient state only
 # under the worker-provided /tmp tmpfs. Preserve its official scan scripts and
 # installation while enforcing the worker UID.

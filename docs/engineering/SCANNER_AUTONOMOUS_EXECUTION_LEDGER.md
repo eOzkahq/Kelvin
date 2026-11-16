@@ -14,12 +14,12 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | Phase | Total Issues | NOT_STARTED | IN_PROGRESS | PR_OPEN | MERGED | BLOCKED |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 0 | 0 | 0 | 9 | 0 |
-| **Phase 3B: OWASP ZAP Remediation** | 7 | 4 | 0 | 0 | 3 | 0 |
+| **Phase 3B: OWASP ZAP Remediation** | 7 | 3 | 0 | 0 | 4 | 0 |
 | **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 0 | 4 | 0 |
 | **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 0 | 3 | 0 |
 | **Phase 5: Controlled Scanner Release** | 2 | 0 | 0 | 0 | 2 | 0 |
 | **Phase 6: Worker Certification & Activation** | 2 | 0 | 0 | 0 | 2 | 0 |
-| **TOTAL** | **27** | **4** | **0** | **0** | **23** | **0** |
+| **TOTAL** | **27** | **3** | **0** | **0** | **24** | **0** |
 
 ---
 
@@ -39,7 +39,7 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | **#553** | `security(zap): audit vulnerable Debian packages and runtime dependencies` | `MERGED` | `security/issue-553-zap-package-audit` | [#572](https://github.com/eOzkahq/Kelvin/pull/572) | PASS (Go + Python) | Merged into main. 384/384 findings mapped across 38 packages. Linux-libc-dev (193), Firefox ESR (51), APT (1), Setuptools (1), Dev packages (11) |
 | **#554** | `security(zap): upgrade vulnerable firefox-esr packages` | `MERGED` | `security/issue-554-zap-firefox-upgrade` | [#592](https://github.com/eOzkahq/Kelvin/pull/592) | PASS (Go unit tests) | Merged into main. Pinned firefox-esr to 153.7.0esr-1~deb12u1 in packages.list and Dockerfile; reconciled all 51 reported CVEs in deploy/scanners/zap/firefox.lock |
 | **#555** | `security(zap): upgrade vulnerable apt package dependencies` | `MERGED` | `security/issue-555-zap-apt-upgrade` | [#593](https://github.com/eOzkahq/Kelvin/pull/593) | PASS (Go unit tests) | Merged into main. Pinned apt and libapt-pkg6.0 to 2.6.2 in packages.list and Dockerfile; reconciled CVE-2026-109518 in deploy/scanners/zap/apt.lock |
-| **#556** | `security(zap): remediate vulnerable setuptools dependency` | `NOT_STARTED` | `security/issue-556-zap-setuptools-fix` | - | - | Depends on #553 |
+| **#556** | `security(zap): remediate vulnerable setuptools dependency` | `MERGED` | `security/issue-556-zap-setuptools-fix` | [#594](https://github.com/eOzkahq/Kelvin/pull/594) | PASS (Go unit tests) | Merged into main. Pinned setuptools>=78.1.1 in requirements.txt and Dockerfile; reconciled CVE-2025-47273 in deploy/scanners/zap/setuptools.lock |
 | **#557** | `refactor(zap): minimize scanner runtime package footprint` | `NOT_STARTED` | `refactor/issue-557-zap-minimization` | - | - | Depends on #553 |
 | **#558** | `test(zap): enforce runtime hardening and container security contracts` | `NOT_STARTED` | `test/issue-558-zap-hardening-tests` | - | - | Depends on #554, #555, #556, #557 |
 | **#559** | `security(zap): reconcile vulnerability waivers after package remediation` | `NOT_STARTED` | `security/issue-559-zap-waiver-reconciliation` | - | - | Depends on #558 |
