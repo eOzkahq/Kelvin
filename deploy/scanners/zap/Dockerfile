@@ -28,6 +28,21 @@ RUN (pip install --no-cache-dir -r /tmp/requirements.txt || \
      pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt || true) && \
     rm -f /tmp/requirements.txt
 
+# Minimize runtime footprint: purge compilers, -dev headers, and static packages
+COPY deploy/scanners/zap/slim-packages.list /tmp/slim-packages.list
+RUN apt-get purge -y --auto-remove \
+      linux-libc-dev \
+      libexpat1-dev \
+      libpython3.11-dev \
+      zlib1g-dev \
+      gcc \
+      build-essential \
+      g++ \
+      make \
+      dpkg-dev \
+      git-man || true && \
+    rm -rf /usr/share/man/* /usr/share/doc/* /var/cache/apt/* /var/lib/apt/lists/* /tmp/slim-packages.list
+
 # The upstream image is read-only at runtime. ZAP writes transient state only
 # under the worker-provided /tmp tmpfs. Preserve its official scan scripts and
 # installation while enforcing the worker UID.

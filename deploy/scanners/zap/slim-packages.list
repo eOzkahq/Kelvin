@@ -1,0 +1,18 @@
+# Kelvin OWASP ZAP Runtime Minimization - Purged Packages & Stripped Artifacts
+# Governed by ADR-0008 (Zero Build Tools & Compilers in Scanner Runtime)
+
+# Development headers and static libraries (eliminated from runtime)
+linux-libc-dev
+libexpat1-dev
+libpython3.11-dev
+zlib1g-dev
+
+# Build toolchains and compilers (eliminated from runtime)
+gcc
+build-essential
+g++
+make
+dpkg-dev
+
+# Unnecessary documentation and man pages (eliminated from runtime)
+git-man
