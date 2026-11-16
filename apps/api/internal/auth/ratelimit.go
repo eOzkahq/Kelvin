@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kelvin/kelvin/apps/api/internal/httpapi"
 	kelvinerrors "github.com/kelvin/kelvin/packages/common/errors"
 )
 
@@ -77,9 +76,9 @@ func (l *MemoryRateLimiter) Allow(key string) bool {
 func RateLimitMiddleware(limiter *MemoryRateLimiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := getClientIP(r)
+			ip := GetClientIP(r)
 			if !limiter.Allow(ip) {
-				httpapi.WriteProblem(w, r, kelvinerrors.NewRateLimited("Rate limit exceeded on authentication endpoint. Please retry later."))
+				writeProblem(w, r, kelvinerrors.NewRateLimited("Rate limit exceeded on authentication endpoint. Please retry later."))
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -87,13 +86,14 @@ func RateLimitMiddleware(limiter *MemoryRateLimiter) func(http.Handler) http.Han
 	}
 }
 
-func getClientIP(r *http.Request) string {
+// GetClientIP extracts the real client IP from forwarding headers or remote address.
+func GetClientIP(r *http.Request) string {
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 		parts := strings.Split(xff, ",")
 		return strings.TrimSpace(parts[0])
 	}
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return xri
+		return strings.TrimSpace(xri)
 	}
 	// Fallback to RemoteAddr (strip port if present)
 	addr := r.RemoteAddr

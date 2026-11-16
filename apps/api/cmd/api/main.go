@@ -166,14 +166,24 @@ func main() {
 		log.Fatal("supabase storage provider is required in staging and production")
 	}
 
-	// 4. Authentication Middleware
+	// 4. Authentication Middleware & Service
 	if cfg.Auth.JWTSecret != "" {
 		tokenService, err := auth.NewTokenService(cfg.Auth.JWTSecret)
 		if err != nil {
 			log.Fatal("JWT authentication configuration failed", zap.Error(err))
 		}
+
+		var authRepo auth.Repository
+		if dbPool != nil {
+			authRepo = auth.NewPostgresRepository(dbPool)
+		} else {
+			authRepo = auth.NewMemoryRepository()
+		}
+		authService := auth.NewService(authRepo, tokenService)
+		server.SetAuthService(authService)
+
 		server.SetProtectedRouteMiddleware(func(next http.Handler) http.Handler {
-			roles := auth.RequireRole(auth.RoleTenantAdmin, auth.RoleSecurityAnalyst)(next)
+			roles := auth.RequireRole(auth.RolePlatformAdmin, auth.RoleTenantAdmin, auth.RoleSecurityAnalyst, auth.RoleReadOnlyAuditor)(next)
 			return auth.Middleware(tokenService)(roles)
 		})
 	} else if isProduction {

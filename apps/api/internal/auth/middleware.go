@@ -2,16 +2,31 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/kelvin/kelvin/apps/api/internal/httpapi"
 	kelvinerrors "github.com/kelvin/kelvin/packages/common/errors"
 	"github.com/kelvin/kelvin/packages/common/logging"
 	"github.com/kelvin/kelvin/packages/common/tenant"
 	"go.uber.org/zap"
 )
+
+func writeProblem(w http.ResponseWriter, r *http.Request, apiErr *kelvinerrors.API) {
+	problem := apiErr.Problem(
+		logging.CorrelationFromContext(r.Context()),
+		r.URL.Path,
+		time.Now().UTC().Format(time.RFC3339),
+	)
+	w.Header().Set("Content-Type", "application/problem+json; charset=utf-8")
+	if apiErr.Status == http.StatusServiceUnavailable || apiErr.Status == http.StatusTooManyRequests {
+		w.Header().Set("Retry-After", "30")
+	}
+	w.WriteHeader(apiErr.Status)
+	_ = json.NewEncoder(w).Encode(problem)
+}
 
 type principalCtxKey struct{}
 
@@ -32,13 +47,13 @@ func Middleware(tokenService *TokenService) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				httpapi.WriteProblem(w, r, kelvinerrors.NewUnauthenticated("missing authorization header"))
+				writeProblem(w, r, kelvinerrors.NewUnauthenticated("missing authorization header"))
 				return
 			}
 
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-				httpapi.WriteProblem(w, r, kelvinerrors.NewUnauthenticated("authorization header must be in Bearer token format"))
+				writeProblem(w, r, kelvinerrors.NewUnauthenticated("authorization header must be in Bearer token format"))
 				return
 			}
 
@@ -46,7 +61,7 @@ func Middleware(tokenService *TokenService) func(http.Handler) http.Handler {
 			principal, err := tokenService.VerifyAccessToken(tokenStr)
 			if err != nil {
 				logging.FromContext(r.Context()).Warn("token verification failed", zap.Error(err))
-				httpapi.WriteProblem(w, r, kelvinerrors.NewUnauthenticated("invalid or expired token"))
+				writeProblem(w, r, kelvinerrors.NewUnauthenticated("invalid or expired token"))
 				return
 			}
 
@@ -54,7 +69,7 @@ func Middleware(tokenService *TokenService) func(http.Handler) http.Handler {
 			ctx := ContextWithPrincipal(r.Context(), principal)
 			ctx, err = tenant.WithID(ctx, principal.TenantID)
 			if err != nil {
-				httpapi.WriteProblem(w, r, kelvinerrors.NewUnauthenticated("token has no valid tenant context"))
+				writeProblem(w, r, kelvinerrors.NewUnauthenticated("token has no valid tenant context"))
 				return
 			}
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -68,7 +83,7 @@ func RequireRole(allowedRoles ...Role) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			principal, ok := PrincipalFromContext(r.Context())
 			if !ok {
-				httpapi.WriteProblem(w, r, kelvinerrors.NewUnauthenticated("authentication required"))
+				writeProblem(w, r, kelvinerrors.NewUnauthenticated("authentication required"))
 				return
 			}
 
@@ -83,7 +98,7 @@ func RequireRole(allowedRoles ...Role) func(http.Handler) http.Handler {
 				zap.String("user_id", principal.UserID.String()),
 				zap.String("user_role", string(principal.Role)),
 			)
-			httpapi.WriteProblem(w, r, kelvinerrors.NewForbidden("insufficient permissions for this resource"))
+			writeProblem(w, r, kelvinerrors.NewForbidden("insufficient permissions for this resource"))
 		})
 	}
 }
@@ -95,7 +110,7 @@ func TenantGuard(expectedTenantID uuid.UUID) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			principal, ok := PrincipalFromContext(r.Context())
 			if !ok {
-				httpapi.WriteProblem(w, r, kelvinerrors.NewUnauthenticated("authentication required"))
+				writeProblem(w, r, kelvinerrors.NewUnauthenticated("authentication required"))
 				return
 			}
 
@@ -106,7 +121,7 @@ func TenantGuard(expectedTenantID uuid.UUID) func(http.Handler) http.Handler {
 					zap.String("user_id", principal.UserID.String()),
 				)
 				// Return 403 Forbidden with audit-safe envelope
-				httpapi.WriteProblem(w, r, kelvinerrors.NewForbidden("access to the requested tenant resource is forbidden"))
+				writeProblem(w, r, kelvinerrors.NewForbidden("access to the requested tenant resource is forbidden"))
 				return
 			}
 

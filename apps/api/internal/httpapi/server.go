@@ -5,10 +5,12 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"crypto/sha256"
 	"github.com/kelvin/kelvin/apps/api/internal/assessments"
+	"github.com/kelvin/kelvin/apps/api/internal/auth"
 	"github.com/kelvin/kelvin/apps/api/internal/config"
 	"github.com/kelvin/kelvin/apps/api/internal/evidence"
 	"github.com/kelvin/kelvin/apps/api/internal/findings"
@@ -36,6 +38,8 @@ type Server struct {
 	findingStore     findingStoreIface // nil means finding endpoints return 503
 	evidenceSigner   *evidence.Signer
 	storageProvider  any               // optional storage adapter
+	authService      authServiceIface  // nil means auth endpoints return 503
+	authLimiter      *auth.MemoryRateLimiter
 	protectedRoute   func(http.Handler) http.Handler
 }
 
@@ -68,7 +72,12 @@ func (s *Server) ValidateDependencies(isProduction bool) error {
 
 // New builds the server with all registered routes.
 func New(cfg config.Config, log *zap.Logger) *Server {
-	s := &Server{cfg: cfg, log: log, mux: http.NewServeMux()}
+	s := &Server{
+		cfg:         cfg,
+		log:         log,
+		mux:         http.NewServeMux(),
+		authLimiter: auth.NewMemoryRateLimiter(60, time.Minute),
+	}
 	if len(cfg.Evidence.SigningKey) >= 32 && cfg.Evidence.SigningKey != "kelvin-default-evidence-signing-key-32-bytes" {
 		s.evidenceSigner, _ = evidence.NewSigner([]byte(cfg.Evidence.SigningKey))
 	} else if cfg.Development {
@@ -144,6 +153,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /health/db", s.handleHealthDB)
 	s.mux.HandleFunc("GET /health/redis", s.handleHealthRedis)
 	s.mux.HandleFunc("GET /metrics", metrics.Default().Handler())
+
+	// Authentication endpoints
+	s.mux.HandleFunc("POST /api/v1/auth/login", s.handleAuthLogin)
+	s.mux.HandleFunc("POST /api/v1/auth/refresh", s.handleAuthRefresh)
+	s.mux.HandleFunc("POST /api/v1/auth/logout", s.handleAuthLogout)
+	s.mux.Handle("GET /api/v1/auth/me", s.protect(http.HandlerFunc(s.handleAuthMe)))
 
 	// State-mutating endpoints are wrapped with idempotency middleware when a
 	// store is configured. The middleware is a no-op for requests without an

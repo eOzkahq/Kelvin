@@ -1,33 +1,21 @@
 import React, { useState } from "react";
-import { setTenantContext, getTenantContext } from "../../services/api";
-
-export interface WorkspaceOption {
-  id: string;
-  name: string;
-  orgId: string;
-  orgName: string;
-}
-
-const mockWorkspaces: WorkspaceOption[] = [
-  { id: "ws-primary", name: "Primary Production", orgId: "org-sec-corp", orgName: "Kelvin Security Corp" },
-  { id: "ws-staging", name: "Staging Assessment", orgId: "org-sec-corp", orgName: "Kelvin Security Corp" },
-  { id: "ws-rnd", name: "R&D Penetration Lab", orgId: "org-rnd", orgName: "Cyber Research Lab" },
-];
+import { useAuth } from "../../features/auth/AuthContext";
+import { setTenantContext } from "../../services/api";
 
 export const TenantSwitcher: React.FC = () => {
-  const currentContext = getTenantContext();
-  const [selectedWs, setSelectedWs] = useState<WorkspaceOption>(() => {
-    const found = mockWorkspaces.find((ws) => ws.id === currentContext.workspaceId);
-    return found ?? mockWorkspaces[0];
-  });
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
-  const handleSelect = (ws: WorkspaceOption) => {
-    setSelectedWs(ws);
-    setTenantContext({
-      tenantId: ws.orgId,
-      workspaceId: ws.id,
-    });
+  if (!user) {
+    return null;
+  }
+
+  // Build a single workspace from the authenticated user's tenant
+  const orgName = (user as (typeof user & { organization?: string }))?.organization ?? user.organizationId ?? "Organization";
+  const orgId = user.organizationId;
+
+  const handleSelect = () => {
+    setTenantContext({ tenantId: orgId });
     setIsOpen(false);
   };
 
@@ -42,8 +30,8 @@ export const TenantSwitcher: React.FC = () => {
       >
         <span className="h-2 w-2 rounded-full bg-[#d4c9a8]" aria-hidden="true" />
         <div className="flex flex-col text-left">
-          <span className="font-semibold text-zinc-100">{selectedWs.orgName}</span>
-          <span className="text-[10px] text-zinc-400 font-mono">{selectedWs.name}</span>
+          <span className="font-semibold text-zinc-100 max-w-[140px] truncate">{orgName}</span>
+          <span className="text-[10px] text-zinc-400 font-mono capitalize">{user.role?.toLowerCase().replace(/_/g, " ")}</span>
         </div>
         <span className="text-zinc-500 ml-1">▾</span>
       </button>
@@ -54,31 +42,20 @@ export const TenantSwitcher: React.FC = () => {
           className="absolute left-0 mt-1.5 w-64 rounded-md border border-zinc-800 bg-zinc-900 shadow-xl z-50 p-1"
         >
           <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-            Select Workspace
+            Active Workspace
           </div>
-          {mockWorkspaces.map((ws) => (
-            <button
-              key={ws.id}
-              role="menuitem"
-              type="button"
-              onClick={() => handleSelect(ws)}
-              className={`w-full flex items-center justify-between rounded px-2.5 py-1.5 text-xs text-left transition-colors ${
-                ws.id === selectedWs.id
-                  ? "bg-cyan-950/60 text-cyan-300 font-medium"
-                  : "text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
-              }`}
-            >
-              <div className="flex flex-col">
-                <span className="font-medium">{ws.name}</span>
-                <span className="text-[10px] text-zinc-500">{ws.orgName}</span>
-              </div>
-              {ws.id === selectedWs.id && (
-                <span className="text-cyan-400 font-bold" aria-hidden="true">
-                  ✓
-                </span>
-              )}
-            </button>
-          ))}
+          <button
+            role="menuitem"
+            type="button"
+            onClick={handleSelect}
+            className="w-full flex items-center justify-between rounded px-2.5 py-1.5 text-xs text-left transition-colors bg-cyan-950/60 text-cyan-300 font-medium"
+          >
+            <div className="flex flex-col">
+              <span className="font-medium truncate max-w-[180px]">{orgName}</span>
+              <span className="text-[10px] text-zinc-500 font-mono">{orgId}</span>
+            </div>
+            <span className="text-cyan-400 font-bold" aria-hidden="true">✓</span>
+          </button>
         </div>
       )}
     </div>
