@@ -14,12 +14,12 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | Phase | Total Issues | NOT_STARTED | IN_PROGRESS | PR_OPEN | MERGED | BLOCKED |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Phase 3A: Nuclei Hermetic Build & Remediation** | 9 | 0 | 0 | 0 | 9 | 0 |
-| **Phase 3B: OWASP ZAP Remediation** | 7 | 2 | 0 | 0 | 5 | 0 |
+| **Phase 3B: OWASP ZAP Remediation** | 7 | 1 | 0 | 0 | 6 | 0 |
 | **Phase 3C: Scanner Governance & Validation** | 4 | 0 | 0 | 0 | 4 | 0 |
 | **Phase 4: Reproducible Builds & Attestations** | 3 | 0 | 0 | 0 | 3 | 0 |
 | **Phase 5: Controlled Scanner Release** | 2 | 0 | 0 | 0 | 2 | 0 |
 | **Phase 6: Worker Certification & Activation** | 2 | 0 | 0 | 0 | 2 | 0 |
-| **TOTAL** | **27** | **2** | **0** | **0** | **25** | **0** |
+| **TOTAL** | **27** | **1** | **0** | **0** | **26** | **0** |
 
 ---
 
@@ -41,7 +41,7 @@ This ledger tracks the autonomous implementation of the Kelvin Phase 3–6 Scann
 | **#555** | `security(zap): upgrade vulnerable apt package dependencies` | `MERGED` | `security/issue-555-zap-apt-upgrade` | [#593](https://github.com/eOzkahq/Kelvin/pull/593) | PASS (Go unit tests) | Merged into main. Pinned apt and libapt-pkg6.0 to 2.6.2 in packages.list and Dockerfile; reconciled CVE-2026-109518 in deploy/scanners/zap/apt.lock |
 | **#556** | `security(zap): remediate vulnerable setuptools dependency` | `MERGED` | `security/issue-556-zap-setuptools-fix` | [#594](https://github.com/eOzkahq/Kelvin/pull/594) | PASS (Go unit tests) | Merged into main. Pinned setuptools>=78.1.1 in requirements.txt and Dockerfile; reconciled CVE-2025-47273 in deploy/scanners/zap/setuptools.lock |
 | **#557** | `refactor(zap): minimize scanner runtime package footprint` | `MERGED` | `refactor/issue-557-zap-minimization` | [#595](https://github.com/eOzkahq/Kelvin/pull/595) | PASS (Go unit tests) | Merged into main. Purged development packages and compilers in slim-packages.list and Dockerfile; reduced attack surface while preserving headless runtime |
-| **#558** | `test(zap): enforce runtime hardening and container security contracts` | `NOT_STARTED` | `test/issue-558-zap-hardening-tests` | - | - | Depends on #554, #555, #556, #557 |
+| **#558** | `test(zap): enforce runtime hardening and container security contracts` | `MERGED` | `test/issue-558-zap-hardening-tests` | [#596](https://github.com/eOzkahq/Kelvin/pull/596) | PASS (Go unit tests) | Merged into main. Implemented tests/scanners/zap_hardening_test.go, zap_container_spec_test.go, and apps/worker/internal/adapters/zap_adapter_test.go |
 | **#559** | `security(zap): reconcile vulnerability waivers after package remediation` | `NOT_STARTED` | `security/issue-559-zap-waiver-reconciliation` | - | - | Depends on #558 |
 | **#560** | `feat(scanners): implement vulnerability reconciliation engine` | `MERGED` | `feat/issue-560-reconciliation-engine` | [#573](https://github.com/eOzkahq/Kelvin/pull/573) | PASS (Go unit tests + CLI) | Merged into main. Ingests CycloneDX SBOMs & YAML waiver registries; categorizes into fixed, approved, pending, expired, unhandled with deterministic report |
 | **#561** | `security(scanners): enforce waiver evidence and advisory verification` | `MERGED` | `security/issue-561-waiver-evidence-validation` | [#574](https://github.com/eOzkahq/Kelvin/pull/574) | PASS (18 Python + Go unit tests) | Merged into main. Enforces purl format, approved upstream advisory sources, and min 10-char justification without placeholders |
