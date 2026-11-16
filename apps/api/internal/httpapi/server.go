@@ -175,6 +175,9 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /api/v1/reports", s.protect(http.HandlerFunc(s.handleListReports)))
 	s.mux.Handle("GET /api/v1/reports/{id}/download", s.protect(http.HandlerFunc(s.handleDownloadReport)))
 
+	// Operational dashboard stats endpoint (Milestone 7)
+	s.mux.Handle("GET /api/v1/dashboard/stats", s.protect(http.HandlerFunc(s.handleGetDashboardStats)))
+
 	// Findings search, filtering and dashboard endpoints (P3-44)
 	s.mux.Handle("GET /api/v1/findings", s.protect(http.HandlerFunc(s.handleListFindingsQuery)))
 	s.mux.Handle("GET /api/v1/findings/dashboard", s.protect(http.HandlerFunc(s.handleGetFindingsDashboard)))
