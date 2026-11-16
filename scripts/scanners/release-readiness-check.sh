@@ -97,7 +97,10 @@ try:
             val = None
             break
     if val is not None:
-        print(val)
+        if isinstance(val, bool):
+            print(str(val).lower())
+        else:
+            print(val)
 except Exception:
     pass
 " "$file" "$path" 2>/dev/null || echo ""
@@ -229,15 +232,24 @@ fi
 # ------------------------------------------------------------------------------
 echo "==> [Gate 5/6] Verifying Cryptographic Attestation & Provenance Policy..."
 if [[ -f "deploy/scanners/attestation-policy.json" ]]; then
-  trusted_repo="$(json_get "deploy/scanners/attestation-policy.json" ".trusted_signer.repository")"
-  trusted_issuer="$(json_get "deploy/scanners/attestation-policy.json" ".trusted_signer.issuer")"
-  if [[ "$trusted_repo" == "eOzkull/Kelvin" && "$trusted_issuer" == "https://token.actions.githubusercontent.com" ]]; then
-    log_pass "provenance_attestation" "Attestation policy enforces trusted GitHub Actions OIDC identity ($trusted_repo)"
+  trusted_repo="$(json_get "deploy/scanners/attestation-policy.json" ".identity_requirements.repository")"
+  trusted_issuer="$(json_get "deploy/scanners/attestation-policy.json" ".identity_requirements.oidc_issuer")"
+  cert_regex="$(json_get "deploy/scanners/attestation-policy.json" ".identity_requirements.certificate_identity_regexp")"
+  enforce_digest="$(json_get "deploy/scanners/attestation-policy.json" ".attestation_requirements.enforce_immutable_digest")"
+
+  if [[ -z "$trusted_repo" || -z "$trusted_issuer" ]]; then
+    log_fail "provenance_attestation" "Attestation policy missing required identity_requirements (repo='$trusted_repo', issuer='$trusted_issuer')"
+  elif [[ "$trusted_issuer" != "https://token.actions.githubusercontent.com" ]]; then
+    log_fail "provenance_attestation" "Attestation policy specifies unauthorized OIDC issuer '$trusted_issuer'"
+  elif [[ "$trusted_repo" != "eOzkull/Kelvin" && "$trusted_repo" != "eOzkahq/Kelvin" ]]; then
+    log_fail "provenance_attestation" "Attestation policy specifies unauthorized repository '$trusted_repo'"
+  elif [[ -z "$cert_regex" || "$enforce_digest" != "true" ]]; then
+    log_fail "provenance_attestation" "Attestation policy missing cert regex or immutable digest enforcement"
   else
-    log_fail "provenance_attestation" "Attestation policy has unauthorized repository or issuer ($trusted_repo, $trusted_issuer)"
+    log_pass "provenance_attestation" "Attestation policy enforces trusted GitHub Actions OIDC identity ($trusted_repo)"
   fi
 else
-  log_pass "provenance_attestation" "Attestation policy specification active"
+  log_fail "provenance_attestation" "Missing mandatory attestation policy file deploy/scanners/attestation-policy.json"
 fi
 
 # ------------------------------------------------------------------------------
