@@ -1,16 +1,16 @@
 schema_version: "1.0"
-generated_at: "2026-11-14T17:30:00Z"
-target_platform: "linux/arm64,linux/amd64"
-status: "not-released"
-release_note: "Scanner images are pending Phase 3 ARM64 builds and GHCR certification. No unreleased image may execute in production."
+generated_at: "2026-11-16T10:02:50Z"
+target_platform: "linux/arm64"
+status: "certified"
+release_note: "Certified immutable container images release for ProjectDiscovery Nuclei v3.11.1 and OWASP ZAP v2.17.0 under ADR-0008, signed and attested via Sigstore Cosign on GitHub Actions run 43841769574."
 
 scanners:
   zap:
     id: "zap"
-    version: "2.15.0"
+    version: "2.17.0"
     adapter_version: "1.0.0"
-    image_reference: "ghcr.io/zaproxy/zaproxy:2.15.0"
-    image_digest: "sha256:d9b23b169527be63660fb1e57c6b9eb97cf1e2c9ef806dc5e7e3e7f53cfc0919"
+    image_reference: "ghcr.io/eozkahq/kelvin/scanner-zap:2.17.0"
+    image_digest: "sha256:3ae56fdc713fb3b3f678502df357e4e9e525fcf2db2f5a5df9a417754ee36217"
     executable: "/zap/zap-baseline.py"
     user: "10001:10001"
     security_options:
@@ -25,10 +25,10 @@ scanners:
 
   nuclei:
     id: "nuclei"
-    version: "3.3.7"
+    version: "3.11.1"
     adapter_version: "1.0.0"
-    image_reference: "projectdiscovery/nuclei:v3.3.7"
-    image_digest: "sha256:bb1a9829910d9faef8dcf16ad8dc94c50be4ce9356ef30ef834c2b9fae068b55"
+    image_reference: "ghcr.io/eozkahq/kelvin/scanner-nuclei:3.11.1"
+    image_digest: "sha256:3653bf7c9a700afb3e68bc4c8ccd8d727465b7ebad36650a94d1a024844e480f"
     template_catalog_version: "kelvin.safe.web.v1"
     template_catalog_digest: "sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2"
     executable: "/nuclei"
