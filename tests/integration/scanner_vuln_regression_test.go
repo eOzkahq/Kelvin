@@ -231,3 +231,4 @@ func TestScannerVulnRegression_CycloneDXSchemaValidation(t *testing.T) {
 		t.Errorf("expected invalid format to be rejected")
 	}
 }
+
