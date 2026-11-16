@@ -7,7 +7,7 @@ FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 WORKDIR /src
 
 # Ensure reproducible build using local container toolchain without auto-downloading
-ENV GOTOOLCHAIN=local
+ENV GOTOOLCHAIN=local GOWORK=off
 
 # Install CA certificates and build tools
 RUN apk add --no-cache ca-certificates git
