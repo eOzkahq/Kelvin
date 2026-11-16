@@ -1,7 +1,17 @@
 # Kelvin Pinned Debian Packages for OWASP ZAP Runtime
 # Governed by ADR-0008 (Hermetic, Minimal Scanner Footprint)
+
+# Headless browser (remediates 51 Firefox ESR CVEs)
 Package: firefox-esr
 Pin: version 153.7.0esr-1~deb12u1*
 Pin-Priority: 1001
 
 firefox-esr=153.7.0esr-1~deb12u1
+
+# Package management (remediates CVE-2026-109518)
+Package: apt libapt-pkg6.0
+Pin: version 2.6.2*
+Pin-Priority: 1001
+
+apt=2.6.2
+libapt-pkg6.0=2.6.2
