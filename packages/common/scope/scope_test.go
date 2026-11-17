@@ -237,3 +237,55 @@ func TestCIDRPolicyRejectsProhibitedOverlap(t *testing.T) {
 		t.Fatalf("approved public CIDR rejected: %v", err)
 	}
 }
+
+func TestSSRF_CloudMetadataAndRebinding(t *testing.T) {
+	// 1. Cloud metadata IPs strictly prohibited
+	metadataIPs := []string{
+		"169.254.169.254",
+		"169.254.170.2",
+		"100.100.100.200",
+		"255.255.255.255",
+	}
+	for _, ipStr := range metadataIPs {
+		addr := netip.MustParseAddr(ipStr)
+		if !IsProhibited(addr) {
+			t.Errorf("expected cloud metadata IP %s to be prohibited", ipStr)
+		}
+	}
+
+	// 2. Cloud metadata hostnames rejected
+	policy := Policy{Domains: []string{"metadata.google.internal", "instance-data", "localhost"}}
+	for _, host := range []string{"http://metadata.google.internal", "http://instance-data", "http://localhost"} {
+		_, _, err := policy.Validate(context.Background(), host)
+		if !errors.Is(err, ErrProhibited) {
+			t.Errorf("expected ErrProhibited for %s, got: %v", host, err)
+		}
+	}
+
+	// 3. Multi-homed DNS resolution containing one internal IP fails closed
+	multiResolver := resolverFunc(func(context.Context, string, string) ([]netip.Addr, error) {
+		return []netip.Addr{
+			netip.MustParseAddr("93.184.216.34"), // public
+			netip.MustParseAddr("10.0.0.1"),      // private RFC 1918
+		}, nil
+	})
+	multiPolicy := Policy{Domains: []string{"multihomed.example"}, Resolver: multiResolver}
+	_, _, err := multiPolicy.Validate(context.Background(), "https://multihomed.example")
+	if !errors.Is(err, ErrProhibited) {
+		t.Fatalf("expected ErrProhibited on multi-homed resolution with internal IP, got: %v", err)
+	}
+
+	// 4. IPv6 link-local and ULA
+	ipv6Targets := []string{
+		"fe80::1",
+		"fd00::1",
+		"fc00::1",
+		"::1",
+	}
+	for _, ip6 := range ipv6Targets {
+		addr := netip.MustParseAddr(ip6)
+		if !IsProhibited(addr) {
+			t.Errorf("expected IPv6 address %s to be prohibited", ip6)
+		}
+	}
+}

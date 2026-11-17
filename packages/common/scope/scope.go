@@ -77,16 +77,27 @@ func (p Policy) LabMode() bool {
 
 var prohibited = []netip.Prefix{
 	netip.MustParsePrefix("0.0.0.0/8"), netip.MustParsePrefix("10.0.0.0/8"),
-	netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("127.0.0.0/8"),
-	netip.MustParsePrefix("169.254.0.0/16"), netip.MustParsePrefix("172.16.0.0/12"),
-	netip.MustParsePrefix("192.0.0.0/24"), netip.MustParsePrefix("192.0.2.0/24"),
-	netip.MustParsePrefix("192.168.0.0/16"), netip.MustParsePrefix("198.18.0.0/15"),
-	netip.MustParsePrefix("198.51.100.0/24"), netip.MustParsePrefix("203.0.113.0/24"),
-	netip.MustParsePrefix("224.0.0.0/4"), netip.MustParsePrefix("240.0.0.0/4"),
+	netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("100.100.100.200/32"),
+	netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("169.254.0.0/16"),
+	netip.MustParsePrefix("169.254.169.254/32"), netip.MustParsePrefix("169.254.170.2/32"),
+	netip.MustParsePrefix("172.16.0.0/12"), netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("192.0.2.0/24"), netip.MustParsePrefix("192.168.0.0/16"),
+	netip.MustParsePrefix("198.18.0.0/15"), netip.MustParsePrefix("198.51.100.0/24"),
+	netip.MustParsePrefix("203.0.113.0/24"), netip.MustParsePrefix("224.0.0.0/4"),
+	netip.MustParsePrefix("240.0.0.0/4"), netip.MustParsePrefix("255.255.255.255/32"),
 	netip.MustParsePrefix("::/128"), netip.MustParsePrefix("::1/128"),
-	netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fe80::/10"),
-	netip.MustParsePrefix("ff00::/8"), netip.MustParsePrefix("2001:db8::/32"),
-	netip.MustParsePrefix("::ffff:0:0/96"),
+	netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fd00::/8"),
+	netip.MustParsePrefix("fe80::/10"), netip.MustParsePrefix("ff00::/8"),
+	netip.MustParsePrefix("2001:db8::/32"), netip.MustParsePrefix("::ffff:0:0/96"),
+}
+
+var prohibitedHostnames = map[string]bool{
+	"metadata.google.internal": true,
+	"metadata.internal":        true,
+	"metadata":                 true,
+	"instance-data":            true,
+	"localhost":                true,
+	"localhost.localdomain":    true,
 }
 
 func Normalize(raw string) (Target, error) {
@@ -341,6 +352,9 @@ func (p Policy) Validate(ctx context.Context, raw string) (Target, []netip.Addr,
 	if !p.hostAllowed(t.Host) {
 		return Target{}, nil, ErrOutOfScope
 	}
+	if prohibitedHostnames[t.Host] && !p.labMode {
+		return Target{}, nil, fmt.Errorf("%w: cloud metadata or local hostname %q is prohibited", ErrProhibited, t.Host)
+	}
 	ips, err := p.resolver().LookupNetIP(ctx, "ip", t.Host)
 	if err != nil {
 		return Target{}, nil, fmt.Errorf("resolve target: %w", err)
@@ -401,6 +415,9 @@ func (t *PinnedTransport) DialContext(ctx context.Context, network, address stri
 	} else {
 		if !t.Policy.hostAllowed(target.Host) {
 			return nil, ErrOutOfScope
+		}
+		if prohibitedHostnames[target.Host] && !t.Policy.labMode {
+			return nil, fmt.Errorf("%w: cloud metadata or local hostname %q is prohibited", ErrProhibited, target.Host)
 		}
 		ips, err = t.Policy.resolver().LookupNetIP(ctx, "ip", target.Host)
 		if err != nil {
