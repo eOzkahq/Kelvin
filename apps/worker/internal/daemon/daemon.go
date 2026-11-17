@@ -364,13 +364,27 @@ func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.
 	}
 	if result != nil && result.DeadlineExceeded {
 		mark(metrics.CauseDeadline)
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncResourceViolation(metrics.ViolationDeadline)
+		}
 		fail(log, q, ctx, job, "execution deadline exceeded", cfg)
 		return
 	}
 	if execErr != nil {
 		if result != nil && result.OOMKilled {
 			mark(metrics.CauseOOM)
+			if cfg.Metrics != nil {
+				cfg.Metrics.IncResourceViolation(metrics.ViolationOOM)
+			}
 			fail(log, q, ctx, job, "out of memory", cfg)
+			return
+		}
+		if result != nil && result.PIDLimitExceeded {
+			mark(metrics.CauseCrash)
+			if cfg.Metrics != nil {
+				cfg.Metrics.IncResourceViolation(metrics.ViolationPIDs)
+			}
+			fail(log, q, ctx, job, "process limit exceeded (pids exhausted)", cfg)
 			return
 		}
 		mark(metrics.CauseCrash)
@@ -383,6 +397,22 @@ func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.
 		return
 	}
 	if result.ExitCode != 0 {
+		if result.OOMKilled {
+			mark(metrics.CauseOOM)
+			if cfg.Metrics != nil {
+				cfg.Metrics.IncResourceViolation(metrics.ViolationOOM)
+			}
+			fail(log, q, ctx, job, "out of memory", cfg)
+			return
+		}
+		if result.PIDLimitExceeded {
+			mark(metrics.CauseCrash)
+			if cfg.Metrics != nil {
+				cfg.Metrics.IncResourceViolation(metrics.ViolationPIDs)
+			}
+			fail(log, q, ctx, job, "process limit exceeded (pids exhausted)", cfg)
+			return
+		}
 		mark(metrics.CauseCrash)
 		fail(log, q, ctx, job, fmt.Sprintf("scanner exited with code %d", result.ExitCode), cfg)
 		return
