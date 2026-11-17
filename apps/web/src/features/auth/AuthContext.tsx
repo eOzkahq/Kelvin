@@ -111,6 +111,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setAuthToken(newAccess);
             setTokenState(newAccess);
             setUser(res.user);
+            // The initial /auth/me 401 is recoverable when refresh succeeds.
+            setSessionExpired(false);
           } catch {
             // Refresh failed — force clean state
             clearStoredTokens();
