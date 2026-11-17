@@ -455,6 +455,10 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 				"--env", "HTTPS_PROXY="+spec.EgressProxy,
 				"--env", "http_proxy="+spec.EgressProxy,
 				"--env", "https_proxy="+spec.EgressProxy,
+				"--env", "ALL_PROXY="+spec.EgressProxy,
+				"--env", "all_proxy="+spec.EgressProxy,
+				"--env", "NO_PROXY=localhost,127.0.0.1",
+				"--env", "no_proxy=localhost,127.0.0.1",
 				"--env", "KELVIN_EGRESS_PROXY="+spec.EgressProxy,
 			)
 		}

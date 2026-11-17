@@ -410,8 +410,11 @@ func TestOrchestratorIntegratesEgressProxy(t *testing.T) {
 	if executor.Last.NetworkDisabled {
 		t.Fatal("expected NetworkDisabled to be false when scoped EgressProxy is configured")
 	}
-	if !strings.HasPrefix(executor.Last.EgressProxy, "http://127.0.0.1:") {
+	if !strings.Contains(executor.Last.EgressProxy, "127.0.0.1:") {
 		t.Errorf("expected localhost proxy URL, got %s", executor.Last.EgressProxy)
+	}
+	if !strings.Contains(executor.Last.EgressProxy, "kelvin-egress-") {
+		t.Errorf("expected authenticated proxy URL with execution token, got %s", executor.Last.EgressProxy)
 	}
 }
 

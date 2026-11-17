@@ -720,6 +720,30 @@ func TestOCIExecutor_NetworkIsolationFlags(t *testing.T) {
 	if !hasScannerNet {
 		t.Error("expected --network=kelvin-scanner-net when NetworkDisabled is false")
 	}
+
+	// Verify complete proxy environment variable wiring
+	hasHTTPProxy := false
+	hasHTTPSProxy := false
+	hasAllProxy := false
+	hasNoProxy := false
+	for _, a := range argsEnabled {
+		if a == "HTTP_PROXY=http://10.89.10.1:8080" {
+			hasHTTPProxy = true
+		}
+		if a == "HTTPS_PROXY=http://10.89.10.1:8080" {
+			hasHTTPSProxy = true
+		}
+		if a == "ALL_PROXY=http://10.89.10.1:8080" {
+			hasAllProxy = true
+		}
+		if a == "NO_PROXY=localhost,127.0.0.1" {
+			hasNoProxy = true
+		}
+	}
+	if !hasHTTPProxy || !hasHTTPSProxy || !hasAllProxy || !hasNoProxy {
+		t.Errorf("expected complete proxy env wiring, got: HTTP_PROXY=%v HTTPS_PROXY=%v ALL_PROXY=%v NO_PROXY=%v",
+			hasHTTPProxy, hasHTTPSProxy, hasAllProxy, hasNoProxy)
+	}
 }
 
 func TestOCIExecutor_VerifyRootlessPodman_StrictComplianceFailClosed(t *testing.T) {
