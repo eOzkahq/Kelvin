@@ -304,7 +304,17 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			result.ExitCode = exitErr.ExitCode()
-			result.OOMKilled = result.ExitCode == 137
+			stderrLower := strings.ToLower(result.Stderr)
+			stdoutLower := strings.ToLower(result.Stdout)
+			result.OOMKilled = result.ExitCode == 137 ||
+				strings.Contains(stderrLower, "out of memory") ||
+				strings.Contains(stderrLower, "oom") ||
+				strings.Contains(stdoutLower, "out of memory")
+			result.PIDLimitExceeded = strings.Contains(stderrLower, "resource temporarily unavailable") ||
+				strings.Contains(stderrLower, "can't fork") ||
+				strings.Contains(stderrLower, "unable to create new native thread") ||
+				strings.Contains(stdoutLower, "resource temporarily unavailable") ||
+				strings.Contains(stdoutLower, "can't fork")
 		} else {
 			result.ExitCode = -1
 		}
@@ -394,6 +404,15 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	if mem != "" {
 		args = append(args, "--memory="+mem)
 		args = append(args, "--memory-swap="+mem)
+	}
+	memHigh := ""
+	if spec.Limits.MemoryHigh != "" {
+		memHigh = spec.Limits.MemoryHigh
+	} else if spec.MemoryHigh != "" {
+		memHigh = spec.MemoryHigh
+	}
+	if memHigh != "" {
+		args = append(args, "--memory-reservation="+memHigh)
 	}
 	if spec.Limits.CPUQuota != "" {
 		args = append(args, "--cpus="+spec.Limits.CPUQuota)

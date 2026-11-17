@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -596,5 +597,86 @@ func TestDaemon_RejectsExpiredJobEnvelope(t *testing.T) {
 	}
 	if !strings.Contains(q.failedReasons[0], "expired") {
 		t.Errorf("expected failure reason to contain 'expired', got %q", q.failedReasons[0])
+	}
+}
+
+func TestDaemon_ResourceViolationMetrics_OOM_PIDs_Deadline(t *testing.T) {
+	ctx := context.Background()
+
+	jobID := "123e4567-e89b-12d3-a456-426614174091"
+	job := queue.Job{
+		Version:      2,
+		ID:           jobID,
+		AssessmentID: "123e4567-e89b-12d3-a456-426614174001",
+		TenantID:     "123e4567-e89b-12d3-a456-426614174002",
+		Type:         adapters.ScannerNuclei,
+	}
+	task := adapters.Task{
+		JobID:        job.ID,
+		TenantID:     job.TenantID,
+		AssessmentID: job.AssessmentID,
+		Target:       "https://example.test",
+	}
+
+	// Case 1: OOM violation
+	{
+		q := newRecordingQueue()
+		metricsReg := metrics.NewRegistry()
+		cfg := Config{WorkerID: "worker-oom-test", Metrics: metricsReg}
+		result := &sandbox.Result{ExitCode: 137, OOMKilled: true}
+		execErr := errors.New("container out of memory")
+
+		processResult(zap.NewNop(), q, job, task, result, execErr, ctx, cfg)
+
+		snap := metricsReg.Snapshot()
+		if snap.ResourceViolations[metrics.ViolationOOM] != 1 {
+			t.Errorf("expected 1 ViolationOOM, got %d", snap.ResourceViolations[metrics.ViolationOOM])
+		}
+		if snap.Terminations[metrics.CauseOOM] != 1 {
+			t.Errorf("expected 1 CauseOOM, got %d", snap.Terminations[metrics.CauseOOM])
+		}
+		if len(q.failed) != 1 || !strings.Contains(q.failedReasons[0], "out of memory") {
+			t.Errorf("expected failure reason 'out of memory', got %v", q.failedReasons)
+		}
+	}
+
+	// Case 2: PIDs exhaustion violation
+	{
+		q := newRecordingQueue()
+		metricsReg := metrics.NewRegistry()
+		cfg := Config{WorkerID: "worker-pid-test", Metrics: metricsReg}
+		result := &sandbox.Result{ExitCode: 1, PIDLimitExceeded: true}
+		execErr := errors.New("fork failed: resource temporarily unavailable")
+
+		processResult(zap.NewNop(), q, job, task, result, execErr, ctx, cfg)
+
+		snap := metricsReg.Snapshot()
+		if snap.ResourceViolations[metrics.ViolationPIDs] != 1 {
+			t.Errorf("expected 1 ViolationPIDs, got %d", snap.ResourceViolations[metrics.ViolationPIDs])
+		}
+		if len(q.failed) != 1 || !strings.Contains(q.failedReasons[0], "pids exhausted") {
+			t.Errorf("expected failure reason containing 'pids exhausted', got %v", q.failedReasons)
+		}
+	}
+
+	// Case 3: Execution deadline violation
+	{
+		q := newRecordingQueue()
+		metricsReg := metrics.NewRegistry()
+		cfg := Config{WorkerID: "worker-deadline-test", Metrics: metricsReg}
+		result := &sandbox.Result{ExitCode: -1, DeadlineExceeded: true}
+
+		processResult(zap.NewNop(), q, job, task, result, sandbox.ErrDeadlineExceeded, ctx, cfg)
+
+		snap := metricsReg.Snapshot()
+		if snap.ResourceViolations[metrics.ViolationDeadline] != 1 {
+			t.Errorf("expected 1 ViolationDeadline, got %d", snap.ResourceViolations[metrics.ViolationDeadline])
+		}
+		if snap.Terminations[metrics.CauseDeadline] != 1 {
+			t.Errorf("expected 1 CauseDeadline, got %d", snap.Terminations[metrics.CauseDeadline])
+		}
+		if len(q.failed) != 1 || !strings.Contains(q.failedReasons[0], "deadline exceeded") {
+			t.Errorf("expected failure reason containing 'deadline exceeded', got %v", q.failedReasons)
+		}
 	}
 }

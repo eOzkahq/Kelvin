@@ -53,6 +53,8 @@ func (f *FakeExecutor) WithResult(result Result) *FakeExecutor {
 		f.Mode = "deadline"
 	case result.OOMKilled:
 		f.Mode = "oom"
+	case result.PIDLimitExceeded:
+		f.Mode = "pid_exhausted"
 	case result.ExitCode != 0:
 		f.Mode = "crash"
 	default:
@@ -104,6 +106,11 @@ func (f *FakeExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) 
 		result.ExitCode = 137
 		result.OOMKilled = true
 		return result, &ExitError{Spec: spec, Result: result, Err: errors.New("container killed")}
+	case "pid_exhausted":
+		result.ExitCode = 1
+		result.PIDLimitExceeded = true
+		result.Stderr = "fork: retry: Resource temporarily unavailable"
+		return result, &ExitError{Spec: spec, Result: result, Err: errors.New("scanner failed: resource temporarily unavailable")}
 	case "deadline":
 		result.ExitCode = -1
 		result.DeadlineExceeded = true

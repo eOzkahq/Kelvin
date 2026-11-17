@@ -29,6 +29,8 @@ type Limits struct {
 	CPUQuota string `json:"cpu_quota"`
 	// MemoryLimit is the cgroup memory ceiling (e.g. "128m", "512m", "1536m", "2g").
 	MemoryLimit string `json:"memory_limit"`
+	// MemoryHigh optionally specifies the soft memory throttling threshold (e.g. "450m").
+	MemoryHigh string `json:"memory_high,omitempty"`
 	// DiskLimit is the ephemeral scratch disk ceiling (e.g. "64m", "512m", "2g").
 	DiskLimit string `json:"disk_limit"`
 	// MaxPIDs is the cgroup pids-limit to prevent fork bombs.
@@ -277,6 +279,15 @@ func (l Limits) Validate() error {
 	}
 	if l.MemoryLimit == "" {
 		problems = append(problems, "memory_limit must not be empty")
+	} else if l.MemoryHigh != "" {
+		highBytes, err1 := ParseMemoryBytes(l.MemoryHigh)
+		limitBytes, err2 := ParseMemoryBytes(l.MemoryLimit)
+		if err1 != nil {
+			problems = append(problems, fmt.Sprintf("invalid memory_high: %v", err1))
+		}
+		if err2 == nil && err1 == nil && highBytes > limitBytes {
+			problems = append(problems, fmt.Sprintf("memory_high %s exceeds memory_limit %s", l.MemoryHigh, l.MemoryLimit))
+		}
 	}
 	if l.DiskLimit == "" {
 		problems = append(problems, "disk_limit must not be empty")

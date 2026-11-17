@@ -187,6 +187,24 @@ func TestValidateAcceptsBoundaryValues(t *testing.T) {
 	}
 }
 
+func TestLimits_MemoryHighValidation(t *testing.T) {
+	// Valid MemoryHigh <= MemoryLimit
+	valid := DefaultLimits()
+	valid.MemoryLimit = "512m"
+	valid.MemoryHigh = "450m"
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("expected valid MemoryHigh to pass, got: %v", err)
+	}
+
+	// Invalid: MemoryHigh > MemoryLimit
+	invalid := DefaultLimits()
+	invalid.MemoryLimit = "512m"
+	invalid.MemoryHigh = "600m"
+	if err := invalid.Validate(); err == nil || !contains(err.Error(), "exceeds memory_limit") {
+		t.Fatalf("expected error when MemoryHigh exceeds MemoryLimit, got: %v", err)
+	}
+}
+
 func TestStringSummary(t *testing.T) {
 	l := DefaultLimits()
 	s := l.String()

@@ -97,6 +97,8 @@ type Spec struct {
 	User string
 	// MemoryLimit specifies the memory cgroup ceiling (e.g., "512m").
 	MemoryLimit string
+	// MemoryHigh specifies the soft memory throttling threshold (e.g., "450m").
+	MemoryHigh string
 	// CPUQuota specifies the CPU quota (e.g., "0.75" or "2").
 	CPUQuota string
 	// PIDsLimit specifies the maximum process count to prevent fork bombs.
@@ -393,6 +395,7 @@ type Result struct {
 	Findings         []byte
 	OutputEnvelope   []byte
 	OOMKilled        bool
+	PIDLimitExceeded bool
 	DeadlineExceeded bool
 	Cancelled        bool
 	LifecycleState   LifecycleState
@@ -407,13 +410,14 @@ type ExitError struct {
 
 func (e *ExitError) Error() string {
 	if e.Result != nil {
-		return fmt.Sprintf("sandbox: image=%s exit=%d oom=%v deadline=%v: %v", e.Spec.Image, e.Result.ExitCode, e.Result.OOMKilled, e.Result.DeadlineExceeded, e.Err)
+		return fmt.Sprintf("sandbox: image=%s exit=%d oom=%v pid_exhausted=%v deadline=%v: %v", e.Spec.Image, e.Result.ExitCode, e.Result.OOMKilled, e.Result.PIDLimitExceeded, e.Result.DeadlineExceeded, e.Err)
 	}
 	return fmt.Sprintf("sandbox: image=%s: %v", e.Spec.Image, e.Err)
 }
-func (e *ExitError) Unwrap() error         { return e.Err }
-func (r *Result) IsDeadlineExceeded() bool { return r.DeadlineExceeded }
-func (r *Result) IsOOM() bool              { return r.OOMKilled }
+func (e *ExitError) Unwrap() error          { return e.Err }
+func (r *Result) IsDeadlineExceeded() bool  { return r.DeadlineExceeded }
+func (r *Result) IsOOM() bool               { return r.OOMKilled }
+func (r *Result) IsPIDExhausted() bool      { return r.PIDLimitExceeded }
 
 var (
 	_ Executor = (*OCIExecutor)(nil)
