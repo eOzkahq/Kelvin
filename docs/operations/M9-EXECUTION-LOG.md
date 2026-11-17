@@ -31,3 +31,16 @@
   - `apps/worker/internal/daemon/daemon_test.go:TestDaemon_DistributedLeasePreventsDuplicateExecution`
   - Updated mock queue implementations in `apps/api/internal/assessments/assessment_test.go` and `apps/api/internal/httpapi/m7_integration_test.go`.
 - Ran full workspace tests across all modules (100% passing).
+- Merged PR #644 into `main` (commit `1e38211`), automatically closing Issue #640.
+
+### 2026-11-17 — Issue #641 Implementation (M9.1-02)
+- Authored authoritative `JobEnvelope` (Schema Version 2) in `packages/common/queue/envelope.go`.
+- Added strict schema validation rules covering UUIDs, target address, deadlines, and UTC expiration checks (`ErrJobExpired`).
+- Implemented `UnpackJobEnvelope` with native v2 support and seamless v1 backward compatibility.
+- Updated `apps/api/internal/assessments/service.go` to construct and serialize v2 envelopes with target ID, profile, expiration, and actor attribution.
+- Updated `apps/worker/internal/daemon/daemon.go` to validate envelope and expiration immediately upon dequeue, failing closed on expired or malformed jobs.
+- Added comprehensive unit tests in:
+  - `packages/common/queue/envelope_test.go`
+  - `apps/api/internal/assessments/assessment_test.go` (`TestAssessmentCreation_AuthoritativeEnvelopeV2`)
+  - `apps/worker/internal/daemon/daemon_test.go` (`TestDaemon_RejectsExpiredJobEnvelope`)
+- Verified all workspace test suites pass cleanly.

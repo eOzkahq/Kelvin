@@ -13,6 +13,7 @@ import (
 // Job is one unit of scanner work dispatched by the control plane
 // (ADR-0003: Redis broker; database remains job-state source of truth).
 type Job struct {
+	Version       int
 	ID            string
 	AssessmentID  string
 	TenantID      string
@@ -100,7 +101,18 @@ func (r *RedisQueue) Dequeue(ctx context.Context) (Job, error) {
 	r.mu.Lock()
 	r.deliveries[d.Message.ID] = d
 	r.mu.Unlock()
-	return Job{ID: d.Message.ID, AssessmentID: d.Message.AssessmentID, TenantID: d.Message.TenantID, CorrelationID: d.Message.CorrelationID, Type: d.Message.Type, Payload: d.Message.Payload, WorkerToken: d.Message.WorkerToken, DeliveryID: d.DeliveryID, Attempts: d.Attempts}, nil
+	return Job{
+		Version:       d.Message.Version,
+		ID:            d.Message.ID,
+		AssessmentID:  d.Message.AssessmentID,
+		TenantID:      d.Message.TenantID,
+		CorrelationID: d.Message.CorrelationID,
+		Type:          d.Message.Type,
+		Payload:       d.Message.Payload,
+		WorkerToken:   d.Message.WorkerToken,
+		DeliveryID:    d.DeliveryID,
+		Attempts:      d.Attempts,
+	}, nil
 }
 func (r *RedisQueue) Complete(ctx context.Context, j Job) error {
 	d, ok := r.delivery(j)

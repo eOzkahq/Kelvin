@@ -2,8 +2,8 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -166,20 +166,6 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		}()
 	}
 
-	if cfg.ReadinessChecker != nil && job.Type != JobTypeAssessment && job.Type != JobTypePipeline {
-		if !cfg.ReadinessChecker.IsScannerReady(ctx, job.Type) {
-			fail(jobLog, q, ctx, job, fmt.Sprintf("scanner %q runtime readiness check failed", job.Type))
-			return
-		}
-	}
-
-	if job.Type != JobTypeAssessment && job.Type != JobTypePipeline {
-		if _, ok := registry.LookupExecutable(job.Type); !ok {
-			fail(jobLog, q, ctx, job, "no executable adapter registered for job type")
-			return
-		}
-	}
-
 	task, err := taskFromJob(job)
 	if err == nil {
 		err = adapters.ValidateTask(task)
@@ -187,6 +173,25 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 	if err != nil {
 		fail(jobLog, q, ctx, job, err.Error())
 		return
+	}
+
+	isAssessmentPipeline := strings.EqualFold(job.Type, JobTypeAssessment) || strings.EqualFold(job.Type, JobTypePipeline)
+
+	if !isAssessmentPipeline {
+		scannerKey := strings.ToLower(job.Type)
+		if cfg.ReadinessChecker != nil {
+			if !cfg.ReadinessChecker.IsScannerReady(ctx, scannerKey) && !cfg.ReadinessChecker.IsScannerReady(ctx, job.Type) {
+				fail(jobLog, q, ctx, job, fmt.Sprintf("scanner %q runtime readiness check failed", job.Type))
+				return
+			}
+		}
+
+		if _, ok := registry.LookupExecutable(job.Type); !ok {
+			if _, ok := registry.LookupExecutable(scannerKey); !ok {
+				fail(jobLog, q, ctx, job, "no executable adapter registered for job type")
+				return
+			}
+		}
 	}
 
 	// Fail closed if CanaryOnly is active and the target is not on the canary allowlist
@@ -202,7 +207,7 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 	}
 
 	// Prevent workers from accepting unvalidated execution requests
-	if task.ProfileID != "" && job.Type != JobTypeAssessment && job.Type != JobTypePipeline {
+	if task.ProfileID != "" && !isAssessmentPipeline {
 		if _, err := adapters.ValidateProfileSelection(task.ProfileID, task.Scanner); err != nil {
 			fail(jobLog, q, ctx, job, "unauthorized scanner for assessment profile: "+err.Error())
 			return
@@ -302,7 +307,7 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 	var result *sandbox.Result
 	var execErr error
 
-	if job.Type == JobTypeAssessment || job.Type == JobTypePipeline {
+	if isAssessmentPipeline {
 		result, execErr = orchestrator.ExecutePipeline(jobCtx, jobLog, task, cfg)
 	} else {
 		result, execErr = orchestrator.ExecuteScanner(jobCtx, jobLog, task, cfg)
@@ -375,22 +380,43 @@ func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.
 }
 
 func taskFromJob(job queue.Job) (adapters.Task, error) {
-	var payload struct {
-		Target              string          `json:"target"`
-		ProfileID           string          `json:"profile_id"`
-		Params              json.RawMessage `json:"params,omitempty"`
-		HardDeadlineSeconds int64           `json:"hard_deadline_seconds"`
+	msg := commonqueue.Message{
+		Version:       job.Version,
+		ID:            job.ID,
+		AssessmentID:  job.AssessmentID,
+		TenantID:      job.TenantID,
+		CorrelationID: job.CorrelationID,
+		Type:          job.Type,
+		Payload:       job.Payload,
 	}
-	if len(job.Payload) > 0 {
-		if err := json.Unmarshal(job.Payload, &payload); err != nil {
-			return adapters.Task{}, fmt.Errorf("invalid job payload: %w", err)
+	if msg.Version == 0 {
+		if bytes.Contains(job.Payload, []byte(`"schema_version":2`)) || bytes.Contains(job.Payload, []byte(`"schema_version": 2`)) {
+			msg.Version = 2
+		} else {
+			msg.Version = 1
 		}
 	}
-	deadline := time.Duration(payload.HardDeadlineSeconds) * time.Second
+	env, err := commonqueue.UnpackJobEnvelope(msg)
+	if err != nil {
+		return adapters.Task{}, fmt.Errorf("job envelope validation failed: %w", err)
+	}
+
+	deadline := time.Duration(env.HardDeadlineSeconds) * time.Second
 	if deadline <= 0 {
 		deadline = 10 * time.Minute
 	}
-	return adapters.Task{JobID: job.ID, AssessmentID: job.AssessmentID, TenantID: job.TenantID, CorrelationID: job.CorrelationID, Scanner: job.Type, Target: payload.Target, ProfileID: payload.ProfileID, HardDeadline: deadline, Payload: payload.Params}, nil
+
+	return adapters.Task{
+		JobID:         env.JobID,
+		AssessmentID:  env.AssessmentID,
+		TenantID:      env.TenantID,
+		CorrelationID: env.CorrelationID,
+		Scanner:       job.Type,
+		Target:        env.TargetAddress,
+		ProfileID:     env.ScanProfile,
+		HardDeadline:  deadline,
+		Payload:       env.CustomParameters,
+	}, nil
 }
 
 func specFromTask(task adapters.Task, imageReference string, invocation sandbox.ProcessInvocation, workspaceDir string) sandbox.Spec {
