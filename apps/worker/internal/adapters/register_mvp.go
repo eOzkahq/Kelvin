@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
@@ -94,9 +95,22 @@ func DefaultZAPVerifier(_ context.Context) (RuntimeVersionInfo, error) {
 
 // NewOCINucleiRunner creates a runner that executes Nuclei inside the isolated OCI container sandbox.
 func NewOCINucleiRunner(executor sandbox.Executor) NucleiReportRunner {
+	return NewOCINucleiRunnerWithScope(executor, DefaultScopePolicyProvider)
+}
+
+// NewOCINucleiRunnerWithScope creates a runner that validates scope bounds before executing Nuclei.
+func NewOCINucleiRunnerWithScope(executor sandbox.Executor, policyProvider ScopePolicyProvider) NucleiReportRunner {
+	if policyProvider == nil {
+		policyProvider = DefaultScopePolicyProvider
+	}
 	return func(ctx context.Context, task Task) ([]byte, error) {
 		if executor == nil {
 			return nil, errors.New("adapters: sandbox executor is unavailable")
+		}
+		if pol, err := policyProvider(ctx, task); err == nil {
+			if _, _, err := pol.Validate(ctx, task.Target); err != nil {
+				return nil, fmt.Errorf("adapters: target %q rejected by scope policy: %w", task.Target, err)
+			}
 		}
 		imgRef := PinnedNucleiImageReference
 		imgDigest := PinnedNucleiImageDigest
@@ -138,9 +152,22 @@ func NewOCINucleiRunner(executor sandbox.Executor) NucleiReportRunner {
 
 // NewOCIZAPRunner creates a runner that executes ZAP baseline or active scan inside the isolated OCI container sandbox.
 func NewOCIZAPRunner(executor sandbox.Executor) ZAPReportRunner {
+	return NewOCIZAPRunnerWithScope(executor, DefaultScopePolicyProvider)
+}
+
+// NewOCIZAPRunnerWithScope creates a runner that validates scope bounds before executing ZAP.
+func NewOCIZAPRunnerWithScope(executor sandbox.Executor, policyProvider ScopePolicyProvider) ZAPReportRunner {
+	if policyProvider == nil {
+		policyProvider = DefaultScopePolicyProvider
+	}
 	return func(ctx context.Context, task Task) ([]byte, error) {
 		if executor == nil {
 			return nil, errors.New("adapters: sandbox executor is unavailable")
+		}
+		if pol, err := policyProvider(ctx, task); err == nil {
+			if _, _, err := pol.Validate(ctx, task.Target); err != nil {
+				return nil, fmt.Errorf("adapters: target %q rejected by scope policy: %w", task.Target, err)
+			}
 		}
 		imgRef := PinnedZAPImageReference
 		imgDigest := PinnedZAPImageDigest

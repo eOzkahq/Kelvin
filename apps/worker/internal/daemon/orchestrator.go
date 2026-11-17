@@ -405,6 +405,27 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		_ = tracker.TransitionTo(ctx, progress.StageOutputCollection, "collecting scanner output and diagnostics")
 		_ = tracker.TransitionTo(ctx, progress.StageResultNormalization, "normalizing findings into canonical schema")
 
+		// Scope validation & finding quarantine
+		var validatorPolicy scope.Policy
+		if cfg.ScopePolicyProvider != nil {
+			if p, pErr := cfg.ScopePolicyProvider(ctx, task); pErr == nil {
+				validatorPolicy = p
+			}
+		}
+		var scopeVal *scopevalidator.Validator
+		if len(validatorPolicy.Domains) > 0 || len(validatorPolicy.Prefixes) > 0 {
+			scopeVal = scopevalidator.New(validatorPolicy, jobLog)
+		} else {
+			scopeVal, _ = scopevalidator.NewFromTarget(task.Target, jobLog)
+		}
+		if scopeVal != nil && len(res.Findings) > 0 {
+			accepted, violations, _ := scopeVal.FilterFindings(ctx, res.Findings)
+			res.Findings = accepted
+			if len(violations) > 0 {
+				res.Diagnostics = append(res.Diagnostics, scopevalidator.ToDiagnostics(violations)...)
+			}
+		}
+
 		if err := o.registry.StampOutput(task.Scanner, &res); err != nil {
 			err = fmt.Errorf("stamp output failed: %w", err)
 			_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
@@ -1151,7 +1172,19 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 			if len(subResult.OutputEnvelope) > 0 {
 				env, err := adapters.DecodeOutputEnvelope(subResult.OutputEnvelope)
 				if err == nil {
-					if scopeVal, vErr := scopevalidator.NewFromTarget(task.Target, jobLog); vErr == nil {
+					var validatorPolicy scope.Policy
+					if cfg.ScopePolicyProvider != nil {
+						if p, pErr := cfg.ScopePolicyProvider(assessmentCtx, task); pErr == nil {
+							validatorPolicy = p
+						}
+					}
+					var scopeVal *scopevalidator.Validator
+					if len(validatorPolicy.Domains) > 0 || len(validatorPolicy.Prefixes) > 0 {
+						scopeVal = scopevalidator.New(validatorPolicy, jobLog)
+					} else {
+						scopeVal, _ = scopevalidator.NewFromTarget(task.Target, jobLog)
+					}
+					if scopeVal != nil {
 						accepted, violations, _ := scopeVal.FilterFindings(assessmentCtx, env.Findings)
 						env.Findings = accepted
 						if len(violations) > 0 {

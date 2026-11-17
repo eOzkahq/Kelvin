@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"net/url"
 	"strings"
@@ -82,13 +83,21 @@ func (v *Validator) ValidateTargetRef(ctx context.Context, targetRef string) err
 		return errors.New("scopevalidator: empty target reference")
 	}
 
-	// Extract hostname if targetRef is a full URL
+	// Extract hostname if targetRef is a full URL or path
 	targetCandidate := trimmed
 	if strings.Contains(targetCandidate, "://") {
 		u, err := url.Parse(targetCandidate)
 		if err == nil && u.Hostname() != "" {
 			targetCandidate = u.Hostname()
 		}
+	} else if strings.Contains(targetCandidate, "/") {
+		parts := strings.Split(targetCandidate, "/")
+		targetCandidate = parts[0]
+	}
+
+	// Strip port if present (e.g., host:port or [ip]:port)
+	if h, _, err := net.SplitHostPort(targetCandidate); err == nil {
+		targetCandidate = h
 	}
 
 	// First verify host allowance
@@ -125,18 +134,19 @@ func (v *Validator) FilterFindings(ctx context.Context, findings []json.RawMessa
 			title = fmt.Sprintf("finding-%d", i)
 		}
 
-		// Extract target references
+		// Extract target references from standard finding schema fields
 		targetMap, _ := f["target"].(map[string]any)
 		var refs []string
 		if targetMap != nil {
-			if asset, ok := targetMap["asset"].(string); ok && asset != "" {
-				refs = append(refs, asset)
+			for _, k := range []string{"asset", "url", "host", "endpoint", "uri", "ip"} {
+				if val, ok := targetMap[k].(string); ok && strings.TrimSpace(val) != "" {
+					refs = append(refs, strings.TrimSpace(val))
+				}
 			}
-			if u, ok := targetMap["url"].(string); ok && u != "" {
-				refs = append(refs, u)
-			}
-			if host, ok := targetMap["host"].(string); ok && host != "" {
-				refs = append(refs, host)
+		}
+		for _, k := range []string{"target_url", "host", "endpoint"} {
+			if val, ok := f[k].(string); ok && strings.TrimSpace(val) != "" {
+				refs = append(refs, strings.TrimSpace(val))
 			}
 		}
 

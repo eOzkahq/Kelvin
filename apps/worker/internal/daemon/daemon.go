@@ -4,6 +4,7 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
+	"github.com/kelvin/kelvin/apps/worker/internal/scopevalidator"
 	"github.com/kelvin/kelvin/apps/worker/internal/workspace"
 	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
 	"github.com/kelvin/kelvin/packages/common/scope"
@@ -443,16 +445,60 @@ func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.
 		return
 	}
 	if len(result.OutputEnvelope) > 0 {
-		if _, err := adapters.DecodeOutputEnvelope(result.OutputEnvelope); err != nil {
+		env, err := adapters.DecodeOutputEnvelope(result.OutputEnvelope)
+		if err != nil {
 			mark(metrics.CauseValidation)
 			fail(log, q, ctx, job, "scanner output envelope failed validation: "+err.Error(), cfg)
 			return
+		}
+		var validatorPolicy scope.Policy
+		if cfg.ScopePolicyProvider != nil {
+			if p, pErr := cfg.ScopePolicyProvider(ctx, task); pErr == nil {
+				validatorPolicy = p
+			}
+		}
+		var scopeVal *scopevalidator.Validator
+		if len(validatorPolicy.Domains) > 0 || len(validatorPolicy.Prefixes) > 0 {
+			scopeVal = scopevalidator.New(validatorPolicy, log)
+		} else {
+			scopeVal, _ = scopevalidator.NewFromTarget(task.Target, log)
+		}
+		if scopeVal != nil && len(env.Findings) > 0 {
+			accepted, violations, _ := scopeVal.FilterFindings(ctx, env.Findings)
+			if len(violations) > 0 {
+				env.Findings = accepted
+				env.Diagnostics = append(env.Diagnostics, scopevalidator.ToDiagnostics(violations)...)
+				if encoded, reErr := adapters.EncodeOutputEnvelope(env); reErr == nil {
+					result.OutputEnvelope = encoded
+				}
+			}
 		}
 	} else if len(result.Findings) > 0 {
 		if err := adapters.ValidateFindings(result.Findings); err != nil {
 			mark(metrics.CauseValidation)
 			fail(log, q, ctx, job, "findings failed schema validation: "+err.Error(), cfg)
 			return
+		}
+		var validatorPolicy scope.Policy
+		if cfg.ScopePolicyProvider != nil {
+			if p, pErr := cfg.ScopePolicyProvider(ctx, task); pErr == nil {
+				validatorPolicy = p
+			}
+		}
+		var scopeVal *scopevalidator.Validator
+		if len(validatorPolicy.Domains) > 0 || len(validatorPolicy.Prefixes) > 0 {
+			scopeVal = scopevalidator.New(validatorPolicy, log)
+		} else {
+			scopeVal, _ = scopevalidator.NewFromTarget(task.Target, log)
+		}
+		if scopeVal != nil {
+			var rawFindings []json.RawMessage
+			if err := json.Unmarshal(result.Findings, &rawFindings); err == nil && len(rawFindings) > 0 {
+				accepted, _, _ := scopeVal.FilterFindings(ctx, rawFindings)
+				if reencoded, mErr := json.Marshal(accepted); mErr == nil {
+					result.Findings = reencoded
+				}
+			}
 		}
 	}
 	mark(metrics.CauseCompleted)

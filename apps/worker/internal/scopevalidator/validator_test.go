@@ -147,3 +147,75 @@ func TestFilterFindingsRejectsMissingTarget(t *testing.T) {
 		t.Fatalf("unexpected violation: %+v", violations)
 	}
 }
+
+func TestFilterFindings_EndpointAndMetadataVariations(t *testing.T) {
+	v, err := scopevalidator.NewFromTarget("https://example.com", zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	findingWithEndpoint := func(title, endpoint string) json.RawMessage {
+		m := map[string]any{
+			"schema_version": "1.0",
+			"title":          title,
+			"severity":       "HIGH",
+			"confidence":     0.9,
+			"target": map[string]any{
+				"endpoint": endpoint,
+			},
+			"vulnerability": map[string]any{"template_id": "test"},
+			"scanner":       map[string]any{"name": "nuclei", "adapter_version": "1.0.0"},
+			"discovered_at": "2026-11-02T00:00:00Z",
+		}
+		raw, _ := json.Marshal(m)
+		return raw
+	}
+
+	findingWithIP := func(title, ipStr string) json.RawMessage {
+		m := map[string]any{
+			"schema_version": "1.0",
+			"title":          title,
+			"severity":       "HIGH",
+			"confidence":     0.9,
+			"target": map[string]any{
+				"ip": ipStr,
+			},
+			"vulnerability": map[string]any{"template_id": "test"},
+			"scanner":       map[string]any{"name": "zap", "adapter_version": "1.0.0"},
+			"discovered_at": "2026-11-02T00:00:00Z",
+		}
+		raw, _ := json.Marshal(m)
+		return raw
+	}
+
+	findings := []json.RawMessage{
+		findingWithEndpoint("Valid Endpoint Finding", "https://example.com/api/v1/auth"),
+		findingWithEndpoint("AWS Metadata Pivot", "http://169.254.169.254/latest/meta-data"),
+		findingWithEndpoint("Google Metadata Pivot", "http://metadata.google.internal/computeMetadata/v1/"),
+		findingWithIP("Loopback Pivot", "127.0.0.1"),
+		findingWithIP("Link-Local IPv6 Pivot", "fe80::1"),
+		findingWithEndpoint("Out-of-Scope Target", "https://evil.attacker.com/webhook"),
+	}
+
+	accepted, violations, err := v.FilterFindings(context.Background(), findings)
+	if err != nil {
+		t.Fatalf("unexpected filter error: %v", err)
+	}
+
+	if len(accepted) != 1 {
+		t.Fatalf("expected exactly 1 accepted finding, got %d", len(accepted))
+	}
+	if len(violations) != 5 {
+		t.Fatalf("expected 5 quarantined violations, got %d", len(violations))
+	}
+
+	diags := scopevalidator.ToDiagnostics(violations)
+	if len(diags) != 5 {
+		t.Fatalf("expected 5 diagnostics, got %d", len(diags))
+	}
+	for _, d := range diags {
+		if d.Code != "OUT_OF_SCOPE_TARGET_REJECTED" {
+			t.Errorf("expected diagnostic code OUT_OF_SCOPE_TARGET_REJECTED, got %s", d.Code)
+		}
+	}
+}

@@ -64,4 +64,22 @@ func TestRegisterDefaultAdapters(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, policy.Domains, "secure.example.com")
 	})
+
+	t.Run("OCI runners enforce scope policy before execution", func(t *testing.T) {
+		fakeExec := sandbox.NewFake()
+		nucleiRunner := adapters.NewOCINucleiRunner(fakeExec)
+		zapRunner := adapters.NewOCIZAPRunner(fakeExec)
+
+		// Loopback target should be rejected by both runners
+		loopbackTask := adapters.Task{
+			Target: "http://127.0.0.1:8080/admin",
+		}
+		_, err := nucleiRunner(ctx, loopbackTask)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "rejected by scope policy")
+
+		_, err = zapRunner(ctx, loopbackTask)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "rejected by scope policy")
+	})
 }
