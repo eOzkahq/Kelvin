@@ -4,10 +4,107 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
 )
+
+const NucleiCuratedTemplatePath = "/opt/kelvin/templates/kelvin.safe.web.v1"
+
+// NucleiProfileControls specifies profile-driven parameters for Nuclei execution.
+type NucleiProfileControls struct {
+	ProfileID   string
+	Tags        []string
+	ExcludeTags []string
+	Severities  []string
+	RateLimit   int
+	Concurrency int
+	Timeout     int
+}
+
+// ResolveNucleiProfile maps standard, deep, and safeweb profiles to their curated controls.
+func ResolveNucleiProfile(profileID string) NucleiProfileControls {
+	canonical := strings.TrimSpace(profileID)
+	switch canonical {
+	case "deep", ProfileDeep:
+		return NucleiProfileControls{
+			ProfileID:   ProfileDeep,
+			Tags:        []string{"cve", "misconfig", "exposure", "vuln", "takeover"},
+			ExcludeTags: []string{"dos", "fuzz"},
+			Severities:  []string{"info", "low", "medium", "high", "critical"},
+			RateLimit:   5,
+			Concurrency: 2,
+			Timeout:     15,
+		}
+	case "safeweb", "safe_web", ProfileSafeWeb:
+		return NucleiProfileControls{
+			ProfileID:   ProfileSafeWeb,
+			Tags:        []string{"safe", "web", "exposure"},
+			ExcludeTags: []string{"dos", "fuzz", "intrusive", "sqli", "rce"},
+			Severities:  []string{"info", "low", "medium"},
+			RateLimit:   2,
+			Concurrency: 1,
+			Timeout:     10,
+		}
+	default:
+		return NucleiProfileControls{
+			ProfileID:   ProfileStandard,
+			Tags:        []string{"cve", "misconfig", "exposure"},
+			ExcludeTags: []string{"dos", "fuzz", "intrusive"},
+			Severities:  []string{"info", "low", "medium"},
+			RateLimit:   2,
+			Concurrency: 2,
+			Timeout:     10,
+		}
+	}
+}
+
+// BuildNucleiArgs constructs the deterministic, hardened, profile-driven argv for Nuclei.
+func BuildNucleiArgs(task Task) []string {
+	controls := ResolveNucleiProfile(task.ProfileID)
+
+	rateLimit := controls.RateLimit
+	concurrency := controls.Concurrency
+	timeout := controls.Timeout
+	severities := controls.Severities
+	tags := controls.Tags
+	excludeTags := controls.ExcludeTags
+
+	if len(task.Payload) > 0 && string(task.Payload) != "null" {
+		if cfg, err := DecodeScannerConfig(task.Payload); err == nil && cfg.ScannerID == ScannerNuclei {
+			if cfg.RequestsPerSecond > 0 && cfg.RequestsPerSecond <= 5 {
+				rateLimit = cfg.RequestsPerSecond
+			}
+			if cfg.MaxConcurrency > 0 && cfg.MaxConcurrency <= 2 {
+				concurrency = cfg.MaxConcurrency
+			}
+			if cfg.RequestTimeoutSeconds > 0 && cfg.RequestTimeoutSeconds <= 30 {
+				timeout = cfg.RequestTimeoutSeconds
+			}
+			if cfg.Nuclei != nil && len(cfg.Nuclei.SeverityAllowlist) > 0 {
+				severities = cfg.Nuclei.SeverityAllowlist
+			}
+		}
+	}
+
+	args := []string{
+		"-duc",
+		"-u", task.Target,
+		"-t", NucleiCuratedTemplatePath,
+		"-tags", strings.Join(tags, ","),
+		"-exclude-tags", strings.Join(excludeTags, ","),
+		"-severity", strings.Join(severities, ","),
+		"-rl", strconv.Itoa(rateLimit),
+		"-c", strconv.Itoa(concurrency),
+		"-timeout", strconv.Itoa(timeout),
+		"-jsonl",
+		"-silent",
+		"-no-color",
+	}
+	return args
+}
 
 // NucleiReportRunner returns the raw JSONL output copied/streamed from a
 // completed, bounded Nuclei container execution. Production wiring sources
