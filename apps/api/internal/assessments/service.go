@@ -140,22 +140,42 @@ func (s *Service) CreateAssessment(ctx context.Context, tenantID, userID string,
 			deadlineSeconds = 600 // 10 minutes default
 		}
 
-		jobType := "assessment"
+		jobType := "ASSESSMENT"
 		if len(selectedProfile.Scanners) == 1 {
-			jobType = selectedProfile.Scanners[0]
+			jobType = strings.ToUpper(selectedProfile.Scanners[0])
 		}
 
-		payloadMap := map[string]any{
-			"target":                targetAddress,
-			"profile_id":            selectedProfile.ID,
-			"hard_deadline_seconds": deadlineSeconds,
-			"scanners":              selectedProfile.Scanners,
-			"rate_limit":            input.RateLimit,
+		now := time.Now().UTC()
+		expiresAt := now.Add(time.Duration(deadlineSeconds*2) * time.Second)
+
+		targetID := input.TargetID
+		if targetID == "" {
+			targetID = uuid.New().String()
 		}
-		payloadBytes, _ := json.Marshal(payloadMap)
+
+		envelope := commonqueue.JobEnvelope{
+			SchemaVersion:       2,
+			JobID:               jobID,
+			AssessmentID:        asmtID,
+			TenantID:            tenantID,
+			TargetID:            targetID,
+			TargetAddress:       targetAddress,
+			ScanProfile:         selectedProfile.ID,
+			RequestedScanners:   selectedProfile.Scanners,
+			RateLimit:           fmt.Sprintf("%d", input.RateLimit),
+			HardDeadlineSeconds: deadlineSeconds,
+			CreatedAt:           now,
+			ExpiresAt:           expiresAt,
+			CorrelationID:       correlationID,
+		}
+
+		payloadBytes, err := json.Marshal(envelope)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal job envelope: %w", err)
+		}
 
 		queueMsg := commonqueue.Message{
-			Version:       1,
+			Version:       2,
 			ID:            jobID,
 			AssessmentID:  asmtID,
 			TenantID:      tenantID,

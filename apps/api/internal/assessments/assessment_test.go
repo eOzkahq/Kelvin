@@ -232,3 +232,58 @@ func TestProfilesAndTargetsCatalog(t *testing.T) {
 		t.Errorf("expected at least 2 canary targets, got %d", len(targets))
 	}
 }
+
+func TestAssessmentCreation_AuthoritativeEnvelopeV2(t *testing.T) {
+	repo := assessments.NewMemoryRepository()
+	q := &mockQueue{}
+	allowedTargets := []string{"scanner-mock.kelvin.internal"}
+	svc := assessments.NewService(repo, q, true, allowedTargets, zap.NewNop())
+
+	tenantID := uuid.New().String()
+	userID := uuid.New().String()
+	asmt, err := svc.CreateAssessment(context.Background(), tenantID, userID, assessments.CreateAssessmentInput{
+		Name:                     "Envelope V2 Audit",
+		TargetAddress:            "scanner-mock.kelvin.internal",
+		ProfileID:                "standard",
+		TimeoutMinutes:           15,
+		AuthorizedScopeConfirmed: true,
+	})
+	if err != nil {
+		t.Fatalf("expected create assessment to succeed: %v", err)
+	}
+
+	if len(q.enqueued) != 1 {
+		t.Fatalf("expected 1 enqueued message, got %d", len(q.enqueued))
+	}
+
+	msg := q.enqueued[0]
+	if msg.Version != 2 {
+		t.Errorf("expected queue message version 2, got %d", msg.Version)
+	}
+	if msg.AssessmentID != asmt.ID {
+		t.Errorf("expected assessment ID %s, got %s", asmt.ID, msg.AssessmentID)
+	}
+
+	// Validate message contract
+	if err := msg.Validate(); err != nil {
+		t.Fatalf("message validation failed: %v", err)
+	}
+
+	// Unpack and verify authoritative envelope
+	env, err := commonqueue.UnpackJobEnvelope(msg)
+	if err != nil {
+		t.Fatalf("failed to unpack envelope: %v", err)
+	}
+	if env.SchemaVersion != 2 {
+		t.Errorf("expected envelope schema version 2, got %d", env.SchemaVersion)
+	}
+	if env.TargetAddress != "scanner-mock.kelvin.internal" {
+		t.Errorf("expected target address scanner-mock.kelvin.internal, got %s", env.TargetAddress)
+	}
+	if env.HardDeadlineSeconds != 15*60 {
+		t.Errorf("expected deadline 900s, got %d", env.HardDeadlineSeconds)
+	}
+	if env.ExpiresAt.Before(time.Now().UTC()) {
+		t.Errorf("envelope already expired: %s", env.ExpiresAt)
+	}
+}

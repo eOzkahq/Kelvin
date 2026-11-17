@@ -37,13 +37,34 @@ type Message struct {
 }
 
 func (m Message) Validate() error {
-	if m.Version != 1 || !validation.IsUUID(m.ID) || !validation.IsUUID(m.AssessmentID) || !validation.IsUUID(m.TenantID) ||
+	if (m.Version != 1 && m.Version != 2) || !validation.IsUUID(m.ID) || !validation.IsUUID(m.AssessmentID) || !validation.IsUUID(m.TenantID) ||
 		!validation.IsCorrelationID(m.CorrelationID) || !validation.IsWireEnum(m.Type) || len(m.Type) > 64 || m.MaxAttempts < 1 || m.MaxAttempts > 20 {
 		return fmt.Errorf("%w: required fields or bounds failed", ErrInvalidMessage)
 	}
 	payload := bytes.TrimSpace(m.Payload)
 	if len(payload) == 0 || !json.Valid(payload) || string(payload) == "null" || payload[0] != '{' {
 		return fmt.Errorf("%w: payload must be a JSON object", ErrInvalidMessage)
+	}
+	if m.Version == 2 {
+		var env JobEnvelope
+		if err := json.Unmarshal(payload, &env); err != nil {
+			return fmt.Errorf("%w: failed to unmarshal v2 envelope: %v", ErrInvalidMessage, err)
+		}
+		if env.JobID == "" {
+			env.JobID = m.ID
+		}
+		if env.AssessmentID == "" {
+			env.AssessmentID = m.AssessmentID
+		}
+		if env.TenantID == "" {
+			env.TenantID = m.TenantID
+		}
+		if env.CorrelationID == "" {
+			env.CorrelationID = m.CorrelationID
+		}
+		if err := env.Validate(); err != nil {
+			return fmt.Errorf("%w: envelope validation failed: %v", ErrInvalidMessage, err)
+		}
 	}
 	if m.WorkerToken != "" && len(m.WorkerToken) > 4096 {
 		return fmt.Errorf("%w: worker token too long", ErrInvalidMessage)

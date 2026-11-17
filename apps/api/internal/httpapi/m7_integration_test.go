@@ -300,8 +300,8 @@ func TestMilestone7_25Scenarios(t *testing.T) {
 			t.Fatalf("expected at least 2 enqueued messages, got %d", len(h.queue.enqueued))
 		}
 		msg := h.queue.enqueued[0]
-		if msg.Version != 1 {
-			t.Errorf("expected message version 1, got %d", msg.Version)
+		if msg.Version != 1 && msg.Version != 2 {
+			t.Errorf("expected message version 1 or 2, got %d", msg.Version)
 		}
 		if msg.AssessmentID != asmtA_ID {
 			t.Errorf("expected assessment ID %s, got %s", asmtA_ID, msg.AssessmentID)

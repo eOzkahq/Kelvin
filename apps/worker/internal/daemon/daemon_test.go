@@ -542,3 +542,59 @@ func TestDaemon_DistributedLeasePreventsDuplicateExecution(t *testing.T) {
 		t.Fatalf("expected 0 failed jobs (silent skip on duplicate), got %d: %v", len(q.failed), q.failedReasons)
 	}
 }
+
+func TestDaemon_RejectsExpiredJobEnvelope(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reg := adapters.NewRegistry()
+	if err := registerStub(reg); err != nil {
+		t.Fatalf("failed to register stub: %v", err)
+	}
+
+	q := newRecordingQueue()
+	jobID := "123e4567-e89b-12d3-a456-426614174099"
+	expiredEnv := commonqueue.JobEnvelope{
+		SchemaVersion:       2,
+		JobID:               jobID,
+		AssessmentID:        "123e4567-e89b-12d3-a456-426614174001",
+		TenantID:            "123e4567-e89b-12d3-a456-426614174002",
+		TargetAddress:       "https://example.test",
+		ScanProfile:         "standard",
+		RequestedScanners:   []string{adapters.ScannerNuclei},
+		HardDeadlineSeconds: 10,
+		CreatedAt:           time.Now().UTC().Add(-1 * time.Hour),
+		ExpiresAt:           time.Now().UTC().Add(-10 * time.Minute), // expired
+		CorrelationID:       "corr-expired-test",
+	}
+	payloadBytes, _ := json.Marshal(expiredEnv)
+
+	job := queue.Job{
+		Version:       2,
+		ID:            jobID,
+		AssessmentID:  expiredEnv.AssessmentID,
+		TenantID:      expiredEnv.TenantID,
+		CorrelationID: expiredEnv.CorrelationID,
+		Type:          adapters.ScannerNuclei,
+		Payload:       payloadBytes,
+	}
+
+	cfg := Config{
+		WorkerID:       "worker-expired-test",
+		HeartbeatEvery: 5 * time.Second,
+	}
+
+	process(ctx, zap.NewNop(), q, reg, job, cfg)
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.completed) > 0 {
+		t.Fatalf("expected 0 completed jobs for expired envelope, got %d", len(q.completed))
+	}
+	if len(q.failed) != 1 {
+		t.Fatalf("expected 1 failed job for expired envelope, got %d", len(q.failed))
+	}
+	if !strings.Contains(q.failedReasons[0], "expired") {
+		t.Errorf("expected failure reason to contain 'expired', got %q", q.failedReasons[0])
+	}
+}
