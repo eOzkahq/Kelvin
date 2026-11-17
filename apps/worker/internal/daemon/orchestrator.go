@@ -25,6 +25,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/scannerprocess"
 	"github.com/kelvin/kelvin/apps/worker/internal/scopevalidator"
 	"github.com/kelvin/kelvin/apps/worker/internal/workspace"
+	"github.com/kelvin/kelvin/packages/common/scope"
 	"go.uber.org/zap"
 )
 
@@ -276,6 +277,32 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 
 	execCtx, cancel := context.WithTimeout(ctx, task.HardDeadline)
 	defer cancel()
+
+	// Authoritative Scope & Anti-SSRF Validation Guard
+	var scopePolicy scope.Policy
+	if cfg.ScopePolicyProvider != nil {
+		if p, pErr := cfg.ScopePolicyProvider(ctx, task); pErr == nil {
+			scopePolicy = p
+		}
+	}
+	if len(scopePolicy.Domains) == 0 && len(scopePolicy.Prefixes) == 0 {
+		scopePolicy, _ = adapters.DefaultScopePolicyProvider(ctx, task)
+	}
+	if _, _, err := scopePolicy.Validate(ctx, task.Target); err != nil {
+		err = fmt.Errorf("target scope validation failed: %w", err)
+		_ = tracker.FailStage(ctx, progress.StageStatusFailed, err.Error())
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncResourceViolation(metrics.ViolationNetwork)
+			cfg.Metrics.IncTermination(metrics.CauseNetwork)
+		}
+		o.logger.Warn("scanner target rejected by pre-execution scope policy",
+			zap.String("job_id", task.JobID),
+			zap.String("scanner", task.Scanner),
+			zap.String("target", task.Target),
+			zap.Error(err),
+		)
+		return nil, err
+	}
 
 	// Provision isolated per-execution workspace
 	wsMgr := o.ensureWorkspaceManager(cfg)

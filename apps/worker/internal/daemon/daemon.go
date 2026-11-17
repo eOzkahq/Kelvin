@@ -20,6 +20,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/apps/worker/internal/workspace"
 	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
+	"github.com/kelvin/kelvin/packages/common/scope"
 	"github.com/kelvin/kelvin/packages/common/tenant"
 	"go.uber.org/zap"
 )
@@ -214,6 +215,30 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 			fail(jobLog, q, ctx, job, fmt.Sprintf("rejected by canary-only execution policy: target %q not permitted", task.Target), cfg)
 			return
 		}
+	}
+
+	// Authoritative Pre-Execution Scope & Anti-SSRF Validation Guard
+	var scopePolicy scope.Policy
+	if cfg.ScopePolicyProvider != nil {
+		if p, pErr := cfg.ScopePolicyProvider(ctx, task); pErr == nil {
+			scopePolicy = p
+		}
+	}
+	if len(scopePolicy.Domains) == 0 && len(scopePolicy.Prefixes) == 0 {
+		scopePolicy, _ = adapters.DefaultScopePolicyProvider(ctx, task)
+	}
+	if _, _, err := scopePolicy.Validate(ctx, task.Target); err != nil {
+		jobLog.Warn("job rejected by pre-execution scope policy: target prohibited or out of scope",
+			zap.String("job_id", job.ID),
+			zap.String("target", task.Target),
+			zap.Error(err),
+		)
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncResourceViolation(metrics.ViolationNetwork)
+			cfg.Metrics.IncTermination(metrics.CauseNetwork)
+		}
+		fail(jobLog, q, ctx, job, "target scope validation failed: "+err.Error(), cfg)
+		return
 	}
 
 	// Prevent workers from accepting unvalidated execution requests

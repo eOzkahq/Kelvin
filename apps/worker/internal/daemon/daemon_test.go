@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
+	"net/netip"
 	"strings"
 	"sync"
 	"testing"
@@ -16,9 +18,29 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
+	"github.com/kelvin/kelvin/packages/common/scope"
 	"github.com/kelvin/kelvin/packages/schemas"
 	"go.uber.org/zap"
 )
+
+type testMockResolver struct {
+	fallback scope.Resolver
+}
+
+func (r testMockResolver) LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error) {
+	switch host {
+	case "approved.example.com", "scanner-mock.kelvin.internal", "example.test", "scan.example.com":
+		return []netip.Addr{netip.MustParseAddr("93.184.215.14")}, nil
+	}
+	if strings.HasSuffix(host, ".test") || strings.HasSuffix(host, ".example.com") {
+		return []netip.Addr{netip.MustParseAddr("93.184.215.14")}, nil
+	}
+	return r.fallback.LookupNetIP(ctx, network, host)
+}
+
+func init() {
+	scope.DefaultResolver = testMockResolver{fallback: net.DefaultResolver}
+}
 
 type recordingQueue struct {
 	inner         *queue.MemoryQueue
@@ -677,6 +699,137 @@ func TestDaemon_ResourceViolationMetrics_OOM_PIDs_Deadline(t *testing.T) {
 		}
 		if len(q.failed) != 1 || !strings.Contains(q.failedReasons[0], "deadline exceeded") {
 			t.Errorf("expected failure reason containing 'deadline exceeded', got %v", q.failedReasons)
+		}
+	}
+}
+
+func TestDaemon_PreExecutionScopeAndSSRFGuard(t *testing.T) {
+	ctx := context.Background()
+	reg := adapters.NewRegistry()
+	if err := registerStub(reg); err != nil {
+		t.Fatalf("failed to register stub: %v", err)
+	}
+	if err := reg.Initialize(ctx, zap.NewNop()); err != nil {
+		t.Fatalf("failed to initialize registry: %v", err)
+	}
+
+	// Case 1: Prohibited loopback target fails closed before execution
+	{
+		q := newRecordingQueue()
+		metricsReg := metrics.NewRegistry()
+		cfg := Config{
+			WorkerID: "worker-ssrf-test",
+			Metrics:  metricsReg,
+		}
+
+		jobID := "123e4567-e89b-12d3-a456-426614174095"
+		env := commonqueue.JobEnvelope{
+			SchemaVersion:       2,
+			JobID:               jobID,
+			AssessmentID:        "123e4567-e89b-12d3-a456-426614174001",
+			TenantID:            "123e4567-e89b-12d3-a456-426614174002",
+			TargetAddress:       "http://127.0.0.1:8080/internal",
+			ScanProfile:         "standard",
+			RequestedScanners:   []string{adapters.ScannerNuclei},
+			HardDeadlineSeconds: 30,
+			CreatedAt:           time.Now().UTC(),
+			ExpiresAt:           time.Now().UTC().Add(time.Hour),
+		}
+		payload, _ := json.Marshal(env)
+		job := queue.Job{
+			Version:       2,
+			ID:            jobID,
+			AssessmentID:  env.AssessmentID,
+			TenantID:      env.TenantID,
+			Type:          adapters.ScannerNuclei,
+			Payload:       payload,
+		}
+
+		process(ctx, zap.NewNop(), q, reg, job, cfg)
+
+		q.mu.Lock()
+		failedCount := len(q.failed)
+		var failedReason string
+		if failedCount > 0 {
+			failedReason = q.failedReasons[0]
+		}
+		q.mu.Unlock()
+
+		if failedCount != 1 {
+			t.Fatalf("expected 1 failed job on prohibited target, got %d", failedCount)
+		}
+		if !strings.Contains(failedReason, "scope validation failed") && !strings.Contains(failedReason, "prohibited") {
+			t.Errorf("expected failure reason mentioning scope/prohibited, got %q", failedReason)
+		}
+
+		snap := metricsReg.Snapshot()
+		if snap.ResourceViolations[metrics.ViolationNetwork] != 1 {
+			t.Errorf("expected 1 ViolationNetwork metric, got %d", snap.ResourceViolations[metrics.ViolationNetwork])
+		}
+		if snap.Terminations[metrics.CauseNetwork] != 1 {
+			t.Errorf("expected 1 CauseNetwork termination metric, got %d", snap.Terminations[metrics.CauseNetwork])
+		}
+	}
+
+	// Case 2: Out of scope domain rejected by ScopePolicyProvider
+	{
+		q := newRecordingQueue()
+		metricsReg := metrics.NewRegistry()
+		scopedPolicy, _ := scope.NewPolicy([]string{"authorized.example.com"}, nil, nil)
+		cfg := Config{
+			WorkerID: "worker-scope-test",
+			Metrics:  metricsReg,
+			ScopePolicyProvider: func(context.Context, adapters.Task) (scope.Policy, error) {
+				return scopedPolicy, nil
+			},
+		}
+
+		jobID := "123e4567-e89b-12d3-a456-426614174096"
+		env := commonqueue.JobEnvelope{
+			SchemaVersion:       2,
+			JobID:               jobID,
+			AssessmentID:        "123e4567-e89b-12d3-a456-426614174001",
+			TenantID:            "123e4567-e89b-12d3-a456-426614174002",
+			TargetAddress:       "https://unauthorized.target.com",
+			ScanProfile:         "standard",
+			RequestedScanners:   []string{adapters.ScannerNuclei},
+			HardDeadlineSeconds: 30,
+			CreatedAt:           time.Now().UTC(),
+			ExpiresAt:           time.Now().UTC().Add(time.Hour),
+		}
+		payload, _ := json.Marshal(env)
+		job := queue.Job{
+			Version:       2,
+			ID:            jobID,
+			AssessmentID:  env.AssessmentID,
+			TenantID:      env.TenantID,
+			Type:          adapters.ScannerNuclei,
+			Payload:       payload,
+		}
+
+		process(ctx, zap.NewNop(), q, reg, job, cfg)
+
+		q.mu.Lock()
+		failedCount := len(q.failed)
+		var failedReason string
+		if failedCount > 0 {
+			failedReason = q.failedReasons[0]
+		}
+		q.mu.Unlock()
+
+		if failedCount != 1 {
+			t.Fatalf("expected 1 failed job on out-of-scope target, got %d", failedCount)
+		}
+		if !strings.Contains(failedReason, "outside approved scope") && !strings.Contains(failedReason, "scope validation failed") {
+			t.Errorf("expected failure reason mentioning outside approved scope, got %q", failedReason)
+		}
+
+		snap := metricsReg.Snapshot()
+		if snap.ResourceViolations[metrics.ViolationNetwork] != 1 {
+			t.Errorf("expected 1 ViolationNetwork metric, got %d", snap.ResourceViolations[metrics.ViolationNetwork])
+		}
+		if snap.Terminations[metrics.CauseNetwork] != 1 {
+			t.Errorf("expected 1 CauseNetwork termination metric, got %d", snap.Terminations[metrics.CauseNetwork])
 		}
 	}
 }

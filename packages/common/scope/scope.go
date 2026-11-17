@@ -44,6 +44,9 @@ type Resolver interface {
 	LookupNetIP(context.Context, string, string) ([]netip.Addr, error)
 }
 
+// DefaultResolver is the default DNS resolver used when Policy.Resolver is nil.
+var DefaultResolver Resolver = net.DefaultResolver
+
 type Policy struct {
 	Domains  []string
 	Prefixes []netip.Prefix
@@ -352,6 +355,9 @@ func prefixProhibited(p netip.Prefix) bool {
 func (p Policy) resolver() Resolver {
 	if p.Resolver != nil {
 		return p.Resolver
+	}
+	if DefaultResolver != nil {
+		return DefaultResolver
 	}
 	return net.DefaultResolver
 }
