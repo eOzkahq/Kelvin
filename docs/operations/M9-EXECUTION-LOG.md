@@ -55,3 +55,15 @@
   - `apps/worker/internal/daemon/sync_test.go` (`TestStateSyncer_TransitionsRecorded`, `TestDaemon_StateSynchronizationOnFailure`, `TestDaemon_GracefulShutdownCleanupContext`)
   - `apps/worker/internal/readiness/http_test.go` (`TestReadinessHTTPHandler`)
 - Verified all workspace test suites pass cleanly (100%).
+- Merged PR #646 into `main` (commit `002ad4d`), automatically closing Issue #642.
+
+### 2026-11-17 — Issue #643 Implementation (M9.1-04)
+- Created hardened systemd service unit `deploy/staging/kelvin-worker.service` and synchronized `deploy/systemd/kelvin-worker.service`:
+  - Dedicated service user/group (`kelvin-worker:kelvin-worker`).
+  - Strict systemd sandbox directives (`ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp=true`, `NoNewPrivileges=true`).
+  - Resource caps (`CPUQuota=200%`, `MemoryHigh=1800M`, `MemoryMax=2G`, `TasksMax=256`).
+  - Read-only rootfs with isolated write paths (`/var/lib/kelvin/worker`, `/run/kelvin`, `/var/log/kelvin`).
+  - Graceful stop signal (`KillSignal=SIGTERM`, `TimeoutStopSec=30s`).
+- Authored local/lab verification script `scripts/test-worker-local.sh` for pre-deployment testing of worker binary build, HTTP health endpoints, and graceful SIGTERM shutdown.
+- Authored comprehensive operational and rollback runbook `docs/operations/WORKER_DEPLOYMENT_RUNBOOK.md`.
+- Confirmed safety invariant: `kelvin-worker.service` remains strictly `inactive` and `disabled` on Oracle host pending explicit activation approval.

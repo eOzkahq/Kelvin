@@ -28,8 +28,8 @@
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | M9.1 | #640 | M9.1-01: Redis Streams Consumer Group, Claim & Distributed Lease Engine | `feat/m9-1-redis-consumer-engine` | #644 | `1e38211` | Passed (100%) | Passed | MERGED |
 | M9.1 | #641 | M9.1-02: Authoritative Assessment Job Envelope & Schema Contract | `feat/m9-1-job-envelope-state-sync` | #645 | `a140a69` | Passed (100%) | Passed | MERGED |
-| M9.1 | #642 | M9.1-03: Worker Daemon Lifecycle, Heartbeats, State Sync & Graceful Shutdown | `feat/m9-1-worker-daemon-lifecycle` | TBD | Pending | Passed (100%) | Passed | Ready for PR |
-| M9.1 | #643 | M9.1-04: Worker Systemd Service, Packaging & Staging Deployment Hardening | `feat/m9-1-worker-deployment-hardening` | TBD | TBD | Pending | Pending | In Backlog |
+| M9.1 | #642 | M9.1-03: Worker Daemon Lifecycle, Heartbeats, State Sync & Graceful Shutdown | `feat/m9-1-worker-daemon-lifecycle` | #646 | `002ad4d` | Passed (100%) | Passed | MERGED |
+| M9.1 | #643 | M9.1-04: Worker Systemd Service, Packaging & Staging Deployment Hardening | `feat/m9-1-worker-deployment-hardening` | TBD | Pending | Passed (100%) | Passed | Ready for PR |
 
 ---
 
