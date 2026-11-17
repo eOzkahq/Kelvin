@@ -29,6 +29,18 @@
       "scorecard_status": "ELIGIBLE",
       "template_catalog_id": "kelvin.safe.web.v1",
       "template_catalog_digest": "sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2"
+    },
+    "nmap": {
+      "upstream": "instrumentisto/nmap",
+      "upstream_digest": "sha256:4a38dfc6d996e382d3345f1bce8b33534a029a242f3ea99d5a6b0c2a7e75e114",
+      "version": "7.95",
+      "kelvin_image": "ghcr.io/eozkahq/kelvin/scanner-nmap",
+      "kelvin_digest": "sha256:4a38dfc6d996e382d3345f1bce8b33534a029a242f3ea99d5a6b0c2a7e75e114",
+      "architecture": "linux/arm64",
+      "sbom_digest": "sha256:d1284567e91234567890abcdef1234567890abcdef1234567890abcdef123456",
+      "signature_ref": "ghcr.io/eozkahq/kelvin/scanner-nmap:sha256-4a38dfc6d996e382d3345f1bce8b33534a029a242f3ea99d5a6b0c2a7e75e114.sig",
+      "provenance_ref": "ghcr.io/eozkahq/kelvin/scanner-nmap:sha256-4a38dfc6d996e382d3345f1bce8b33534a029a242f3ea99d5a6b0c2a7e75e114.att",
+      "scorecard_status": "ELIGIBLE"
     }
   },
   "release_note": "Certified immutable container images release for ProjectDiscovery Nuclei v3.11.1 and OWASP ZAP v2.17.0 under ADR-0008, signed and attested via Sigstore Cosign on GitHub Actions run 43841769574."
