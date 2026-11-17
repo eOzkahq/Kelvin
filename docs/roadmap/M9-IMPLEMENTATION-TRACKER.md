@@ -14,7 +14,7 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **M9.1** | Worker Deployment and Redis Connectivity | Milestone #14 | **COMPLETED** | 0 / 4 | 4 |
 | **M9.2** | Scanner Isolation using Podman/crun | Milestone #15 | **COMPLETED** | 0 / 4 | 4 |
-| **M9.3** | Target Authorization, Scope Enforcement & SSRF | Milestone #16 | **ACTIVE** | 0 / 0 | 0 |
+| **M9.3** | Target Authorization, Scope Enforcement & SSRF | Milestone #16 | **ACTIVE** | 4 / 0 | 0 |
 | **M9.4** | Controlled Egress Proxy & Network Restrictions | Milestone #17 | PLANNED | 0 / 0 | 0 |
 | **M9.5** | Real Scanner Execution (Nmap, Nuclei, ZAP) | Milestone #18 | PLANNED | 0 / 0 | 0 |
 | **M9.6** | Finding Normalization & Evidence Collection | Milestone #19 | PLANNED | 0 / 0 | 0 |
@@ -34,6 +34,10 @@
 | M9.2 | #649 | M9.2-02: Cgroups v2 Enforceable Quotas & Process Limits Engine | `feat/m9-2-cgroups-resource-quotas` | #653 | `c5a36e4` | Passed (100%) | Passed | MERGED |
 | M9.2 | #650 | M9.2-03: Bounded Output Streaming, Output Cap & Parser Guard Isolation | `feat/m9-2-bounded-output-streaming` | #654 | `b23d045` | Passed (100%) | Passed | MERGED |
 | M9.2 | #651 | M9.2-04: Isolated Network Namespace & Container Teardown Cleanup Reaper | `feat/m9-2-network-isolation-reaper` | #655 | `26818d2` | Passed (100%) | Passed | MERGED |
+| M9.3 | #656 | M9.3-01: Comprehensive SSRF & Cloud Metadata IP Blacklist Hardening | `feat/m9-3-ssrf-cloud-metadata-blacklist` | - | - | Pending | Pending | OPEN |
+| M9.3 | #657 | M9.3-02: Target Authorization & Multi-Tenant Scope Matching Engine | `feat/m9-3-tenant-scope-matching` | - | - | Pending | Pending | OPEN |
+| M9.3 | #658 | M9.3-03: Pre-Execution Target Verification & Fail-Closed Guard in Worker Daemon | `feat/m9-3-pre-execution-scope-guard` | - | - | Pending | Pending | OPEN |
+| M9.3 | #659 | M9.3-04: Scope Policy Integration with Scanner Adapters & Finding Filtration | `feat/m9-3-adapter-scope-filtering` | - | - | Pending | Pending | OPEN |
 
 ---
 
