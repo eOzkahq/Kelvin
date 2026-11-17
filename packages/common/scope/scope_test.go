@@ -289,3 +289,89 @@ func TestSSRF_CloudMetadataAndRebinding(t *testing.T) {
 		}
 	}
 }
+
+func TestWildcardDomainMatching_StrictBoundaries(t *testing.T) {
+	policy, err := NewPolicy([]string{"*.example.com"}, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create wildcard policy: %v", err)
+	}
+
+	// 1. Valid subdomains match
+	validSubs := []string{"api.example.com", "sub.api.example.com", "test-app.example.com"}
+	for _, sub := range validSubs {
+		if !policy.HostAllowed(sub) {
+			t.Errorf("expected valid subdomain %q to be allowed", sub)
+		}
+	}
+
+	// 2. Root domain without explicit entry is NOT allowed by *.example.com
+	if policy.HostAllowed("example.com") {
+		t.Errorf("expected root domain example.com to be rejected when only *.example.com is in policy")
+	}
+
+	// 3. Suffix collision attempts are strictly rejected
+	collisions := []string{
+		"fake-example.com",
+		"notexample.com",
+		"evilexample.com",
+		"attackerexample.com",
+		"myexample.com",
+	}
+	for _, c := range collisions {
+		if policy.HostAllowed(c) {
+			t.Errorf("expected suffix collision %q to be rejected", c)
+		}
+	}
+}
+
+func TestNewPolicy_RejectsLaxWildcards(t *testing.T) {
+	badWildcards := []string{
+		"*.com",       // TLD wildcard
+		"*.net",       // TLD wildcard
+		"*.org",       // TLD wildcard
+		"*example.com", // missing dot
+		"example.*",   // postfix wildcard
+		"*",           // single star
+	}
+
+	for _, bad := range badWildcards {
+		_, err := NewPolicy([]string{bad}, nil, nil)
+		if err == nil {
+			t.Errorf("expected lax wildcard %q to be rejected, got nil error", bad)
+		}
+	}
+}
+
+func TestPolicyForTenant_TargetManifest(t *testing.T) {
+	// 1. Missing tenant ID fails
+	_, err := PolicyForTenant(TenantTargetManifest{}, nil)
+	if err == nil {
+		t.Fatal("expected error for empty tenant ID")
+	}
+
+	// 2. AllowSubdomains=true generates both root and wildcard subdomains
+	manifest := TenantTargetManifest{
+		TenantID:        "tenant-corp-123",
+		AllowedDomains:  []string{"kelvin.security"},
+		AllowedCIDRs:    []string{"93.184.216.0/24"},
+		AllowSubdomains: true,
+	}
+
+	p, err := PolicyForTenant(manifest, nil)
+	if err != nil {
+		t.Fatalf("PolicyForTenant failed: %v", err)
+	}
+
+	if !p.HostAllowed("kelvin.security") {
+		t.Error("expected root domain kelvin.security to be allowed")
+	}
+	if !p.HostAllowed("api.kelvin.security") {
+		t.Error("expected subdomain api.kelvin.security to be allowed")
+	}
+	if p.HostAllowed("other.com") {
+		t.Error("expected unrelated domain other.com to be rejected")
+	}
+	if !p.HostAllowed("93.184.216.34") {
+		t.Error("expected IP within approved CIDR to be allowed")
+	}
+}
