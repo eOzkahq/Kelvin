@@ -1,46 +1,50 @@
 [Unit]
 Description=Kelvin Security Scanner Execution Worker (Host Daemon)
 Documentation=https://github.com/eOzkahq/Kelvin
-After=network-online.target
+After=network-online.target redis.service
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=kelvin-worker
 Group=kelvin-worker
-WorkingDirectory=/var/lib/kelvin-worker
+WorkingDirectory=/var/lib/kelvin/worker
 
-# Environment file with strict permissions (0600, owned by kelvin-worker)
-EnvironmentFile=/etc/kelvin/worker.env
+# Authoritative environment file with strict permissions (0600, owned by root:kelvin-worker)
+EnvironmentFile=-/etc/kelvin/staging.env
+EnvironmentFile=-/etc/kelvin/worker.env
 
 # Rootless Podman user session environment requirements
 Environment="XDG_RUNTIME_DIR=/run/user/10001"
 Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/10001/bus"
 Environment="PATH=/usr/local/bin:/usr/bin:/bin:/opt/kelvin/bin"
+Environment="KELVIN_WORKER_HEALTH_ADDR=:8081"
 
 ExecStart=/opt/kelvin/bin/kelvin-worker
 Restart=on-failure
 RestartSec=5s
 
-# Graceful termination: allows worker to signal and cleanly remove active containers
+# Graceful termination: allows worker to signal, persist state, and cleanly release active leases
 TimeoutStopSec=30s
 KillMode=control-group
+KillSignal=SIGTERM
 
 # Enable cgroups v2 resource delegation to rootless containers (ADR-0008)
 Delegate=yes
 
 # Resource bounds on host daemon (conservative for 2 vCPU / 10 GiB RAM host)
-CPUQuota=100%
-MemoryHigh=3G
-MemoryMax=4G
+CPUQuota=200%
+MemoryHigh=1800M
+MemoryMax=2G
+TasksMax=256
 LimitNOFILE=65535
 
-# Systemd process sandboxing
+# Systemd process sandboxing & filesystem isolation
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=read-only
-PrivateTmp=false
-ReadWritePaths=/var/lib/kelvin-worker /run/user/10001 /var/log/kelvin /tmp
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/kelvin/worker /run/user/10001 /run/kelvin /var/log/kelvin
 
 [Install]
 WantedBy=multi-user.target
