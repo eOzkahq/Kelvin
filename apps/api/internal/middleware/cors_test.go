@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -92,6 +93,63 @@ func TestCORSMiddleware(t *testing.T) {
 
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("expected 403 Forbidden when wildcard origin attempted, got %d", rec.Code)
+		}
+	})
+}
+
+func TestCORSMiddlewareProductionAssessmentPreflight(t *testing.T) {
+	const frontendOrigin = "https://kelvin-orpin.vercel.app"
+	cors := CORS([]string{frontendOrigin})
+	authenticatedHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := cors(authenticatedHandler)
+
+	t.Run("allowed origin preflight includes required headers and bypasses authentication", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodOptions, "/api/v1/assessments", nil)
+		req.Header.Set("Origin", frontendOrigin)
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "authorization, content-type, x-idempotency-key")
+		rec := httptest.NewRecorder()
+
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("expected 204 preflight, got %d", rec.Code)
+		}
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != frontendOrigin {
+			t.Fatalf("expected exact allow origin %q, got %q", frontendOrigin, got)
+		}
+		if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+			t.Fatalf("expected credentials policy to remain true, got %q", got)
+		}
+		allowed := make(map[string]bool)
+		for _, header := range strings.Split(rec.Header().Get("Access-Control-Allow-Headers"), ",") {
+			allowed[strings.ToLower(strings.TrimSpace(header))] = true
+		}
+		for _, header := range []string{"Authorization", "Content-Type", "Accept", "X-Idempotency-Key", "X-Request-ID", "X-Correlation-ID"} {
+			if !allowed[strings.ToLower(header)] {
+				t.Errorf("Access-Control-Allow-Headers missing %q: %q", header, rec.Header().Get("Access-Control-Allow-Headers"))
+			}
+		}
+	})
+
+	t.Run("unapproved origin is not granted access", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodOptions, "/api/v1/assessments", nil)
+		req.Header.Set("Origin", "https://unapproved.example")
+		rec := httptest.NewRecorder()
+
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 for unapproved origin, got %d", rec.Code)
+		}
+		if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+			t.Fatalf("unapproved origin received Access-Control-Allow-Origin %q", got)
 		}
 	})
 }
