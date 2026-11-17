@@ -40,6 +40,18 @@ func (q *recordQueue) GetStatus(_ context.Context, _ string) (commonqueue.Status
 	return commonqueue.Status{}, nil
 }
 func (q *recordQueue) Heartbeat(_ context.Context, _, _ string, _ time.Duration) error { return nil }
+func (q *recordQueue) AcquireLease(_ context.Context, _, _ string, _ time.Duration) (bool, error) {
+	return true, nil
+}
+func (q *recordQueue) RenewLease(_ context.Context, _, _ string, _ time.Duration) error {
+	return nil
+}
+func (q *recordQueue) ReleaseLease(_ context.Context, _, _ string) error {
+	return nil
+}
+func (q *recordQueue) IsLeaseActive(_ context.Context, _ string) (bool, string, error) {
+	return false, "", nil
+}
 
 type testHarness struct {
 	server       *Server
