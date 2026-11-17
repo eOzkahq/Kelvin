@@ -44,3 +44,14 @@
   - `apps/api/internal/assessments/assessment_test.go` (`TestAssessmentCreation_AuthoritativeEnvelopeV2`)
   - `apps/worker/internal/daemon/daemon_test.go` (`TestDaemon_RejectsExpiredJobEnvelope`)
 - Verified all workspace test suites pass cleanly.
+- Merged PR #645 into `main` (commit `a140a69`), automatically closing Issue #641.
+
+### 2026-11-17 — Issue #642 Implementation (M9.1-03)
+- Implemented `StateSyncer` contract in `apps/worker/internal/daemon/sync.go` with `PostgresStateSyncer` (tenant RLS transaction synchronization for `assessments` and `jobs`) and `MemoryStateSyncer`.
+- Implemented background worker vitality heartbeats in `apps/worker/internal/daemon/daemon.go:Run()` updating `worker:{worker_id}` key in Redis.
+- Added graceful shutdown handling with 5-second cleanup fallback context (`context.WithTimeout`) in `fail()` and `processResult()`, ensuring state transitions and queue failures persist even after `SIGINT`/`SIGTERM` cancellation.
+- Implemented diagnostics HTTP server in `apps/worker/cmd/runner/main.go` on `:8081` serving `/healthz` and `/readyz` with system and scanner adapter probes.
+- Added comprehensive unit tests in:
+  - `apps/worker/internal/daemon/sync_test.go` (`TestStateSyncer_TransitionsRecorded`, `TestDaemon_StateSynchronizationOnFailure`, `TestDaemon_GracefulShutdownCleanupContext`)
+  - `apps/worker/internal/readiness/http_test.go` (`TestReadinessHTTPHandler`)
+- Verified all workspace test suites pass cleanly (100%).

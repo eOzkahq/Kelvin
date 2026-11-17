@@ -81,6 +81,7 @@ type Config struct {
 	Database             DatabaseConfig `mapstructure:"database"`
 	Redis                RedisConfig    `mapstructure:"redis"`
 	Storage              StorageConfig  `mapstructure:"storage"`
+	HealthAddr           string         `mapstructure:"health_addr"`
 	Limits               ResourceLimits `mapstructure:"limits"`
 }
 
@@ -155,6 +156,8 @@ func Load() (Config, error) {
 	bindEnvWithFallback(v, "worker.id", "KELVIN_WORKER_ID")
 	bindEnvWithFallback(v, "worker.poll_interval", "KELVIN_WORKER_POLL_INTERVAL")
 
+	v.SetDefault("health_addr", ":8081")
+	bindEnvWithFallback(v, "health_addr", "KELVIN_WORKER_HEALTH_ADDR")
 	v.SetDefault("canary_only", false)
 	v.SetDefault("canary_allowed_targets", "")
 	bindEnvWithFallback(v, "canary_only", "KELVIN_CANARY_ONLY")
@@ -305,6 +308,7 @@ func Load() (Config, error) {
 		Development:          env == EnvDevelopment || env == EnvTesting,
 		CanaryOnly:           v.GetBool("canary_only"),
 		CanaryAllowedTargets: allowedTargets,
+		HealthAddr:           v.GetString("health_addr"),
 		Database: DatabaseConfig{
 			URL:         dbURL,
 			SSLRootCert: v.GetString("database.sslrootcert"),
