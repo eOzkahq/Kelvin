@@ -13,7 +13,7 @@
 | Milestone | Title | GitHub Milestone | Status | Issues Open/Closed | PRs Merged |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **M9.1** | Worker Deployment and Redis Connectivity | Milestone #14 | **COMPLETED** | 0 / 4 | 4 |
-| **M9.2** | Scanner Isolation using Podman/crun | Milestone #15 | **ACTIVE** | 0 / 0 | 0 |
+| **M9.2** | Scanner Isolation using Podman/crun | Milestone #15 | **ACTIVE** | 4 / 0 | 0 |
 | **M9.3** | Target Authorization, Scope Enforcement & SSRF | Milestone #16 | PLANNED | 0 / 0 | 0 |
 | **M9.4** | Controlled Egress Proxy & Network Restrictions | Milestone #17 | PLANNED | 0 / 0 | 0 |
 | **M9.5** | Real Scanner Execution (Nmap, Nuclei, ZAP) | Milestone #18 | PLANNED | 0 / 0 | 0 |
@@ -30,6 +30,10 @@
 | M9.1 | #641 | M9.1-02: Authoritative Assessment Job Envelope & Schema Contract | `feat/m9-1-job-envelope-state-sync` | #645 | `a140a69` | Passed (100%) | Passed | MERGED |
 | M9.1 | #642 | M9.1-03: Worker Daemon Lifecycle, Heartbeats, State Sync & Graceful Shutdown | `feat/m9-1-worker-daemon-lifecycle` | #646 | `002ad4d` | Passed (100%) | Passed | MERGED |
 | M9.1 | #643 | M9.1-04: Worker Systemd Service, Packaging & Staging Deployment Hardening | `feat/m9-1-worker-deployment-hardening` | #647 | `5ff7d78` | Passed (100%) | Passed | MERGED |
+| M9.2 | #648 | M9.2-01: Rootless Podman/crun Execution Engine & Security Spec Hardening | `feat/m9-2-oci-spec-hardening` | - | - | Pending | Pending | OPEN |
+| M9.2 | #649 | M9.2-02: Cgroups v2 Enforceable Quotas & Process Limits Engine | `feat/m9-2-cgroups-resource-quotas` | - | - | Pending | Pending | OPEN |
+| M9.2 | #650 | M9.2-03: Bounded Output Streaming, Output Cap & Parser Guard Isolation | `feat/m9-2-bounded-output-streaming` | - | - | Pending | Pending | OPEN |
+| M9.2 | #651 | M9.2-04: Isolated Network Namespace & Container Teardown Cleanup Reaper | `feat/m9-2-network-isolation-reaper` | - | - | Pending | Pending | OPEN |
 
 ---
 
