@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -493,34 +494,49 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 	}
 
 	var egressProxy *egress.Proxy
-	if cfg.ScopePolicyProvider != nil {
-		scopePol, err := cfg.ScopePolicyProvider(execCtx, task)
-		if err == nil {
-			egressPolicy, err := egress.PolicyForScanner(task.Scanner, task.Target, scopePol)
-			if err == nil && egressPolicy.RequiresProxy {
-				proxy, err := egress.NewProxy(egressPolicy, o.logger, cfg.Metrics)
-				if err == nil {
-					egressProxy = proxy
-					defer proxy.Close()
+	scopeProvider := cfg.ScopePolicyProvider
+	if scopeProvider == nil {
+		scopeProvider = adapters.DefaultScopePolicyProvider
+	}
+	scopePol, err := scopeProvider(execCtx, task)
+	if err == nil {
+		egressPolicy, err := egress.PolicyForScanner(task.Scanner, task.Target, scopePol)
+		if err == nil && egressPolicy.RequiresProxy {
+			token, tokErr := egress.GenerateExecutionToken(task.JobID, task.TenantID, task.AssessmentID, task.Scanner, task.HardDeadline)
+			if tokErr == nil && token != nil {
+				egressPolicy.ExecutionToken = token.Token
+			}
+			proxy, err := egress.NewProxy(egressPolicy, o.logger, cfg.Metrics)
+			if err == nil {
+				egressProxy = proxy
+				defer proxy.Close()
 
-					effectiveRPS := pacing.EffectiveRate(task.Scanner, 0, 0)
-					pacerCfg := pacing.DefaultConfig(task.Scanner, task.Target)
-					pacerCfg.RequestsPerSecond = effectiveRPS
-					pacer := pacing.NewTokenBucketPacer(pacerCfg)
-					defer pacer.Close()
-					pacer.AddListener(func(ev pacing.PacingEvent) {
-						o.logger.Warn("scanner request throttled by per-target pacing",
-							zap.String("job_id", task.JobID),
-							zap.String("target", ev.Target),
-							zap.String("scanner", task.Scanner),
-							zap.Duration("wait", ev.WaitDuration),
-						)
-					})
-					proxy.SetPacer(pacer)
+				effectiveRPS := pacing.EffectiveRate(task.Scanner, 0, 0)
+				pacerCfg := pacing.DefaultConfig(task.Scanner, task.Target)
+				pacerCfg.RequestsPerSecond = effectiveRPS
+				pacer := pacing.NewTokenBucketPacer(pacerCfg)
+				defer pacer.Close()
+				pacer.AddListener(func(ev pacing.PacingEvent) {
+					o.logger.Warn("scanner request throttled by per-target pacing",
+						zap.String("job_id", task.JobID),
+						zap.String("target", ev.Target),
+						zap.String("scanner", task.Scanner),
+						zap.Duration("wait", ev.WaitDuration),
+					)
+				})
+				proxy.SetPacer(pacer)
 
-					spec.NetworkDisabled = false
-					spec.EgressProxy = proxy.Endpoint()
+				proxyEndpoint := proxy.Endpoint()
+				if token != nil {
+					parsed, pErr := url.Parse(proxyEndpoint)
+					if pErr == nil {
+						parsed.User = url.UserPassword("token", token.Token)
+						proxyEndpoint = parsed.String()
+					}
 				}
+				spec.NetworkDisabled = false
+				spec.EgressProxy = proxyEndpoint
+				task.EgressProxy = proxyEndpoint
 			}
 		}
 	}

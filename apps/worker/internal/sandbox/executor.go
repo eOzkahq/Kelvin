@@ -319,6 +319,8 @@ func (s Spec) Validate() error {
 		"https_proxy":           true,
 		"NO_PROXY":              true,
 		"no_proxy":              true,
+		"ALL_PROXY":             true,
+		"all_proxy":             true,
 		"KELVIN_EGRESS_PROXY":   true,
 	}
 	for _, entry := range s.Env {
