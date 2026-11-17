@@ -35,10 +35,16 @@ var (
 	ErrContainsNullBytes    = errors.New("parserguard: payload contains forbidden NUL bytes")
 	ErrPathTraversal        = errors.New("parserguard: filename contains unsafe path traversal characters")
 	ErrLineOversized        = errors.New("parserguard: streaming line exceeds 5MB size limit")
+	ErrPanicRecovered       = errors.New("parserguard: panic recovered during parsing")
 )
 
 // ValidatePayload verifies size, UTF-8 validity, and absence of NUL bytes.
-func ValidatePayload(raw []byte) error {
+func ValidatePayload(raw []byte) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v", ErrPanicRecovered, r)
+		}
+	}()
 	if len(raw) == 0 {
 		return ErrPayloadEmpty
 	}
@@ -55,7 +61,12 @@ func ValidatePayload(raw []byte) error {
 }
 
 // CheckJSONNestingDepth verifies that JSON object/array nesting does not exceed MaxNestingDepth.
-func CheckJSONNestingDepth(raw []byte, maxDepth int) error {
+func CheckJSONNestingDepth(raw []byte, maxDepth int) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v", ErrPanicRecovered, r)
+		}
+	}()
 	if maxDepth <= 0 {
 		maxDepth = MaxNestingDepth
 	}
@@ -100,7 +111,12 @@ func CheckJSONNestingDepth(raw []byte, maxDepth int) error {
 
 // SafeUnmarshalJSON guards against oversized payloads, invalid UTF-8, and deep nesting
 // before deserializing into the target strongly-typed structure.
-func SafeUnmarshalJSON(raw []byte, target any) error {
+func SafeUnmarshalJSON(raw []byte, target any) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v", ErrPanicRecovered, r)
+		}
+	}()
 	if err := ValidatePayload(raw); err != nil {
 		return err
 	}
@@ -114,7 +130,12 @@ func SafeUnmarshalJSON(raw []byte, target any) error {
 }
 
 // SafeUnmarshalLooseJSON unmarshals with nesting and size checks while allowing extra fields.
-func SafeUnmarshalLooseJSON(raw []byte, target any) error {
+func SafeUnmarshalLooseJSON(raw []byte, target any) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v", ErrPanicRecovered, r)
+		}
+	}()
 	if err := ValidatePayload(raw); err != nil {
 		return err
 	}
@@ -156,7 +177,12 @@ func SanitizeFileName(rawName string) (string, error) {
 }
 
 // ScanBoundedLines streams and validates lines from reader, ensuring no single line exceeds MaxLineBytes.
-func ScanBoundedLines(reader io.Reader, maxLineBytes int, fn func(line []byte) error) error {
+func ScanBoundedLines(reader io.Reader, maxLineBytes int, fn func(line []byte) error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v", ErrPanicRecovered, r)
+		}
+	}()
 	if maxLineBytes <= 0 {
 		maxLineBytes = MaxLineBytes
 	}

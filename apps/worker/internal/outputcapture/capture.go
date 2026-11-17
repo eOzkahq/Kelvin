@@ -5,6 +5,8 @@ package outputcapture
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"sync"
@@ -19,7 +21,7 @@ const (
 	AbsoluteMaxCaptureBytes = 50 * 1024 * 1024
 
 	// TruncationMarker is appended to captured output when the stream exceeds the limit.
-	TruncationMarker = "\n... [OUTPUT TRUNCATED: maximum capture buffer limit reached]\n"
+	TruncationMarker = "\n... [TRUNCATED BY KELVIN PARSER GUARD: maximum capture buffer limit reached]\n"
 )
 
 var (
@@ -147,6 +149,14 @@ func (w *BoundedWriter) Truncated() bool {
 	return w.truncated
 }
 
+// PartialSHA256 returns the hexadecimal SHA-256 digest of the captured raw buffer.
+func (w *BoundedWriter) PartialSHA256() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	h := sha256.Sum256(w.buf.Bytes())
+	return hex.EncodeToString(h[:])
+}
+
 // Reset clears the buffer and resets counters.
 func (w *BoundedWriter) Reset() {
 	w.mu.Lock()
@@ -178,6 +188,8 @@ type StreamResult struct {
 	StderrBytes     int64
 	StdoutTruncated bool
 	StderrTruncated bool
+	StdoutSHA256    string
+	StderrSHA256    string
 }
 
 // Result compiles captured output and truncation metadata.
@@ -189,6 +201,8 @@ func (d *DualStreamCapture) Result() StreamResult {
 		StderrBytes:     d.Stderr.TotalBytes(),
 		StdoutTruncated: d.Stdout.Truncated(),
 		StderrTruncated: d.Stderr.Truncated(),
+		StdoutSHA256:    d.Stdout.PartialSHA256(),
+		StderrSHA256:    d.Stderr.PartialSHA256(),
 	}
 }
 
