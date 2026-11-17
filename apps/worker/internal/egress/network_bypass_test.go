@@ -218,10 +218,19 @@ func TestNetworkBypass_OutboundCallbackDenial(t *testing.T) {
 
 	callbacks := []string{
 		"xyz.interactsh.com",
+		"interact.sh",
 		"sub.oast.fun",
+		"leak.oast.site",
 		"target.burpcollaborator.net",
 		"test.canarytokens.com",
+		"alert.canarytokens.org",
 		"probe.dnslog.cn",
+		"hook.webhook.site",
+		"api.pipedream.net",
+		"bin.requestbin.net",
+		"app.requestbin.com",
+		"tunnel.ngrok.io",
+		"test.beeceptor.com",
 	}
 
 	for _, cb := range callbacks {

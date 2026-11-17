@@ -300,6 +300,9 @@ func TestValidateConfig_RejectsPolicyTampering(t *testing.T) {
 		`{"options": {"no_proxy": true}}`,
 		`{"custom_proxy": "http://169.254.169.254"}`,
 		`{"proxy": "http_proxy=http://attacker.com"}`,
+		`{"callback_url": "https://webhook.site/abc-123"}`,
+		`{"pipeline": "https://pipedream.net/v1"}`,
+		`{"token": "http://canarytokens.com/static/token.png"}`,
 	}
 
 	for _, raw := range tamperingConfigs {

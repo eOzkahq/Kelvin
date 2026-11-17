@@ -40,6 +40,7 @@ const (
 
 var knownCallbackSuffixes = []string{
 	"interactsh.com",
+	"interact.sh",
 	"oast.fun",
 	"oast.live",
 	"oast.site",
@@ -51,6 +52,16 @@ var knownCallbackSuffixes = []string{
 	"ceye.io",
 	"burpcollaborator.net",
 	"dnslog.cn",
+	"requestbin.net",
+	"requestbin.com",
+	"webhook.site",
+	"pipedream.net",
+	"ngrok.io",
+	"ngrok-free.app",
+	"localtunnel.me",
+	"beeceptor.com",
+	"mockbin.org",
+	"postb.in",
 }
 
 // ScannerEgressPolicy defines the explicit network constraints for a scanner execution.
@@ -300,6 +311,12 @@ func (p *ScannerEgressPolicy) ValidateConfig(raw json.RawMessage) error {
 		"interactsh",
 		"oast",
 		"burpcollaborator",
+		"canarytokens",
+		"webhook.site",
+		"pipedream",
+		"requestbin",
+		"dnslog",
+		"ceye.io",
 		"--no-proxy",
 		"no_proxy",
 		"http_proxy",
