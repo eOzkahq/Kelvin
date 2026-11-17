@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"go.uber.org/zap"
@@ -66,5 +67,102 @@ func TestNucleiAdapter_RejectsInvalidTemplateCatalog(t *testing.T) {
 	_, err := adapter.VerifyRuntimeVersion(ctx)
 	if err == nil {
 		t.Fatalf("expected error for untrusted template catalog, got nil")
+	}
+}
+
+func TestResolveNucleiProfile(t *testing.T) {
+	cases := []struct {
+		profileID   string
+		wantRate    int
+		wantConc    int
+		wantTags    string
+		wantExclude string
+	}{
+		{
+			profileID:   ProfileStandard,
+			wantRate:    2,
+			wantConc:    2,
+			wantTags:    "cve,misconfig,exposure",
+			wantExclude: "dos,fuzz,intrusive",
+		},
+		{
+			profileID:   ProfileDeep,
+			wantRate:    5,
+			wantConc:    2,
+			wantTags:    "cve,misconfig,exposure,vuln,takeover",
+			wantExclude: "dos,fuzz",
+		},
+		{
+			profileID:   ProfileSafeWeb,
+			wantRate:    2,
+			wantConc:    1,
+			wantTags:    "safe,web,exposure",
+			wantExclude: "dos,fuzz,intrusive,sqli,rce",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.profileID, func(t *testing.T) {
+			controls := ResolveNucleiProfile(tc.profileID)
+			if controls.RateLimit != tc.wantRate {
+				t.Errorf("rate limit = %d, want %d", controls.RateLimit, tc.wantRate)
+			}
+			if controls.Concurrency != tc.wantConc {
+				t.Errorf("concurrency = %d, want %d", controls.Concurrency, tc.wantConc)
+			}
+		})
+	}
+}
+
+func TestBuildNucleiArgs_ProfileControls(t *testing.T) {
+	taskStandard := Task{
+		Target:    "https://example.com",
+		ProfileID: ProfileStandard,
+		Scanner:   ScannerNuclei,
+	}
+	argsStd := BuildNucleiArgs(taskStandard)
+	joinedStd := " " + strings.Join(argsStd, " ") + " "
+
+	if !strings.Contains(joinedStd, " -tags cve,misconfig,exposure ") {
+		t.Errorf("standard profile missing expected tags in argv: %v", argsStd)
+	}
+	if !strings.Contains(joinedStd, " -exclude-tags dos,fuzz,intrusive ") {
+		t.Errorf("standard profile missing expected exclude-tags in argv: %v", argsStd)
+	}
+	if !strings.Contains(joinedStd, " -rl 2 ") {
+		t.Errorf("standard profile missing -rl 2 in argv: %v", argsStd)
+	}
+
+	taskDeep := Task{
+		Target:    "https://example.com",
+		ProfileID: ProfileDeep,
+		Scanner:   ScannerNuclei,
+	}
+	argsDeep := BuildNucleiArgs(taskDeep)
+	joinedDeep := " " + strings.Join(argsDeep, " ") + " "
+
+	if !strings.Contains(joinedDeep, " -tags cve,misconfig,exposure,vuln,takeover ") {
+		t.Errorf("deep profile missing expected tags in argv: %v", argsDeep)
+	}
+	if !strings.Contains(joinedDeep, " -severity info,low,medium,high,critical ") {
+		t.Errorf("deep profile missing expected severities in argv: %v", argsDeep)
+	}
+	if !strings.Contains(joinedDeep, " -rl 5 ") {
+		t.Errorf("deep profile missing -rl 5 in argv: %v", argsDeep)
+	}
+
+	taskSafeWeb := Task{
+		Target:    "https://example.com",
+		ProfileID: ProfileSafeWeb,
+		Scanner:   ScannerNuclei,
+	}
+	argsSafe := BuildNucleiArgs(taskSafeWeb)
+	joinedSafe := " " + strings.Join(argsSafe, " ") + " "
+
+	if !strings.Contains(joinedSafe, " -tags safe,web,exposure ") {
+		t.Errorf("safeweb profile missing expected tags in argv: %v", argsSafe)
+	}
+	if !strings.Contains(joinedSafe, " -c 1 ") {
+		t.Errorf("safeweb profile missing -c 1 in argv: %v", argsSafe)
 	}
 }

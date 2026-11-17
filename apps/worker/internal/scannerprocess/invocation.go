@@ -42,12 +42,7 @@ func Build(task adapters.Task) (sandbox.ProcessInvocation, error) {
 			"-I", "-J", "/tmp/kelvin-zap-report.json", "-z", zapOptions,
 		}}, nil
 	case adapters.ScannerNuclei:
-		return sandbox.ProcessInvocation{Executable: "/nuclei", Args: []string{
-			"-duc", "-u", target, "-t", nucleiTemplatePath,
-			"-severity", strings.Join(config.Nuclei.SeverityAllowlist, ","),
-			"-rl", strconv.Itoa(config.RequestsPerSecond), "-c", strconv.Itoa(config.MaxConcurrency),
-			"-timeout", strconv.Itoa(config.RequestTimeoutSeconds), "-jsonl", "-silent", "-no-color",
-		}}, nil
+		return sandbox.ProcessInvocation{Executable: "/nuclei", Args: adapters.BuildNucleiArgs(task)}, nil
 	default:
 		return sandbox.ProcessInvocation{}, fmt.Errorf("scanner process: %q has no external executable allow-list", task.Scanner)
 	}

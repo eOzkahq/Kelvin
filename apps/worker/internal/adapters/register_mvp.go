@@ -231,7 +231,7 @@ func NewOCINucleiRunnerWithScope(executor sandbox.Executor, policyProvider Scope
 			ImageDigest:    imgDigest,
 			Invocation: sandbox.ProcessInvocation{
 				Executable: "/nuclei",
-				Args:       []string{"-u", task.Target, "-jsonl", "-silent"},
+				Args:       BuildNucleiArgs(task),
 			},
 			Labels:          map[string]string{"scanner": "nuclei"},
 			User:            "10001:10001",

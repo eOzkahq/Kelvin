@@ -11,6 +11,7 @@ const (
 	ProfilePassive  = "kelvin.profile.passive.v1"
 	ProfileStandard = "kelvin.profile.standard.v1"
 	ProfileDeep     = "kelvin.profile.deep.v1"
+	ProfileSafeWeb  = "kelvin.profile.safeweb.v1"
 )
 
 // ScannerExecutionOrder defines sequential phases and concurrency for an assessment profile.
@@ -148,6 +149,34 @@ var mvpProfiles = map[string]AssessmentProfile{
 		},
 		AdminSignoffRequired: true,
 	},
+	ProfileSafeWeb: {
+		ProfileID:       ProfileSafeWeb,
+		Version:         "1.0.0",
+		DisplayName:     "Safe Web Application Vulnerability Scan",
+		Description:     "Curated non-destructive web application assessment against verified safe templates.",
+		ImpactLevel:     "low",
+		TrafficLevel:    "limited",
+		CheckCategories: []string{"vulnerability_scanning", "misconfiguration"},
+		Budget: ProfileBudget{
+			RequestsPerSecond:    5,
+			MaxConcurrency:       2,
+			MaxRequestsPerTarget: 1000,
+			MaxDuration:          15 * time.Minute,
+		},
+		PermittedScanners: []string{
+			ScannerNuclei,
+		},
+		DefaultScannerOrder: []ScannerPhase{
+			{
+				PhaseIndex:  1,
+				PhaseName:   "safe_web_vulnerability_scan",
+				Scanners:    []string{ScannerNuclei},
+				Parallel:    false,
+				RequirePrev: false,
+			},
+		},
+		AdminSignoffRequired: false,
+	},
 }
 
 // GetAssessmentProfile retrieves an approved assessment profile by ID.
@@ -161,6 +190,8 @@ func GetAssessmentProfile(profileID string) (AssessmentProfile, error) {
 		canonicalID = ProfileStandard
 	case "deep":
 		canonicalID = ProfileDeep
+	case "safeweb", "safe_web":
+		canonicalID = ProfileSafeWeb
 	}
 
 	profile, ok := mvpProfiles[canonicalID]
@@ -198,5 +229,6 @@ func ListAssessmentProfiles() []AssessmentProfile {
 		mvpProfiles[ProfilePassive],
 		mvpProfiles[ProfileStandard],
 		mvpProfiles[ProfileDeep],
+		mvpProfiles[ProfileSafeWeb],
 	}
 }

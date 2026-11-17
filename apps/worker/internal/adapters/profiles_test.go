@@ -7,8 +7,8 @@ import (
 
 func TestAssessmentProfilesApprovedList(t *testing.T) {
 	profiles := ListAssessmentProfiles()
-	if len(profiles) != 3 {
-		t.Fatalf("expected 3 MVP assessment profiles, got %d", len(profiles))
+	if len(profiles) != 4 {
+		t.Fatalf("expected 4 MVP assessment profiles, got %d", len(profiles))
 	}
 
 	for _, p := range profiles {
@@ -29,6 +29,15 @@ func TestGetAssessmentProfileLookup(t *testing.T) {
 	}
 	if p.ProfileID != ProfileStandard {
 		t.Errorf("expected %s, got %s", ProfileStandard, p.ProfileID)
+	}
+
+	// SafeWeb profile lookup
+	pSafe, err := GetAssessmentProfile(ProfileSafeWeb)
+	if err != nil {
+		t.Fatalf("unexpected error looking up safeweb profile: %v", err)
+	}
+	if pSafe.ProfileID != ProfileSafeWeb {
+		t.Errorf("expected %s, got %s", ProfileSafeWeb, pSafe.ProfileID)
 	}
 
 	// Short alias lookup
