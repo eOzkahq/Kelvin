@@ -30,16 +30,17 @@ type MetricsRecorder interface {
 // strict scope boundaries, DNS pinning, RFC 1918 / metadata deny lists, and
 // emits observable security alarms when violations occur.
 type Proxy struct {
-	policy      *ScannerEgressPolicy
-	pacer       pacing.Pacer
-	listener    net.Listener
-	server      *http.Server
-	logger      *zap.Logger
-	metrics     MetricsRecorder
-	broadcaster *ViolationBroadcaster
-	dialer      *net.Dialer
-	transport   *http.Transport
-	endpoint    string
+	policy       *ScannerEgressPolicy
+	tokenManager *TokenManager
+	pacer        pacing.Pacer
+	listener     net.Listener
+	server       *http.Server
+	logger       *zap.Logger
+	metrics      MetricsRecorder
+	broadcaster  *ViolationBroadcaster
+	dialer       *net.Dialer
+	transport    *http.Transport
+	endpoint     string
 
 	mu     sync.Mutex
 	closed bool
@@ -172,7 +173,84 @@ func (p *Proxy) Close() error {
 	return p.server.Shutdown(ctx)
 }
 
+// SetTokenManager configures the token manager used to validate execution tokens.
+func (p *Proxy) SetTokenManager(tm *TokenManager) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.tokenManager = tm
+}
+
+// TokenManager returns the configured TokenManager, if any.
+func (p *Proxy) TokenManager() *TokenManager {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.tokenManager
+}
+
+// SetExecutionToken sets a fixed execution token requirement on the proxy policy.
+func (p *Proxy) SetExecutionToken(token string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.policy != nil {
+		p.policy.ExecutionToken = token
+	}
+}
+
+func (p *Proxy) requiresAuth() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.tokenManager != nil {
+		return true
+	}
+	if p.policy != nil && p.policy.ExecutionToken != "" {
+		return true
+	}
+	return false
+}
+
+func (p *Proxy) verifyToken(token string) error {
+	p.mu.Lock()
+	tm := p.tokenManager
+	var expectedToken string
+	if p.policy != nil {
+		expectedToken = p.policy.ExecutionToken
+	}
+	p.mu.Unlock()
+
+	if token == "" {
+		return ErrMissingToken
+	}
+
+	if tm != nil {
+		_, err := tm.Validate(token)
+		return err
+	}
+
+	if expectedToken != "" {
+		if token != expectedToken {
+			return ErrInvalidToken
+		}
+		return nil
+	}
+
+	return nil
+}
+
 func (p *Proxy) serveHTTP(w http.ResponseWriter, r *http.Request) {
+	if p.requiresAuth() {
+		token := ExtractProxyToken(r)
+		if err := p.verifyToken(token); err != nil {
+			targetHost := r.Host
+			if r.URL != nil && r.URL.Hostname() != "" {
+				targetHost = r.URL.Hostname()
+			}
+			p.recordViolation(targetHost, "", 0, r.Method, fmt.Sprintf("unauthorized proxy request: %v", err))
+			w.Header().Set("Proxy-Authenticate", "Basic realm=\"Kelvin Scanner Egress\"")
+			w.Header().Set("X-Kelvin-Egress-Blocked", "true")
+			http.Error(w, fmt.Sprintf("egress: proxy authentication required: %v", err), http.StatusProxyAuthRequired)
+			return
+		}
+	}
 	if r.Method == http.MethodConnect {
 		p.handleConnect(w, r)
 		return

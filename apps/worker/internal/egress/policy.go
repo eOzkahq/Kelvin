@@ -67,6 +67,7 @@ type ScannerEgressPolicy struct {
 	BlockCloudMetadata     bool         `json:"block_cloud_metadata"`
 	RequireDNSVerification bool         `json:"require_dns_verification"`
 	RequiresProxy          bool         `json:"requires_proxy"`
+	ExecutionToken         string       `json:"execution_token,omitempty"`
 	ScopePolicy            scope.Policy `json:"-"`
 	Filter                 *Filter      `json:"-"`
 }
