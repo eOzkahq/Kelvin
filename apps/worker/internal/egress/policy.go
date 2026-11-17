@@ -190,8 +190,11 @@ func (p *ScannerEgressPolicy) ValidateDestination(ctx context.Context, hostOrAdd
 	}
 
 	// 1. Protocol Validation
-	if scheme != "" && len(p.AllowedProtocols) > 0 {
+	if scheme != "" {
 		normalizedScheme := strings.ToLower(strings.TrimSuffix(scheme, "://"))
+		if len(p.AllowedProtocols) == 0 {
+			return netip.Addr{}, fmt.Errorf("%w: no protocols allowed (default-deny)", ErrDisallowedProtocol)
+		}
 		allowed := false
 		for _, proto := range p.AllowedProtocols {
 			if strings.EqualFold(proto, normalizedScheme) {
@@ -208,17 +211,18 @@ func (p *ScannerEgressPolicy) ValidateDestination(ctx context.Context, hostOrAdd
 	if port <= 0 || port > 65535 {
 		return netip.Addr{}, fmt.Errorf("%w: invalid port %d", ErrDisallowedPort, port)
 	}
-	if len(p.AllowedPorts) > 0 {
-		portAllowed := false
-		for _, allowed := range p.AllowedPorts {
-			if allowed == port {
-				portAllowed = true
-				break
-			}
+	if len(p.AllowedPorts) == 0 {
+		return netip.Addr{}, fmt.Errorf("%w: no ports allowed (default-deny)", ErrDisallowedPort)
+	}
+	portAllowed := false
+	for _, allowed := range p.AllowedPorts {
+		if allowed == port {
+			portAllowed = true
+			break
 		}
-		if !portAllowed {
-			return netip.Addr{}, fmt.Errorf("%w: port %d not permitted for scanner %s (allowed: %v)", ErrDisallowedPort, port, p.Scanner, p.AllowedPorts)
-		}
+	}
+	if !portAllowed {
+		return netip.Addr{}, fmt.Errorf("%w: port %d not permitted for scanner %s (allowed: %v)", ErrDisallowedPort, port, p.Scanner, p.AllowedPorts)
 	}
 
 	// 3. Callback / Out-of-band Target Check

@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -449,4 +450,88 @@ func TestProxyEnforcesPerTargetPacing(t *testing.T) {
 		t.Fatalf("expected at least 1 throttling event recorded, got %d", throttledCount)
 	}
 	_ = targetHost
+}
+
+func TestEgressProxy_DestinationPortAndProtocolLockdown(t *testing.T) {
+	targetIP := netip.MustParseAddr("93.184.215.14")
+	resolver := &mockResolver{
+		mapping: map[string][]netip.Addr{
+			"app.target.com": {targetIP},
+			"other.com":      {targetIP},
+		},
+	}
+	scopePol, err := scope.NewPolicy([]string{"app.target.com"}, nil, resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Policy strictly configured for HTTPS on port 443 only
+	policy, err := PolicyForScanner(ScannerNuclei, "https://app.target.com", scopePol)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy.AllowedProtocols = []string{"https"}
+	policy.AllowedPorts = []int{443}
+
+	metricsRec := &mockMetricsRecorder{}
+	proxy, err := NewProxyWithBindAddr(policy, "127.0.0.1:0", zap.NewNop(), metricsRec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer proxy.Close()
+
+	proxyURL, _ := url.Parse(proxy.Endpoint())
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+		},
+	}
+
+	// Case 1: Unapproved port (e.g., port 8080 or port 80 when only 443 is approved)
+	{
+		resp, err := client.Get("http://app.target.com:8080/test")
+		if err != nil {
+			t.Fatalf("unexpected client network error: %v", err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("expected 403 Forbidden for disallowed port 8080, got %d", resp.StatusCode)
+		}
+		if resp.Header.Get("X-Kelvin-Egress-Blocked") != "true" {
+			t.Errorf("expected X-Kelvin-Egress-Blocked header on port rejection")
+		}
+	}
+
+	// Case 2: Unapproved protocol (plain HTTP when only HTTPS is allowed)
+	{
+		resp, err := client.Get("http://app.target.com/test")
+		if err != nil {
+			t.Fatalf("unexpected client network error: %v", err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("expected 403 Forbidden for disallowed protocol HTTP, got %d", resp.StatusCode)
+		}
+	}
+
+	// Case 3: Out of scope destination host
+	{
+		resp, err := client.Get("http://other.com/test")
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusForbidden {
+				t.Errorf("expected 403 Forbidden for out-of-scope host other.com, got %d", resp.StatusCode)
+			}
+		} else if !strings.Contains(err.Error(), "Forbidden") {
+			t.Fatalf("unexpected client network error: %v", err)
+		}
+	}
+
+	// Verify metrics recorded
+	if atomic.LoadUint64(&metricsRec.violations) < 3 {
+		t.Errorf("expected at least 3 ViolationNetwork events, got %d", atomic.LoadUint64(&metricsRec.violations))
+	}
+	if atomic.LoadUint64(&metricsRec.terminations) < 3 {
+		t.Errorf("expected at least 3 CauseNetwork events, got %d", atomic.LoadUint64(&metricsRec.terminations))
+	}
 }
