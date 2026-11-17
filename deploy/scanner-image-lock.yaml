@@ -43,6 +43,24 @@ scanners:
       cpus: "1.0"
       pids: 256
 
+  nmap:
+    id: "nmap"
+    version: "7.95"
+    adapter_version: "1.0.0"
+    image_reference: "ghcr.io/eozkahq/kelvin/scanner-nmap:7.95"
+    image_digest: "sha256:4a38dfc6d996e382d3345f1bce8b33534a029a242f3ea99d5a6b0c2a7e75e114"
+    executable: "/usr/bin/nmap"
+    user: "10001:10001"
+    security_options:
+      - "no-new-privileges:true"
+    capabilities_dropped:
+      - "ALL"
+    read_only_rootfs: true
+    resource_limits:
+      memory: "1.0g"
+      cpus: "1.0"
+      pids: 256
+
   http_preflight:
     id: "http_preflight"
     version: "1.0.0"

@@ -23,6 +23,11 @@ const (
 	PinnedZAPAdapterVersion = "1.0.0"
 	PinnedZAPImageReference = "ghcr.io/zaproxy/zaproxy:2.15.0@sha256:d9b23b169527be63660fb1e57c6b9eb97cf1e2c9ef806dc5e7e3e7f53cfc0919"
 	PinnedZAPImageDigest    = "sha256:d9b23b169527be63660fb1e57c6b9eb97cf1e2c9ef806dc5e7e3e7f53cfc0919"
+
+	PinnedNmapScannerVersion = "7.95"
+	PinnedNmapAdapterVersion = "1.0.0"
+	PinnedNmapImageReference = "ghcr.io/eozkahq/kelvin/scanner-nmap:7.95@sha256:4a38dfc6d996e382d3345f1bce8b33534a029a242f3ea99d5a6b0c2a7e75e114"
+	PinnedNmapImageDigest    = "sha256:4a38dfc6d996e382d3345f1bce8b33534a029a242f3ea99d5a6b0c2a7e75e114"
 )
 
 // DefaultScopePolicyProvider provides target resolution and scope bounds for network adapters.
@@ -91,6 +96,104 @@ func DefaultZAPVerifier(_ context.Context) (RuntimeVersionInfo, error) {
 		}
 	}
 	return info, nil
+}
+
+// DefaultNmapVerifier returns the pinned, locked version policy for Nmap.
+func DefaultNmapVerifier(_ context.Context) (RuntimeVersionInfo, error) {
+	info := RuntimeVersionInfo{
+		ScannerVersion: PinnedNmapScannerVersion,
+		AdapterVersion: PinnedNmapAdapterVersion,
+		ImageReference: PinnedNmapImageReference,
+		ImageDigest:    PinnedNmapImageDigest,
+	}
+	if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+		if lock.Status == manifest.StatusCertified || lock.Status == "released" {
+			if img, ok := lock.Images["nmap"]; ok {
+				if img.Version != nil && *img.Version != "" {
+					info.ScannerVersion = *img.Version
+				}
+				if img.KelvinImage != nil && *img.KelvinImage != "" {
+					info.ImageReference = *img.KelvinImage
+				}
+				if img.KelvinDigest != nil && *img.KelvinDigest != "" {
+					info.ImageDigest = *img.KelvinDigest
+				}
+			}
+		}
+	}
+	return info, nil
+}
+
+// NewOCINmapRunner creates a runner that executes Nmap inside the isolated OCI container sandbox.
+func NewOCINmapRunner(executor sandbox.Executor) NmapReportRunner {
+	return NewOCINmapRunnerWithScope(executor, DefaultScopePolicyProvider)
+}
+
+// NewOCINmapRunnerWithScope creates a runner that validates scope bounds before executing Nmap.
+func NewOCINmapRunnerWithScope(executor sandbox.Executor, policyProvider ScopePolicyProvider) NmapReportRunner {
+	if policyProvider == nil {
+		policyProvider = DefaultScopePolicyProvider
+	}
+	return func(ctx context.Context, task Task) ([]byte, error) {
+		if executor == nil {
+			return nil, errors.New("adapters: sandbox executor is unavailable")
+		}
+		if pol, err := policyProvider(ctx, task); err == nil {
+			if _, _, err := pol.Validate(ctx, task.Target); err != nil {
+				return nil, fmt.Errorf("adapters: target %q rejected by scope policy: %w", task.Target, err)
+			}
+		}
+		imgRef := PinnedNmapImageReference
+		imgDigest := PinnedNmapImageDigest
+		if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+			if (lock.Status == manifest.StatusCertified || lock.Status == "released") && lock.Images["nmap"].KelvinImage != nil {
+				imgRef = *lock.Images["nmap"].KelvinImage
+				if lock.Images["nmap"].KelvinDigest != nil {
+					imgDigest = *lock.Images["nmap"].KelvinDigest
+				}
+			}
+		}
+		targetHost := task.Target
+		if u, err := url.Parse(task.Target); err == nil && u.Hostname() != "" {
+			targetHost = u.Hostname()
+		}
+		args := []string{
+			"-sT",
+			"-Pn",
+			"-p", "1-1024",
+			"-sV",
+			"--version-intensity", "2",
+			"-oX", "-",
+			"--max-rate", "50",
+			"--host-timeout", "60s",
+			targetHost,
+		}
+		spec := sandbox.Spec{
+			Scanner:     "nmap",
+			Image:       imgRef,
+			ImageDigest: imgDigest,
+			Invocation: sandbox.ProcessInvocation{
+				Executable: "/usr/bin/nmap",
+				Args:       args,
+			},
+			Labels:          map[string]string{"scanner": "nmap"},
+			User:            "10001:10001",
+			ReadOnlyRootfs:  true,
+			SecurityOpt:     []string{"no-new-privileges"},
+			CapDrop:         []string{"ALL"},
+			Deadline:        task.HardDeadline,
+			NetworkDisabled: true,
+		}
+		if task.EgressProxy != "" {
+			spec.NetworkDisabled = false
+			spec.EgressProxy = task.EgressProxy
+		}
+		res, err := executor.Execute(ctx, spec)
+		if err != nil {
+			return nil, err
+		}
+		return []byte(res.Stdout), nil
+	}
 }
 
 // NewOCINucleiRunner creates a runner that executes Nuclei inside the isolated OCI container sandbox.
@@ -293,6 +396,39 @@ func RegisterDefaultAdapters(registry *Registry, executor sandbox.Executor) erro
 	zapRunner := NewOCIZAPRunner(executor)
 	if err := registry.RegisterAdapter(zapMetadata, func() ScannerAdapter {
 		return NewVerifiedZAPBaselineAdapter(DefaultZAPVerifier, zapRunner)
+	}); err != nil {
+		return err
+	}
+
+	// 4. Nmap Adapter with pinned metadata and sandbox runner
+	nmapMetadata := Metadata{
+		ID:               ScannerNmap,
+		DisplayName:      "Nmap Network Scanner",
+		Version:          PinnedNmapAdapterVersion,
+		SupportedTargets: []string{"hostname", "ip", "url"},
+		Capabilities: Capabilities{
+			CheckCategories:      []string{"discovery", "port_scan", "service_detection"},
+			SupportedTargetTypes: []string{"hostname", "ip", "url"},
+			SupportedProtocols:   []string{"tcp", "http", "https"},
+			PassiveOnly:          false,
+			ActiveScanning:       true,
+			RequiresNetwork:      true,
+			SupportsCancel:       true,
+			RequiresSandbox:      true,
+			MaxConcurrency:       1,
+			MaxRequestRate:       10,
+			MaxRequests:          1000,
+		},
+		ConfigVersion: ScannerConfigVersion,
+		VersionPolicy: VersionPolicy{
+			ScannerVersion: PinnedNmapScannerVersion,
+			ImageReference: PinnedNmapImageReference,
+			ImageDigest:    PinnedNmapImageDigest,
+		},
+	}
+	nmapRunner := NewOCINmapRunner(executor)
+	if err := registry.RegisterAdapter(nmapMetadata, func() ScannerAdapter {
+		return NewVerifiedNmapAdapter(DefaultNmapVerifier, nmapRunner)
 	}); err != nil {
 		return err
 	}

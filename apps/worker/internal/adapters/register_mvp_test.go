@@ -23,17 +23,18 @@ func TestRegisterDefaultAdapters(t *testing.T) {
 		require.NoError(t, err)
 
 		names := registry.Names()
-		assert.Len(t, names, 5)
+		assert.Len(t, names, 6)
 		assert.Contains(t, names, adapters.ScannerHTTPPreflight)
 		assert.Contains(t, names, adapters.ScannerHTTPHeaders)
 		assert.Contains(t, names, adapters.ScannerTLSAssessor)
 		assert.Contains(t, names, adapters.ScannerNuclei)
 		assert.Contains(t, names, adapters.ScannerZAPBaseline)
+		assert.Contains(t, names, adapters.ScannerNmap)
 
 		err = registry.Initialize(ctx, logger)
 		require.NoError(t, err)
 
-		// Verify all 5 adapters are available
+		// Verify all adapters are available
 		for _, name := range names {
 			meta, ok := registry.Metadata(name)
 			assert.True(t, ok)
@@ -54,6 +55,12 @@ func TestRegisterDefaultAdapters(t *testing.T) {
 		assert.Equal(t, "2.15.0", zapVer.ScannerVersion)
 		assert.Equal(t, "1.0.0", zapVer.AdapterVersion)
 		assert.NotEmpty(t, zapVer.ImageDigest)
+
+		nmapVer, err := adapters.DefaultNmapVerifier(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, "7.95", nmapVer.ScannerVersion)
+		assert.Equal(t, "1.0.0", nmapVer.AdapterVersion)
+		assert.NotEmpty(t, nmapVer.ImageDigest)
 	})
 
 	t.Run("DefaultScopePolicyProvider resolves host accurately", func(t *testing.T) {
@@ -69,8 +76,9 @@ func TestRegisterDefaultAdapters(t *testing.T) {
 		fakeExec := sandbox.NewFake()
 		nucleiRunner := adapters.NewOCINucleiRunner(fakeExec)
 		zapRunner := adapters.NewOCIZAPRunner(fakeExec)
+		nmapRunner := adapters.NewOCINmapRunner(fakeExec)
 
-		// Loopback target should be rejected by both runners
+		// Loopback target should be rejected by runners
 		loopbackTask := adapters.Task{
 			Target: "http://127.0.0.1:8080/admin",
 		}
@@ -79,6 +87,10 @@ func TestRegisterDefaultAdapters(t *testing.T) {
 		assert.Contains(t, err.Error(), "rejected by scope policy")
 
 		_, err = zapRunner(ctx, loopbackTask)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "rejected by scope policy")
+
+		_, err = nmapRunner(ctx, loopbackTask)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "rejected by scope policy")
 	})
