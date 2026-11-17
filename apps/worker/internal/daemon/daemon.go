@@ -39,6 +39,7 @@ type Config struct {
 	ConcurrencyController concurrency.Controller
 	CanaryOnly            bool
 	CanaryAllowedTargets  []string
+	StateSyncer           StateSyncer
 }
 
 func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, registry *adapters.Registry) error {
@@ -76,7 +77,12 @@ func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, regist
 			case <-ctx.Done():
 				return
 			case <-heartbeat.C:
-				log.Info("worker heartbeat")
+				if hb, ok := q.(interface {
+					Heartbeat(context.Context, string, string, time.Duration) error
+				}); ok {
+					_ = hb.Heartbeat(ctx, "worker:"+cfg.WorkerID, cfg.WorkerID, cfg.HeartbeatEvery*3)
+				}
+				log.Info("worker heartbeat", zap.String("vitality_key", "worker:"+cfg.WorkerID))
 			}
 		}
 	}()
@@ -132,7 +138,7 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		acquired, err := lm.AcquireLease(ctx, job.ID, leaseTTL)
 		if err != nil {
 			jobLog.Error("failed to query distributed job lease; failing closed", zap.Error(err))
-			fail(jobLog, q, ctx, job, "distributed lease acquisition failed: "+err.Error())
+			fail(jobLog, q, ctx, job, "distributed lease acquisition failed: "+err.Error(), cfg)
 			return
 		}
 		if !acquired {
@@ -171,8 +177,12 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		err = adapters.ValidateTask(task)
 	}
 	if err != nil {
-		fail(jobLog, q, ctx, job, err.Error())
+		fail(jobLog, q, ctx, job, err.Error(), cfg)
 		return
+	}
+
+	if cfg.StateSyncer != nil {
+		_ = cfg.StateSyncer.SyncJobState(ctx, job.TenantID, job.AssessmentID, job.ID, "RUNNING", "")
 	}
 
 	isAssessmentPipeline := strings.EqualFold(job.Type, JobTypeAssessment) || strings.EqualFold(job.Type, JobTypePipeline)
@@ -181,14 +191,14 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		scannerKey := strings.ToLower(job.Type)
 		if cfg.ReadinessChecker != nil {
 			if !cfg.ReadinessChecker.IsScannerReady(ctx, scannerKey) && !cfg.ReadinessChecker.IsScannerReady(ctx, job.Type) {
-				fail(jobLog, q, ctx, job, fmt.Sprintf("scanner %q runtime readiness check failed", job.Type))
+				fail(jobLog, q, ctx, job, fmt.Sprintf("scanner %q runtime readiness check failed", job.Type), cfg)
 				return
 			}
 		}
 
 		if _, ok := registry.LookupExecutable(job.Type); !ok {
 			if _, ok := registry.LookupExecutable(scannerKey); !ok {
-				fail(jobLog, q, ctx, job, "no executable adapter registered for job type")
+				fail(jobLog, q, ctx, job, "no executable adapter registered for job type", cfg)
 				return
 			}
 		}
@@ -201,7 +211,7 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 				zap.String("job_id", job.ID),
 				zap.String("target", task.Target),
 			)
-			fail(jobLog, q, ctx, job, fmt.Sprintf("rejected by canary-only execution policy: target %q not permitted", task.Target))
+			fail(jobLog, q, ctx, job, fmt.Sprintf("rejected by canary-only execution policy: target %q not permitted", task.Target), cfg)
 			return
 		}
 	}
@@ -209,7 +219,7 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 	// Prevent workers from accepting unvalidated execution requests
 	if task.ProfileID != "" && !isAssessmentPipeline {
 		if _, err := adapters.ValidateProfileSelection(task.ProfileID, task.Scanner); err != nil {
-			fail(jobLog, q, ctx, job, "unauthorized scanner for assessment profile: "+err.Error())
+			fail(jobLog, q, ctx, job, "unauthorized scanner for assessment profile: "+err.Error(), cfg)
 			return
 		}
 	}
@@ -272,7 +282,7 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 				cfg.Metrics.IncResourceViolation(metrics.ViolationConcurrency)
 			}
 			jobLog.Warn("concurrency capacity unavailable for job", zap.String("job_id", job.ID), zap.Error(err))
-			fail(jobLog, q, ctx, job, "concurrency capacity unavailable: "+err.Error())
+			fail(jobLog, q, ctx, job, "concurrency capacity unavailable: "+err.Error(), cfg)
 			return
 		}
 		defer func() {
@@ -313,68 +323,95 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 		result, execErr = orchestrator.ExecuteScanner(jobCtx, jobLog, task, cfg)
 	}
 
-	processResult(jobLog, q, job, task, result, execErr, ctx, cfg.Metrics)
+	processResult(jobLog, q, job, task, result, execErr, ctx, cfg)
 }
 
-func fail(log *zap.Logger, q queue.Queue, ctx context.Context, job queue.Job, reason string) {
-	if err := q.Fail(ctx, job, reason); err != nil {
+func fail(log *zap.Logger, q queue.Queue, ctx context.Context, job queue.Job, reason string, cfg Config) {
+	cleanupCtx := ctx
+	if ctx.Err() != nil {
+		var cancel context.CancelFunc
+		cleanupCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+	}
+	if cfg.StateSyncer != nil {
+		_ = cfg.StateSyncer.SyncJobState(cleanupCtx, job.TenantID, job.AssessmentID, job.ID, "FAILED", reason)
+	}
+	if err := q.Fail(cleanupCtx, job, reason); err != nil {
 		log.Error("failed to record job failure", zap.Error(err))
 	}
 }
 
-func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.Task, result *sandbox.Result, execErr error, ctx context.Context, reg *metrics.Registry) {
+func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.Task, result *sandbox.Result, execErr error, ctx context.Context, cfg Config) {
 	mark := func(c metrics.TerminationCause) {
-		if reg != nil {
-			reg.IncTermination(c)
+		if cfg.Metrics != nil {
+			cfg.Metrics.IncTermination(c)
 		}
 		log.Info("job terminated", zap.String("cause", string(c)))
 	}
 	if (result != nil && result.Cancelled) || errors.Is(execErr, sandbox.ErrCancelled) || errors.Is(execErr, context.Canceled) {
 		mark(metrics.CauseCancelled)
-		fail(log, q, ctx, job, "execution cancelled")
+		cleanupCtx := ctx
+		if ctx.Err() != nil {
+			var cancel context.CancelFunc
+			cleanupCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+		}
+		if cfg.StateSyncer != nil {
+			_ = cfg.StateSyncer.SyncJobState(cleanupCtx, job.TenantID, job.AssessmentID, job.ID, "CANCELLED", "execution cancelled")
+		}
+		fail(log, q, cleanupCtx, job, "execution cancelled", cfg)
 		return
 	}
 	if result != nil && result.DeadlineExceeded {
 		mark(metrics.CauseDeadline)
-		fail(log, q, ctx, job, "execution deadline exceeded")
+		fail(log, q, ctx, job, "execution deadline exceeded", cfg)
 		return
 	}
 	if execErr != nil {
 		if result != nil && result.OOMKilled {
 			mark(metrics.CauseOOM)
-			fail(log, q, ctx, job, "out of memory")
+			fail(log, q, ctx, job, "out of memory", cfg)
 			return
 		}
 		mark(metrics.CauseCrash)
-		fail(log, q, ctx, job, execErr.Error())
+		fail(log, q, ctx, job, execErr.Error(), cfg)
 		return
 	}
 	if result == nil {
 		mark(metrics.CauseCrash)
-		fail(log, q, ctx, job, "sandbox returned no result")
+		fail(log, q, ctx, job, "sandbox returned no result", cfg)
 		return
 	}
 	if result.ExitCode != 0 {
 		mark(metrics.CauseCrash)
-		fail(log, q, ctx, job, fmt.Sprintf("scanner exited with code %d", result.ExitCode))
+		fail(log, q, ctx, job, fmt.Sprintf("scanner exited with code %d", result.ExitCode), cfg)
 		return
 	}
 	if len(result.OutputEnvelope) > 0 {
 		if _, err := adapters.DecodeOutputEnvelope(result.OutputEnvelope); err != nil {
 			mark(metrics.CauseValidation)
-			fail(log, q, ctx, job, "scanner output envelope failed validation: "+err.Error())
+			fail(log, q, ctx, job, "scanner output envelope failed validation: "+err.Error(), cfg)
 			return
 		}
 	} else if len(result.Findings) > 0 {
 		if err := adapters.ValidateFindings(result.Findings); err != nil {
 			mark(metrics.CauseValidation)
-			fail(log, q, ctx, job, "findings failed schema validation: "+err.Error())
+			fail(log, q, ctx, job, "findings failed schema validation: "+err.Error(), cfg)
 			return
 		}
 	}
 	mark(metrics.CauseCompleted)
 	log.Info("job completed successfully", zap.Duration("duration", result.Duration), zap.Duration("deadline", task.HardDeadline))
-	if err := q.Complete(ctx, job); err != nil {
+	cleanupCtx := ctx
+	if ctx.Err() != nil {
+		var cancel context.CancelFunc
+		cleanupCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+	}
+	if cfg.StateSyncer != nil {
+		_ = cfg.StateSyncer.SyncJobState(cleanupCtx, job.TenantID, job.AssessmentID, job.ID, "COMPLETED", "")
+	}
+	if err := q.Complete(cleanupCtx, job); err != nil {
 		log.Error("failed to record job completion", zap.Error(err))
 	}
 }

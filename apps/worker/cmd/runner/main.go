@@ -2,18 +2,24 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/config"
 	"github.com/kelvin/kelvin/apps/worker/internal/daemon"
 	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
 	"github.com/kelvin/kelvin/apps/worker/internal/metrics"
 	"github.com/kelvin/kelvin/apps/worker/internal/queue"
+	"github.com/kelvin/kelvin/apps/worker/internal/readiness"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/packages/common/logging"
 	commonqueue "github.com/kelvin/kelvin/packages/common/queue"
@@ -159,7 +165,45 @@ func main() {
 		log.Fatal("worker queue must be connected to Redis in production")
 	}
 
-	// 4. Run Daemon loop with concurrency and resource bounds
+	// 4. Initialize Database Connection Pool and State Syncer
+	var stateSyncer daemon.StateSyncer = daemon.NewMemoryStateSyncer()
+	if cfg.Database.URL != "" {
+		poolCfg, err := pgxpool.ParseConfig(cfg.Database.URL)
+		if err == nil {
+			dbPool, err := pgxpool.NewWithConfig(ctx, poolCfg)
+			if err == nil {
+				defer dbPool.Close()
+				stateSyncer = daemon.NewPostgresStateSyncer(dbPool)
+				log.Info("worker database state synchronizer initialized with PostgreSQL pool")
+			} else {
+				log.Warn("failed to initialize worker database connection pool", zap.Error(err))
+			}
+		}
+	}
+
+	// 5. Initialize Readiness Checker & Diagnostics HTTP Server (:8081/healthz, :8081/readyz)
+	checker := readiness.NewDefaultChecker(registry, exec.LookPath, "deploy/catalogs", "/tmp/kelvin-workspace", log)
+	healthAddr := cfg.HealthAddr
+	if healthAddr == "" {
+		healthAddr = ":8081"
+	}
+	healthServer := &http.Server{
+		Addr:    healthAddr,
+		Handler: readiness.HTTPHandler(checker),
+	}
+	go func() {
+		log.Info("worker diagnostics HTTP server listening", zap.String("addr", healthAddr))
+		if err := healthServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Warn("worker diagnostics HTTP server terminated", zap.Error(err))
+		}
+	}()
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = healthServer.Shutdown(shutdownCtx)
+	}()
+
+	// 6. Run Daemon loop with concurrency, lease recovery, and resource bounds
 	configuredLimits, err := cfg.ToLimits()
 	if err != nil {
 		log.Fatal("invalid worker resource limits", zap.Error(err))
@@ -172,7 +216,9 @@ func main() {
 		Executor:             executor,
 		Limits:               configuredLimits,
 		Metrics:              metrics.Default(),
+		ReadinessChecker:      checker,
 		ScopePolicyProvider:  adapters.DefaultScopePolicyProvider,
+		StateSyncer:          stateSyncer,
 		CanaryOnly:           cfg.CanaryOnly,
 		CanaryAllowedTargets: cfg.CanaryAllowedTargets,
 	}, workQueue, registry)
