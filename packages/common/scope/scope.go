@@ -52,8 +52,66 @@ type Policy struct {
 	Dialer   net.Dialer
 }
 
+// TenantTargetManifest defines the authorized target scope declared for a tenant.
+type TenantTargetManifest struct {
+	TenantID        string   `json:"tenant_id"`
+	AllowedDomains  []string `json:"allowed_domains"`
+	AllowedCIDRs    []string `json:"allowed_cidrs"`
+	AllowSubdomains bool     `json:"allow_subdomains"`
+}
+
+// PolicyForTenant constructs a hardened Scope Policy strictly bounded to the tenant's manifest.
+func PolicyForTenant(manifest TenantTargetManifest, resolver Resolver) (Policy, error) {
+	if strings.TrimSpace(manifest.TenantID) == "" {
+		return Policy{}, errors.New("scope: tenant_id is required in target manifest")
+	}
+
+	var domains []string
+	for _, d := range manifest.AllowedDomains {
+		clean := strings.TrimSpace(strings.ToLower(d))
+		if clean == "" {
+			continue
+		}
+		domains = append(domains, clean)
+		if manifest.AllowSubdomains && !strings.HasPrefix(clean, "*.") {
+			domains = append(domains, "*."+clean)
+		}
+	}
+
+	return NewPolicy(domains, manifest.AllowedCIDRs, resolver)
+}
+
 func NewPolicy(domains, cidrs []string, resolver Resolver) (Policy, error) {
-	p := Policy{Domains: append([]string(nil), domains...), Resolver: resolver, labMode: LabModeFromEnv()}
+	var validDomains []string
+	for _, d := range domains {
+		clean := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(d), "."))
+		if clean == "" {
+			continue
+		}
+		// Validate wildcard format
+		if strings.Contains(clean, "*") {
+			if !strings.HasPrefix(clean, "*.") {
+				return Policy{}, fmt.Errorf("invalid wildcard domain %q: wildcard must start with '*.'", d)
+			}
+			base := strings.TrimPrefix(clean, "*.")
+			if strings.Count(base, ".") < 1 || strings.Contains(base, "*") {
+				return Policy{}, fmt.Errorf("invalid wildcard domain %q: wildcard must have at least two domain labels (e.g. *.example.com)", d)
+			}
+			if err := validDNSName(base); err != nil {
+				return Policy{}, fmt.Errorf("invalid domain name %q: %w", d, err)
+			}
+		} else {
+			// Check if it's an IP
+			if ip, err := netip.ParseAddr(clean); err == nil {
+				clean = ip.Unmap().String()
+			} else if err := validDNSName(clean); err != nil {
+				return Policy{}, fmt.Errorf("invalid domain name %q: %w", d, err)
+			}
+		}
+		validDomains = append(validDomains, clean)
+	}
+
+	p := Policy{Domains: validDomains, Resolver: resolver, labMode: LabModeFromEnv()}
 	for _, cidr := range cidrs {
 		prefix, err := netip.ParsePrefix(strings.TrimSpace(cidr))
 		if err != nil {
