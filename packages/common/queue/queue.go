@@ -72,6 +72,10 @@ type IJobQueue interface {
 	Cancel(context.Context, string) error
 	GetStatus(context.Context, string) (Status, error)
 	Heartbeat(context.Context, string, string, time.Duration) error
+	AcquireLease(ctx context.Context, jobID string, workerID string, ttl time.Duration) (bool, error)
+	RenewLease(ctx context.Context, jobID string, workerID string, ttl time.Duration) error
+	ReleaseLease(ctx context.Context, jobID string, workerID string) error
+	IsLeaseActive(ctx context.Context, jobID string) (bool, string, error)
 }
 
 type RedisConfig struct {
@@ -82,6 +86,7 @@ type RedisConfig struct {
 	MaxAttempts             int
 	Backoff                 time.Duration
 	Block                   time.Duration
+	ClaimMinIdle            time.Duration
 }
 type RedisQueue struct {
 	client redis.UniversalClient
@@ -171,13 +176,20 @@ func (q *RedisQueue) Consume(ctx context.Context, consumer string) (Delivery, er
 		if err := q.promote(ctx); err != nil {
 			return Delivery{}, err
 		}
-		pending, _, claimErr := q.client.XAutoClaim(ctx, &redis.XAutoClaimArgs{Stream: q.stream(), Group: q.cfg.Group, Consumer: consumer, MinIdle: time.Minute, Start: "0-0", Count: 1}).Result()
+		minIdle := q.cfg.ClaimMinIdle
+		if minIdle <= 0 {
+			minIdle = time.Minute
+		}
+		pending, _, claimErr := q.client.XAutoClaim(ctx, &redis.XAutoClaimArgs{Stream: q.stream(), Group: q.cfg.Group, Consumer: consumer, MinIdle: minIdle, Start: "0-0", Count: 1}).Result()
 		if claimErr == nil && len(pending) > 0 {
 			d, ok, err := q.decodeDelivery(ctx, pending[0])
 			if err != nil {
 				return Delivery{}, err
 			}
 			if ok {
+				if active, owner, _ := q.IsLeaseActive(ctx, d.Message.ID); active && owner != consumer {
+					continue
+				}
 				return d, nil
 			}
 		} else if claimErr != nil && !strings.Contains(claimErr.Error(), "unknown command") {
@@ -355,7 +367,89 @@ func (q *RedisQueue) Heartbeat(ctx context.Context, id, worker string, ttl time.
 	}
 	return q.client.Set(ctx, q.cfg.Prefix+":heartbeat:"+id, worker, ttl).Err()
 }
+
+const renewLeaseLua = `
+if redis.call("get", KEYS[1]) == ARGV[1] then
+	return redis.call("expire", KEYS[1], ARGV[2])
+else
+	return 0
+end`
+
+const releaseLeaseLua = `
+if redis.call("get", KEYS[1]) == ARGV[1] then
+	return redis.call("del", KEYS[1])
+else
+	return 0
+end`
+
+func (q *RedisQueue) leaseKey(id string) string { return q.cfg.Prefix + ":lease:" + id }
+
+func (q *RedisQueue) AcquireLease(ctx context.Context, jobID string, workerID string, ttl time.Duration) (bool, error) {
+	if jobID == "" || workerID == "" {
+		return false, errors.New("queue: jobID and workerID are required to acquire lease")
+	}
+	if ttl <= 0 {
+		ttl = 30 * time.Second
+	}
+	ok, err := q.client.SetNX(ctx, q.leaseKey(jobID), workerID, ttl).Result()
+	if err != nil {
+		return false, fmt.Errorf("queue: acquire lease failed: %w", err)
+	}
+	return ok, nil
+}
+
+func (q *RedisQueue) RenewLease(ctx context.Context, jobID string, workerID string, ttl time.Duration) error {
+	if jobID == "" || workerID == "" {
+		return errors.New("queue: jobID and workerID are required to renew lease")
+	}
+	if ttl <= 0 {
+		ttl = 30 * time.Second
+	}
+	ttlSec := int(ttl.Seconds())
+	if ttlSec <= 0 {
+		ttlSec = 1
+	}
+	res, err := q.client.Eval(ctx, renewLeaseLua, []string{q.leaseKey(jobID)}, workerID, ttlSec).Result()
+	if err != nil {
+		return fmt.Errorf("queue: renew lease failed: %w", err)
+	}
+	if val, ok := res.(int64); !ok || val == 0 {
+		return errors.New("queue: lease lost or owned by another worker")
+	}
+	return nil
+}
+
+func (q *RedisQueue) ReleaseLease(ctx context.Context, jobID string, workerID string) error {
+	if jobID == "" || workerID == "" {
+		return errors.New("queue: jobID and workerID are required to release lease")
+	}
+	_, err := q.client.Eval(ctx, releaseLeaseLua, []string{q.leaseKey(jobID)}, workerID).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return fmt.Errorf("queue: release lease failed: %w", err)
+	}
+	return nil
+}
+
+func (q *RedisQueue) IsLeaseActive(ctx context.Context, jobID string) (bool, string, error) {
+	if jobID == "" {
+		return false, "", errors.New("queue: jobID is required")
+	}
+	val, err := q.client.Get(ctx, q.leaseKey(jobID)).Result()
+	if errors.Is(err, redis.Nil) {
+		return false, "", nil
+	}
+	if err != nil {
+		return false, "", fmt.Errorf("queue: check lease failed: %w", err)
+	}
+	return true, val, nil
+}
+
 func mustJSON(v any) []byte { b, _ := json.Marshal(v); return b }
+
+type memoryLease struct {
+	workerID  string
+	expiresAt time.Time
+}
 
 // MemoryQueue is a dependency-free adapter for unit tests and local development.
 type MemoryQueue struct {
@@ -364,10 +458,16 @@ type MemoryQueue struct {
 	items     []Delivery
 	status    map[string]Status
 	cancelled map[string]bool
+	leases    map[string]memoryLease
 }
 
 func NewMemory() *MemoryQueue {
-	return &MemoryQueue{notify: make(chan struct{}, 1), status: map[string]Status{}, cancelled: map[string]bool{}}
+	return &MemoryQueue{
+		notify:    make(chan struct{}, 1),
+		status:    map[string]Status{},
+		cancelled: map[string]bool{},
+		leases:    map[string]memoryLease{},
+	}
 }
 func (m *MemoryQueue) Enqueue(_ context.Context, msg Message) error {
 	if msg.ID == "" {
@@ -492,6 +592,73 @@ func (m *MemoryQueue) GetStatus(_ context.Context, id string) (Status, error) {
 	return s, nil
 }
 func (m *MemoryQueue) Heartbeat(context.Context, string, string, time.Duration) error { return nil }
+
+func (m *MemoryQueue) AcquireLease(_ context.Context, jobID string, workerID string, ttl time.Duration) (bool, error) {
+	if jobID == "" || workerID == "" {
+		return false, errors.New("queue: jobID and workerID are required to acquire lease")
+	}
+	if ttl <= 0 {
+		ttl = 30 * time.Second
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing, ok := m.leases[jobID]; ok {
+		if time.Now().Before(existing.expiresAt) && existing.workerID != workerID {
+			return false, nil
+		}
+	}
+	m.leases[jobID] = memoryLease{
+		workerID:  workerID,
+		expiresAt: time.Now().Add(ttl),
+	}
+	return true, nil
+}
+
+func (m *MemoryQueue) RenewLease(_ context.Context, jobID string, workerID string, ttl time.Duration) error {
+	if jobID == "" || workerID == "" {
+		return errors.New("queue: jobID and workerID are required to renew lease")
+	}
+	if ttl <= 0 {
+		ttl = 30 * time.Second
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	existing, ok := m.leases[jobID]
+	if !ok || time.Now().After(existing.expiresAt) || existing.workerID != workerID {
+		return errors.New("queue: lease lost or owned by another worker")
+	}
+	m.leases[jobID] = memoryLease{
+		workerID:  workerID,
+		expiresAt: time.Now().Add(ttl),
+	}
+	return nil
+}
+
+func (m *MemoryQueue) ReleaseLease(_ context.Context, jobID string, workerID string) error {
+	if jobID == "" || workerID == "" {
+		return errors.New("queue: jobID and workerID are required to release lease")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	existing, ok := m.leases[jobID]
+	if ok && existing.workerID == workerID {
+		delete(m.leases, jobID)
+	}
+	return nil
+}
+
+func (m *MemoryQueue) IsLeaseActive(_ context.Context, jobID string) (bool, string, error) {
+	if jobID == "" {
+		return false, "", errors.New("queue: jobID is required")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	existing, ok := m.leases[jobID]
+	if !ok || time.Now().After(existing.expiresAt) {
+		return false, "", nil
+	}
+	return true, existing.workerID, nil
+}
 
 // WorkerTokens issues short-lived HMAC tokens scoped to one job and worker.
 type WorkerTokens struct {

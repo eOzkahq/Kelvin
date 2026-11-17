@@ -53,6 +53,18 @@ func (r *recordingQueue) Cancel(ctx context.Context, id string) error {
 func (r *recordingQueue) GetStatus(ctx context.Context, id string) (commonqueue.Status, error) {
 	return r.inner.GetStatus(ctx, id)
 }
+func (r *recordingQueue) AcquireLease(ctx context.Context, jobID string, ttl time.Duration) (bool, error) {
+	return r.inner.AcquireLease(ctx, jobID, ttl)
+}
+func (r *recordingQueue) RenewLease(ctx context.Context, jobID string, ttl time.Duration) error {
+	return r.inner.RenewLease(ctx, jobID, ttl)
+}
+func (r *recordingQueue) ReleaseLease(ctx context.Context, jobID string) error {
+	return r.inner.ReleaseLease(ctx, jobID)
+}
+func (r *recordingQueue) IsLeaseActive(ctx context.Context, jobID string) (bool, string, error) {
+	return r.inner.IsLeaseActive(ctx, jobID)
+}
 
 type stubAdapter struct{ name string }
 
@@ -475,5 +487,58 @@ func TestDaemonCanaryOnlyPolicy(t *testing.T) {
 	}
 	if q.completed[0].ID != authorizedJob.ID {
 		t.Errorf("expected completed job ID %s, got %s", authorizedJob.ID, q.completed[0].ID)
+	}
+}
+
+func TestDaemon_DistributedLeasePreventsDuplicateExecution(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reg := adapters.NewRegistry()
+	if err := registerStub(reg); err != nil {
+		t.Fatalf("failed to register stub: %v", err)
+	}
+
+	q := newRecordingQueue()
+	jobID := "job-duplicate-lease-test"
+	activeJob := queue.Job{
+		ID:           jobID,
+		AssessmentID: "123e4567-e89b-12d3-a456-426614174001",
+		TenantID:     "123e4567-e89b-12d3-a456-426614174002",
+		Type:         adapters.ScannerNuclei,
+		Payload:      []byte(`{"target":"https://example.test","profile_id":"standard","hard_deadline_seconds":5}`),
+	}
+
+	// 1. Another worker already acquired the lease
+	acquired, err := q.AcquireLease(ctx, jobID, 10*time.Second)
+	if err != nil || !acquired {
+		t.Fatalf("setup: failed to pre-acquire lease: %v", err)
+	}
+
+	// 2. Run process() directly with a competing worker context
+	cfg := Config{
+		WorkerID:       "competing-worker-2",
+		HeartbeatEvery: 5 * time.Second,
+	}
+	done := make(chan struct{})
+	go func() {
+		process(ctx, zap.NewNop(), q, reg, activeJob, cfg)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Succeeded in skipping without executing
+	case <-time.After(2 * time.Second):
+		t.Fatal("process did not exit promptly when lease was held by another worker")
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.completed) > 0 {
+		t.Fatalf("expected 0 completed jobs due to lease collision, got %d", len(q.completed))
+	}
+	if len(q.failed) > 0 {
+		t.Fatalf("expected 0 failed jobs (silent skip on duplicate), got %d: %v", len(q.failed), q.failedReasons)
 	}
 }

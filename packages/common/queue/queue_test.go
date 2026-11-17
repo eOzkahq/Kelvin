@@ -84,3 +84,63 @@ func TestWorkerTokenScopeExpiryAndSignature(t *testing.T) {
 		t.Fatal("tampered token accepted")
 	}
 }
+
+func TestMemoryQueueDistributedLease(t *testing.T) {
+	ctx := context.Background()
+	q := NewMemory()
+	jobID := "job-lease-test-1"
+
+	// 1. Initial acquisition by worker-1
+	acquired, err := q.AcquireLease(ctx, jobID, "worker-1", 500*time.Millisecond)
+	if err != nil || !acquired {
+		t.Fatalf("expected initial lease acquisition to succeed, got %v, err=%v", acquired, err)
+	}
+
+	// 2. Active lease query
+	active, owner, err := q.IsLeaseActive(ctx, jobID)
+	if err != nil || !active || owner != "worker-1" {
+		t.Fatalf("expected lease active with owner worker-1, got active=%v, owner=%s, err=%v", active, owner, err)
+	}
+
+	// 3. Competing acquisition by worker-2 should fail
+	acquired, err = q.AcquireLease(ctx, jobID, "worker-2", 500*time.Millisecond)
+	if err != nil {
+		t.Fatalf("unexpected error during competing acquisition: %v", err)
+	}
+	if acquired {
+		t.Fatal("competing worker acquired active lease")
+	}
+
+	// 4. Renewal by wrong worker fails
+	if err := q.RenewLease(ctx, jobID, "worker-2", time.Second); err == nil {
+		t.Fatal("unauthorized worker successfully renewed lease")
+	}
+
+	// 5. Renewal by owner succeeds
+	if err := q.RenewLease(ctx, jobID, "worker-1", time.Second); err != nil {
+		t.Fatalf("owner failed to renew lease: %v", err)
+	}
+
+	// 6. Release by owner
+	if err := q.ReleaseLease(ctx, jobID, "worker-1"); err != nil {
+		t.Fatalf("failed to release lease: %v", err)
+	}
+
+	active, _, _ = q.IsLeaseActive(ctx, jobID)
+	if active {
+		t.Fatal("lease still active after release")
+	}
+
+	// 7. worker-2 can now acquire
+	acquired, err = q.AcquireLease(ctx, jobID, "worker-2", 50*time.Millisecond)
+	if err != nil || !acquired {
+		t.Fatalf("worker-2 failed to acquire released lease: %v", err)
+	}
+
+	// 8. Lease expiration allows acquisition
+	time.Sleep(70 * time.Millisecond)
+	acquired, err = q.AcquireLease(ctx, jobID, "worker-3", 100*time.Millisecond)
+	if err != nil || !acquired {
+		t.Fatalf("worker-3 failed to acquire expired lease: %v", err)
+	}
+}

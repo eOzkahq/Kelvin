@@ -33,6 +33,15 @@ type Queue interface {
 	Fail(ctx context.Context, job Job, reason string) error
 }
 
+// LeaseManager provides distributed lease locking on jobs to ensure at-most-once
+// execution across multiple or restarted workers (ADR-M9-01).
+type LeaseManager interface {
+	AcquireLease(ctx context.Context, jobID string, ttl time.Duration) (bool, error)
+	RenewLease(ctx context.Context, jobID string, ttl time.Duration) error
+	ReleaseLease(ctx context.Context, jobID string) error
+	IsLeaseActive(ctx context.Context, jobID string) (bool, string, error)
+}
+
 // NopQueue never yields jobs; Dequeue waits for cancellation. It keeps the
 // daemon runnable without a broker during Phase 1 scaffolding.
 type NopQueue struct{}
@@ -49,6 +58,11 @@ func (NopQueue) Complete(context.Context, Job) error { return nil }
 // Fail is a no-op.
 func (NopQueue) Fail(context.Context, Job, string) error { return nil }
 
+type memoryLease struct {
+	workerID  string
+	expiresAt time.Time
+}
+
 // MemoryQueue is an in-process queue used by daemon unit tests and local
 // wiring experiments; it is not a durable broker.
 type MemoryQueue struct {
@@ -56,6 +70,7 @@ type MemoryQueue struct {
 	jobs           []Job
 	status         map[string]commonqueue.Status
 	cancelled      map[string]bool
+	leases         map[string]memoryLease
 	progressEvents map[string][]progress.ProgressEvent
 	ch             chan struct{}
 }
@@ -131,6 +146,18 @@ func (r *RedisQueue) GetStatus(ctx context.Context, id string) (commonqueue.Stat
 func (r *RedisQueue) Heartbeat(ctx context.Context, id, worker string, ttl time.Duration) error {
 	return r.Queue.Heartbeat(ctx, id, worker, ttl)
 }
+func (r *RedisQueue) AcquireLease(ctx context.Context, jobID string, ttl time.Duration) (bool, error) {
+	return r.Queue.AcquireLease(ctx, jobID, r.WorkerID, ttl)
+}
+func (r *RedisQueue) RenewLease(ctx context.Context, jobID string, ttl time.Duration) error {
+	return r.Queue.RenewLease(ctx, jobID, r.WorkerID, ttl)
+}
+func (r *RedisQueue) ReleaseLease(ctx context.Context, jobID string) error {
+	return r.Queue.ReleaseLease(ctx, jobID, r.WorkerID)
+}
+func (r *RedisQueue) IsLeaseActive(ctx context.Context, jobID string) (bool, string, error) {
+	return r.Queue.IsLeaseActive(ctx, jobID)
+}
 
 // NewMemoryQueue builds an empty in-process queue.
 func NewMemoryQueue() *MemoryQueue {
@@ -138,6 +165,7 @@ func NewMemoryQueue() *MemoryQueue {
 		ch:             make(chan struct{}, 64),
 		status:         make(map[string]commonqueue.Status),
 		cancelled:      make(map[string]bool),
+		leases:         make(map[string]memoryLease),
 		progressEvents: make(map[string][]progress.ProgressEvent),
 	}
 }
@@ -223,3 +251,61 @@ func (m *MemoryQueue) Complete(context.Context, Job) error { return nil }
 
 // Fail discards the job.
 func (m *MemoryQueue) Fail(context.Context, Job, string) error { return nil }
+
+func (m *MemoryQueue) AcquireLease(_ context.Context, jobID string, ttl time.Duration) (bool, error) {
+	if jobID == "" {
+		return false, errors.New("queue: jobID is required to acquire lease")
+	}
+	if ttl <= 0 {
+		ttl = 30 * time.Second
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing, ok := m.leases[jobID]; ok {
+		if time.Now().Before(existing.expiresAt) {
+			return false, nil
+		}
+	}
+	m.leases[jobID] = memoryLease{
+		workerID:  "memory-worker",
+		expiresAt: time.Now().Add(ttl),
+	}
+	return true, nil
+}
+
+func (m *MemoryQueue) RenewLease(_ context.Context, jobID string, ttl time.Duration) error {
+	if jobID == "" {
+		return errors.New("queue: jobID is required to renew lease")
+	}
+	if ttl <= 0 {
+		ttl = 30 * time.Second
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	existing, ok := m.leases[jobID]
+	if !ok || time.Now().After(existing.expiresAt) {
+		return errors.New("queue: lease lost")
+	}
+	m.leases[jobID] = memoryLease{
+		workerID:  existing.workerID,
+		expiresAt: time.Now().Add(ttl),
+	}
+	return nil
+}
+
+func (m *MemoryQueue) ReleaseLease(_ context.Context, jobID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.leases, jobID)
+	return nil
+}
+
+func (m *MemoryQueue) IsLeaseActive(_ context.Context, jobID string) (bool, string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	existing, ok := m.leases[jobID]
+	if !ok || time.Now().After(existing.expiresAt) {
+		return false, "", nil
+	}
+	return true, existing.workerID, nil
+}

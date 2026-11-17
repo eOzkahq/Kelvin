@@ -123,6 +123,49 @@ func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, regist
 func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adapters.Registry, job queue.Job, cfg Config) {
 	jobLog := log.With(zap.String("job_id", job.ID), zap.String("job_type", job.Type), zap.String("correlation_id", job.CorrelationID))
 
+	// Enforce distributed lease locking (ADR-M9-01) to prevent duplicate concurrent execution
+	if lm, ok := q.(queue.LeaseManager); ok {
+		leaseTTL := cfg.HeartbeatEvery * 3
+		if leaseTTL <= 0 {
+			leaseTTL = 90 * time.Second
+		}
+		acquired, err := lm.AcquireLease(ctx, job.ID, leaseTTL)
+		if err != nil {
+			jobLog.Error("failed to query distributed job lease; failing closed", zap.Error(err))
+			fail(jobLog, q, ctx, job, "distributed lease acquisition failed: "+err.Error())
+			return
+		}
+		if !acquired {
+			jobLog.Warn("distributed lease already held by another worker; skipping duplicate execution", zap.String("job_id", job.ID))
+			return
+		}
+		defer func() {
+			_ = lm.ReleaseLease(context.Background(), job.ID)
+		}()
+
+		leaseRenewCtx, cancelLeaseRenew := context.WithCancel(ctx)
+		defer cancelLeaseRenew()
+		go func() {
+			renewInterval := cfg.HeartbeatEvery
+			if renewInterval <= 0 {
+				renewInterval = 30 * time.Second
+			}
+			ticker := time.NewTicker(renewInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-leaseRenewCtx.Done():
+					return
+				case <-ticker.C:
+					if err := lm.RenewLease(leaseRenewCtx, job.ID, leaseTTL); err != nil {
+						jobLog.Warn("distributed lease renewal failed", zap.String("job_id", job.ID), zap.Error(err))
+						return
+					}
+				}
+			}
+		}()
+	}
+
 	if cfg.ReadinessChecker != nil && job.Type != JobTypeAssessment && job.Type != JobTypePipeline {
 		if !cfg.ReadinessChecker.IsScannerReady(ctx, job.Type) {
 			fail(jobLog, q, ctx, job, fmt.Sprintf("scanner %q runtime readiness check failed", job.Type))

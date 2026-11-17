@@ -33,6 +33,18 @@ func (m *mockQueue) GetStatus(_ context.Context, _ string) (commonqueue.Status, 
 	return commonqueue.Status{}, nil
 }
 func (m *mockQueue) Heartbeat(_ context.Context, _, _ string, _ time.Duration) error { return nil }
+func (m *mockQueue) AcquireLease(_ context.Context, _ string, _ string, _ time.Duration) (bool, error) {
+	return true, nil
+}
+func (m *mockQueue) RenewLease(_ context.Context, _ string, _ string, _ time.Duration) error {
+	return nil
+}
+func (m *mockQueue) ReleaseLease(_ context.Context, _ string, _ string) error {
+	return nil
+}
+func (m *mockQueue) IsLeaseActive(_ context.Context, _ string) (bool, string, error) {
+	return false, "", nil
+}
 
 func TestAssessmentCreation_CanaryEnforcement(t *testing.T) {
 	repo := assessments.NewMemoryRepository()
