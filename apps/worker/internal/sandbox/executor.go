@@ -245,13 +245,27 @@ func (s Spec) Validate() error {
 	// 7. Non-Root Execution
 	if s.User == "" || s.User == "root" || s.User == "0" || strings.HasPrefix(s.User, "0:") {
 		errs = append(errs, "container must run as a non-root user")
+	} else {
+		// Verify UID is not a system account (< 1000)
+		uidPart := strings.Split(s.User, ":")[0]
+		var uid int
+		if _, err := fmt.Sscanf(uidPart, "%d", &uid); err == nil && uid < 1000 {
+			errs = append(errs, fmt.Sprintf("container user UID %d is a reserved system user; unprivileged UID >= 1000 required", uid))
+		}
 	}
 
 	// 8. Filesystem & Privilege Escalation
 	if !s.ReadOnlyRootfs {
 		errs = append(errs, "root filesystem must be read-only")
 	}
-	if !contains(s.SecurityOpt, "no-new-privileges") {
+	hasNoNewPrivs := false
+	for _, opt := range s.SecurityOpt {
+		if opt == "no-new-privileges" || opt == "no-new-privileges:true" {
+			hasNoNewPrivs = true
+			break
+		}
+	}
+	if !hasNoNewPrivs {
 		errs = append(errs, "no-new-privileges must be enabled")
 	}
 
@@ -270,14 +284,23 @@ func (s Spec) Validate() error {
 	}
 
 	// 10. Prohibited Mounts & Capabilities
+	if len(s.CapDrop) == 0 || !contains(s.CapDrop, "ALL") {
+		errs = append(errs, "all Linux capabilities must be dropped (cap-drop=ALL required)")
+	}
 	for _, mount := range s.TmpfsMounts {
-		if strings.Contains(mount, "/var/run/docker.sock") {
+		dest := strings.TrimSpace(strings.Split(mount, ":")[0])
+		switch dest {
+		case "/", "/etc", "/bin", "/sbin", "/usr", "/lib", "/lib64", "/dev", "/proc", "/sys", "/root":
+			errs = append(errs, fmt.Sprintf("tmpfs mount target %q is prohibited", dest))
+		}
+		if strings.Contains(mount, "/var/run/docker.sock") || strings.Contains(mount, "docker.sock") {
 			errs = append(errs, "docker socket mount is prohibited")
 		}
 	}
 	for _, cap := range s.CapAdd {
-		if cap == "ALL" || cap == "CAP_SYS_ADMIN" || cap == "CAP_SYS_PTRACE" {
-			errs = append(errs, fmt.Sprintf("capability %q is prohibited", cap))
+		upper := strings.ToUpper(cap)
+		if upper != "NET_RAW" && upper != "CAP_NET_RAW" {
+			errs = append(errs, fmt.Sprintf("capability %q is prohibited; only NET_RAW is permitted when authorized", cap))
 		}
 	}
 
@@ -306,8 +329,18 @@ func (s Spec) Validate() error {
 
 	// 12. Workspace Path
 	if s.WorkspaceMount != "" {
-		if !filepath.IsAbs(s.WorkspaceMount) || strings.ContainsAny(s.WorkspaceMount, "\x00\r\n") {
+		if (!filepath.IsAbs(s.WorkspaceMount) && !path.IsAbs(s.WorkspaceMount)) || strings.ContainsAny(s.WorkspaceMount, "\x00\r\n") {
 			errs = append(errs, "workspace mount must be an absolute path without control characters")
+		}
+		cleanUnix := path.Clean(strings.ReplaceAll(s.WorkspaceMount, "\\", "/"))
+		cleanWin := filepath.Clean(s.WorkspaceMount)
+		switch cleanUnix {
+		case "/", "/etc", "/usr", "/bin", "/sbin", "/lib", "/lib64", "/var", "/var/run", "/proc", "/sys", "/dev", "/boot", "/root":
+			errs = append(errs, fmt.Sprintf("host directory %q cannot be mounted as workspace", s.WorkspaceMount))
+		}
+		switch cleanWin {
+		case "C:\\", "C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)":
+			errs = append(errs, fmt.Sprintf("host directory %q cannot be mounted as workspace", s.WorkspaceMount))
 		}
 	}
 

@@ -816,5 +816,100 @@ func TestSpec_RejectsMutableImageTagsAndInvalidDigests(t *testing.T) {
 	}
 }
 
+func TestValidateSpec_RejectsSystemUID(t *testing.T) {
+	systemUIDs := []string{"0:0", "1:1", "100:100", "999:999"}
+	for _, uid := range systemUIDs {
+		spec := validSpec()
+		spec.User = uid
+		err := spec.Validate()
+		if err == nil {
+			t.Errorf("expected rejection for system user %q, got nil", uid)
+		}
+	}
+
+	validUIDs := []string{"1000:1000", "10001:10001", "65534:65534"}
+	for _, uid := range validUIDs {
+		spec := validSpec()
+		spec.User = uid
+		if err := spec.Validate(); err != nil {
+			t.Errorf("expected valid non-root user %q to pass, got: %v", uid, err)
+		}
+	}
+}
+
+func TestValidateSpec_CapDropEnforcement(t *testing.T) {
+	spec := validSpec()
+	spec.CapDrop = nil
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "cap-drop=ALL required") {
+		t.Fatalf("expected nil CapDrop to be rejected, got: %v", err)
+	}
+
+	spec.CapDrop = []string{"NET_RAW"}
+	if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "cap-drop=ALL required") {
+		t.Fatalf("expected CapDrop without ALL to be rejected, got: %v", err)
+	}
+}
+
+func TestValidateSpec_CapAddStrictRestriction(t *testing.T) {
+	// Authorized raw packet cap is accepted
+	spec := validSpec()
+	spec.CapAdd = []string{"NET_RAW"}
+	if err := spec.Validate(); err != nil {
+		t.Fatalf("expected NET_RAW to be accepted, got: %v", err)
+	}
+
+	spec.CapAdd = []string{"CAP_NET_RAW"}
+	if err := spec.Validate(); err != nil {
+		t.Fatalf("expected CAP_NET_RAW to be accepted, got: %v", err)
+	}
+
+	// Prohibited caps are rejected
+	prohibitedCaps := []string{"CAP_NET_ADMIN", "CAP_SYS_ADMIN", "CAP_CHOWN", "CAP_KILL", "CAP_DAC_OVERRIDE"}
+	for _, cap := range prohibitedCaps {
+		spec := validSpec()
+		spec.CapAdd = []string{cap}
+		if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "prohibited") {
+			t.Errorf("expected capability %q to be rejected, got: %v", cap, err)
+		}
+	}
+}
+
+func TestValidateSpec_TmpfsTargetRestrictions(t *testing.T) {
+	prohibitedTargets := []string{"/", "/etc", "/dev", "/proc", "/sys", "/bin", "/usr", "/root"}
+	for _, target := range prohibitedTargets {
+		spec := validSpec()
+		spec.TmpfsMounts = []string{target + ":size=64m"}
+		if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "prohibited") {
+			t.Errorf("expected tmpfs target %q to be rejected, got: %v", target, err)
+		}
+	}
+}
+
+func TestValidateSpec_WorkspaceMountRestrictions(t *testing.T) {
+	prohibitedWorkspaces := []string{"/", "/etc", "/usr", "/bin", "/var"}
+	for _, ws := range prohibitedWorkspaces {
+		spec := validSpec()
+		spec.WorkspaceMount = ws
+		if err := spec.Validate(); err == nil || !strings.Contains(err.Error(), "cannot be mounted as workspace") {
+			t.Errorf("expected host path %q as workspace to be rejected, got: %v", ws, err)
+		}
+	}
+}
+
+func TestOCIExecutorBuildArgs_TmpfsSecurityFlags(t *testing.T) {
+	spec := validSpec()
+	spec.TmpfsMounts = []string{"/tmp:size=64m", "/run:size=16m"}
+	exec := &OCIExecutor{runtime: "podman"}
+	args := exec.buildArgs(spec)
+
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--tmpfs=/tmp:size=64m,noexec,nosuid,nodev") {
+		t.Errorf("expected tmpfs flags to include noexec,nosuid,nodev; got %v", joined)
+	}
+	if !strings.Contains(joined, "--tmpfs=/run:size=16m,noexec,nosuid,nodev") {
+		t.Errorf("expected run tmpfs flags to include noexec,nosuid,nodev; got %v", joined)
+	}
+}
+
 
 

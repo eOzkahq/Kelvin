@@ -354,15 +354,33 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	if !spec.CaptureZAPReport {
 		args = append(args, "--rm")
 	}
-	args = append(args, "--user", spec.User, "--cap-drop=ALL", "--entrypoint", spec.Invocation.Executable)
+	user := spec.User
+	if user == "" {
+		user = "10001:10001"
+	}
+	args = append(args, "--user", user, "--cap-drop=ALL", "--entrypoint", spec.Invocation.Executable)
 	for _, cap := range spec.CapAdd {
 		args = append(args, "--cap-add="+cap)
 	}
 	if spec.ReadOnlyRootfs {
 		args = append(args, "--read-only")
 	}
-	for _, mount := range spec.TmpfsMounts {
-		args = append(args, "--tmpfs="+mount)
+	tmpfs := spec.TmpfsMounts
+	if len(tmpfs) == 0 {
+		tmpfs = []string{"/tmp:size=64m,noexec,nosuid,nodev", "/run:size=16m,noexec,nosuid,nodev"}
+	}
+	for _, mount := range tmpfs {
+		normalized := mount
+		if !strings.Contains(normalized, "noexec") {
+			normalized += ",noexec"
+		}
+		if !strings.Contains(normalized, "nosuid") {
+			normalized += ",nosuid"
+		}
+		if !strings.Contains(normalized, "nodev") {
+			normalized += ",nodev"
+		}
+		args = append(args, "--tmpfs="+normalized)
 	}
 	if spec.WorkspaceMount != "" {
 		args = append(args, "-v", spec.WorkspaceMount+":/workspace:rw")
