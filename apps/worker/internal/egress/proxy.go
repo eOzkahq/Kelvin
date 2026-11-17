@@ -429,6 +429,7 @@ func (p *Proxy) recordViolation(dest, ip string, port int, proto, reason string)
 
 	if p.metrics != nil {
 		p.metrics.IncResourceViolation(metrics.ViolationNetwork)
+		p.metrics.IncTermination(metrics.CauseNetwork)
 	}
 
 	p.broadcaster.Record(ViolationEvent{
