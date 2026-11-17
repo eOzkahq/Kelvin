@@ -195,3 +195,38 @@ func TestBoundedWriterConcurrentWrites(t *testing.T) {
 		t.Fatalf("expected CapturedBytes = %d, got %d", expectedTotal, w.CapturedBytes())
 	}
 }
+
+func TestBoundedWriterPartialSHA256(t *testing.T) {
+	w := outputcapture.NewBoundedWriter(1024)
+	input := []byte("deterministic test content for digest calculation\n")
+	_, err := w.Write(input)
+	if err != nil {
+		t.Fatalf("unexpected write error: %v", err)
+	}
+
+	digest := w.PartialSHA256()
+	if len(digest) != 64 {
+		t.Fatalf("expected 64-character hex digest, got %q (len %d)", digest, len(digest))
+	}
+
+	// Writing more updates the partial digest deterministically
+	w.Write([]byte("second line\n"))
+	digest2 := w.PartialSHA256()
+	if digest == digest2 {
+		t.Fatalf("expected partial digest to change after additional writes")
+	}
+}
+
+func TestDualStreamCapture_PartialDigests(t *testing.T) {
+	dual := outputcapture.NewDualStreamCapture(1024)
+	dual.Stdout.Write([]byte("stdout data"))
+	dual.Stderr.Write([]byte("stderr data"))
+
+	res := dual.Result()
+	if len(res.StdoutSHA256) != 64 || len(res.StderrSHA256) != 64 {
+		t.Fatalf("expected 64-char sha256 digests in StreamResult, got stdout=%q, stderr=%q", res.StdoutSHA256, res.StderrSHA256)
+	}
+	if res.StdoutSHA256 == res.StderrSHA256 {
+		t.Fatalf("expected distinct digests for stdout and stderr")
+	}
+}

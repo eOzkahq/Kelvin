@@ -175,3 +175,35 @@ func TestScanBoundedLines(t *testing.T) {
 	})
 }
 
+func TestParserGuard_PanicRecovery(t *testing.T) {
+	t.Run("RecoversFromPanicInScanBoundedLinesCallback", func(t *testing.T) {
+		input := "line1\nline2\n"
+		err := parserguard.ScanBoundedLines(strings.NewReader(input), 1024, func(line []byte) error {
+			if string(line) == "line2" {
+				panic("simulated fatal parser callback panic")
+			}
+			return nil
+		})
+		if err == nil {
+			t.Fatal("expected error after callback panic, got nil")
+		}
+		if !errors.Is(err, parserguard.ErrPanicRecovered) {
+			t.Fatalf("expected ErrPanicRecovered, got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "simulated fatal parser callback panic") {
+			t.Fatalf("expected panic message in error string, got: %v", err)
+		}
+	})
+}
+
+func TestParserGuard_OversizedPayloadRejection(t *testing.T) {
+	// Exceeds 50MB
+	oversizedLen := parserguard.MaxPayloadBytes + 1
+	// Using a custom reader or slice with length
+	oversized := make([]byte, parserguard.MaxPayloadBytes+10)
+	err := parserguard.ValidatePayload(oversized)
+	if !errors.Is(err, parserguard.ErrPayloadOversized) {
+		t.Fatalf("expected ErrPayloadOversized for %d bytes, got: %v", oversizedLen, err)
+	}
+}
+
