@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-11-16T10:39:46.436667+00:00",
+  "verdict": "PASSED",
+  "release_status": "ELIGIBLE_FOR_RELEASE",
+  "strict_mode": false,
+  "candidate_tag": null,
+  "manifest_path": "deploy/scanners/images.lock.json",
+  "total_gates_evaluated": 8,
+  "passed_gates_count": 8,
+  "failed_gates_count": 0,
+  "failed_gates": []
+}

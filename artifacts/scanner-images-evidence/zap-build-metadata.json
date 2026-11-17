@@ -1,0 +1,269 @@
+{
+  "buildx.build.provenance": {
+    "builder": {
+      "id": ""
+    },
+    "buildType": "https://mobyproject.org/buildkit@v1",
+    "materials": [
+      {
+        "uri": "pkg:docker/ghcr.io/zaproxy/zaproxy@stable?digest=sha256:0b8847b2c722b16f0964431aabcbb499560a1f17e8698d52326d82db29efac1d\u0026platform=linux%2Farm64",
+        "digest": {
+          "sha256": "0b8847b2c722b16f0964431aabcbb499560a1f17e8698d52326d82db29efac1d"
+        }
+      }
+    ],
+    "invocation": {
+      "configSource": {
+        "entryPoint": "Dockerfile"
+      },
+      "parameters": {
+        "frontend": "dockerfile.v0",
+        "args": {
+          "build-arg:ZAP_BASE_IMAGE": "ghcr.io/zaproxy/zaproxy:stable@sha256:0b8847b2c722b16f0964431aabcbb499560a1f17e8698d52326d82db29efac1d",
+          "build-arg:ZAP_VERSION": "2.17.0"
+        },
+        "locals": [
+          {
+            "name": "context"
+          },
+          {
+            "name": "dockerfile"
+          }
+        ],
+        "root": {
+          "configSource": {
+            "path": "Dockerfile"
+          },
+          "request": {
+            "args": {
+              "build-arg:ZAP_BASE_IMAGE": "ghcr.io/zaproxy/zaproxy:stable@sha256:0b8847b2c722b16f0964431aabcbb499560a1f17e8698d52326d82db29efac1d",
+              "build-arg:ZAP_VERSION": "2.17.0",
+              "vcs:localdir:context": ".",
+              "vcs:localdir:dockerfile": "deploy/scanners/zap",
+              "vcs:revision": "df1fe005be7b9cb9dd360efb5042b46d782031fa",
+              "vcs:source": "https://github.com/eOzkahq/Kelvin"
+            }
+          }
+        },
+        "compatibilityVersion": 30
+      },
+      "environment": {
+        "dockerfileVersion": "1.28.0",
+        "github_actor": "Kush05Bhardwaj",
+        "github_actor_id": "179676080",
+        "github_event_name": "workflow_dispatch",
+        "github_event_payload": {
+          "inputs": {
+            "distroless_base_image": "gcr.io/distroless/static-debian12:nonroot@sha256:06c3c14b7fa252d9f4285242d2d665ce3b51f74b02d3c529464f220f2912aecb",
+            "enable_ci": "true",
+            "go_builder_image": "golang:1.26.10-alpine@sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696",
+            "nuclei_commit": "a8c88feb4a1c8e961b7902534ce3af97e9d524a4",
+            "nuclei_source_image": "projectdiscovery/nuclei@sha256:f1c96471d38ee2d55e308dd4a20aac0cc983d4cf2e1caa3e12282bf444573c51",
+            "nuclei_version": "3.11.1",
+            "platform": "linux/arm64",
+            "publish": "true",
+            "zap_base_image": "ghcr.io/zaproxy/zaproxy:stable@sha256:0b8847b2c722b16f0964431aabcbb499560a1f17e8698d52326d82db29efac1d",
+            "zap_version": "2.17.0"
+          },
+          "organization": {
+            "avatar_url": "https://avatars.githubusercontent.com/u/246895962?v=4",
+            "description": "OSKA · Augmenting Sentient",
+            "events_url": "https://api.github.com/orgs/eOzkahq/events",
+            "hooks_url": "https://api.github.com/orgs/eOzkahq/hooks",
+            "id": 246895962,
+            "issues_url": "https://api.github.com/orgs/eOzkahq/issues",
+            "login": "eOzkahq",
+            "members_url": "https://api.github.com/orgs/eOzkahq/members{/member}",
+            "node_id": "O_kgDODrdVWg",
+            "public_members_url": "https://api.github.com/orgs/eOzkahq/public_members{/member}",
+            "repos_url": "https://api.github.com/orgs/eOzkahq/repos",
+            "url": "https://api.github.com/orgs/eOzkahq"
+          },
+          "ref": "refs/heads/main",
+          "repository": {
+            "allow_forking": false,
+            "archive_url": "https://api.github.com/repos/eOzkahq/Kelvin/{archive_format}{/ref}",
+            "archived": false,
+            "assignees_url": "https://api.github.com/repos/eOzkahq/Kelvin/assignees{/user}",
+            "blobs_url": "https://api.github.com/repos/eOzkahq/Kelvin/git/blobs{/sha}",
+            "branches_url": "https://api.github.com/repos/eOzkahq/Kelvin/branches{/branch}",
+            "clone_url": "https://github.com/eOzkahq/Kelvin.git",
+            "collaborators_url": "https://api.github.com/repos/eOzkahq/Kelvin/collaborators{/collaborator}",
+            "comments_url": "https://api.github.com/repos/eOzkahq/Kelvin/comments{/number}",
+            "commits_url": "https://api.github.com/repos/eOzkahq/Kelvin/commits{/sha}",
+            "compare_url": "https://api.github.com/repos/eOzkahq/Kelvin/compare/{base}...{head}",
+            "contents_url": "https://api.github.com/repos/eOzkahq/Kelvin/contents/{+path}",
+            "contributors_url": "https://api.github.com/repos/eOzkahq/Kelvin/contributors",
+            "created_at": "2026-10-21T18:16:38Z",
+            "custom_properties": {},
+            "default_branch": "main",
+            "deployments_url": "https://api.github.com/repos/eOzkahq/Kelvin/deployments",
+            "description": "Enterprise security review \u0026 vulnerability orchestration platform with policy-enforced scanning, sandbox isolation, and deduplication.",
+            "disabled": false,
+            "downloads_url": "https://api.github.com/repos/eOzkahq/Kelvin/downloads",
+            "events_url": "https://api.github.com/repos/eOzkahq/Kelvin/events",
+            "fork": false,
+            "forks": 0,
+            "forks_count": 0,
+            "forks_url": "https://api.github.com/repos/eOzkahq/Kelvin/forks",
+            "full_name": "eOzkahq/Kelvin",
+            "git_commits_url": "https://api.github.com/repos/eOzkahq/Kelvin/git/commits{/sha}",
+            "git_refs_url": "https://api.github.com/repos/eOzkahq/Kelvin/git/refs{/sha}",
+            "git_tags_url": "https://api.github.com/repos/eOzkahq/Kelvin/git/tags{/sha}",
+            "git_url": "git://github.com/eOzkahq/Kelvin.git",
+            "has_discussions": true,
+            "has_downloads": false,
+            "has_issues": true,
+            "has_pages": false,
+            "has_projects": true,
+            "has_pull_requests": true,
+            "has_wiki": false,
+            "homepage": "https://kelvin-orpin.vercel.app",
+            "hooks_url": "https://api.github.com/repos/eOzkahq/Kelvin/hooks",
+            "html_url": "https://github.com/eOzkahq/Kelvin",
+            "id": 1428764522,
+            "is_template": false,
+            "issue_comment_url": "https://api.github.com/repos/eOzkahq/Kelvin/issues/comments{/number}",
+            "issue_events_url": "https://api.github.com/repos/eOzkahq/Kelvin/issues/events{/number}",
+            "issues_url": "https://api.github.com/repos/eOzkahq/Kelvin/issues{/number}",
+            "keys_url": "https://api.github.com/repos/eOzkahq/Kelvin/keys{/key_id}",
+            "labels_url": "https://api.github.com/repos/eOzkahq/Kelvin/labels{/name}",
+            "language": "Go",
+            "languages_url": "https://api.github.com/repos/eOzkahq/Kelvin/languages",
+            "license": null,
+            "merges_url": "https://api.github.com/repos/eOzkahq/Kelvin/merges",
+            "milestones_url": "https://api.github.com/repos/eOzkahq/Kelvin/milestones{/number}",
+            "mirror_url": null,
+            "name": "Kelvin",
+            "node_id": "R_kgDOVSk3ag",
+            "notifications_url": "https://api.github.com/repos/eOzkahq/Kelvin/notifications{?since,all,participating}",
+            "open_issues": 0,
+            "open_issues_count": 0,
+            "owner": {
+              "avatar_url": "https://avatars.githubusercontent.com/u/246895962?v=4",
+              "events_url": "https://api.github.com/users/eOzkahq/events{/privacy}",
+              "followers_url": "https://api.github.com/users/eOzkahq/followers",
+              "following_url": "https://api.github.com/users/eOzkahq/following{/other_user}",
+              "gists_url": "https://api.github.com/users/eOzkahq/gists{/gist_id}",
+              "gravatar_id": "",
+              "html_url": "https://github.com/eOzkahq",
+              "id": 246895962,
+              "login": "eOzkahq",
+              "node_id": "O_kgDODrdVWg",
+              "organizations_url": "https://api.github.com/users/eOzkahq/orgs",
+              "received_events_url": "https://api.github.com/users/eOzkahq/received_events",
+              "repos_url": "https://api.github.com/users/eOzkahq/repos",
+              "site_admin": false,
+              "starred_url": "https://api.github.com/users/eOzkahq/starred{/owner}{/repo}",
+              "subscriptions_url": "https://api.github.com/users/eOzkahq/subscriptions",
+              "type": "Organization",
+              "url": "https://api.github.com/users/eOzkahq",
+              "user_view_type": "public"
+            },
+            "private": true,
+            "pull_request_creation_policy": "all",
+            "pulls_url": "https://api.github.com/repos/eOzkahq/Kelvin/pulls{/number}",
+            "pushed_at": "2026-11-16T09:29:11Z",
+            "releases_url": "https://api.github.com/repos/eOzkahq/Kelvin/releases{/id}",
+            "size": 2955,
+            "ssh_url": "git@github.com:eOzkahq/Kelvin.git",
+            "stargazers_count": 0,
+            "stargazers_url": "https://api.github.com/repos/eOzkahq/Kelvin/stargazers",
+            "statuses_url": "https://api.github.com/repos/eOzkahq/Kelvin/statuses/{sha}",
+            "subscribers_url": "https://api.github.com/repos/eOzkahq/Kelvin/subscribers",
+            "subscription_url": "https://api.github.com/repos/eOzkahq/Kelvin/subscription",
+            "svn_url": "https://github.com/eOzkahq/Kelvin",
+            "tags_url": "https://api.github.com/repos/eOzkahq/Kelvin/tags",
+            "teams_url": "https://api.github.com/repos/eOzkahq/Kelvin/teams",
+            "topics": [
+              "anti-ssrf",
+              "appsec",
+              "cybersecurity",
+              "devsecops",
+              "docker",
+              "golang",
+              "infosec",
+              "orchestration",
+              "penetration-testing",
+              "react",
+              "security-audit",
+              "security-automation",
+              "security-tools",
+              "vulnerability-management",
+              "vulnerability-scanner"
+            ],
+            "trees_url": "https://api.github.com/repos/eOzkahq/Kelvin/git/trees{/sha}",
+            "updated_at": "2026-11-16T02:12:37Z",
+            "url": "https://api.github.com/repos/eOzkahq/Kelvin",
+            "visibility": "private",
+            "watchers": 0,
+            "watchers_count": 0,
+            "web_commit_signoff_required": false
+          },
+          "sender": {
+            "avatar_url": "https://avatars.githubusercontent.com/u/179676080?v=4",
+            "events_url": "https://api.github.com/users/Kush05Bhardwaj/events{/privacy}",
+            "followers_url": "https://api.github.com/users/Kush05Bhardwaj/followers",
+            "following_url": "https://api.github.com/users/Kush05Bhardwaj/following{/other_user}",
+            "gists_url": "https://api.github.com/users/Kush05Bhardwaj/gists{/gist_id}",
+            "gravatar_id": "",
+            "html_url": "https://github.com/Kush05Bhardwaj",
+            "id": 179676080,
+            "login": "Kush05Bhardwaj",
+            "node_id": "U_kgDOCrWjsA",
+            "organizations_url": "https://api.github.com/users/Kush05Bhardwaj/orgs",
+            "received_events_url": "https://api.github.com/users/Kush05Bhardwaj/received_events",
+            "repos_url": "https://api.github.com/users/Kush05Bhardwaj/repos",
+            "site_admin": false,
+            "starred_url": "https://api.github.com/users/Kush05Bhardwaj/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/Kush05Bhardwaj/subscriptions",
+            "type": "User",
+            "url": "https://api.github.com/users/Kush05Bhardwaj",
+            "user_view_type": "public"
+          },
+          "workflow": ".github/workflows/scanner-images.yml"
+        },
+        "github_job": "build-and-scan",
+        "github_ref": "refs/heads/main",
+        "github_ref_name": "main",
+        "github_ref_protected": "false",
+        "github_ref_type": "branch",
+        "github_repository": "eOzkahq/Kelvin",
+        "github_repository_id": "1428764522",
+        "github_repository_owner": "eOzkahq",
+        "github_repository_owner_id": "246895962",
+        "github_run_attempt": "1",
+        "github_run_id": "43841769574",
+        "github_run_number": "196",
+        "github_runner_arch": "X64",
+        "github_runner_environment": "github-hosted",
+        "github_runner_image_os": "ubuntu26",
+        "github_runner_image_version": "20261111.196.1",
+        "github_runner_name": "GitHub Actions 1000000232",
+        "github_runner_os": "Linux",
+        "github_runner_tracking_id": "github_ff5a1fa5-4bd8-4bb2-81fa-49c1cbfad38c",
+        "github_server_url": "https://github.com",
+        "github_triggering_actor": "Kush05Bhardwaj",
+        "github_workflow": "Scanner runtime images",
+        "github_workflow_ref": "eOzkahq/Kelvin/.github/workflows/scanner-images.yml@refs/heads/main",
+        "github_workflow_sha": "df1fe005be7b9cb9dd360efb5042b46d782031fa",
+        "platform": "linux/amd64"
+      }
+    }
+  },
+  "buildx.build.ref": "builder-f6454bcf-1210-4418-b971-40f398412592/builder-f6454bcf-1210-4418-b971-40f3984125920/cm6b2qu7to3jwnp9ski7swut9",
+  "containerimage.descriptor": {
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "digest": "sha256:3ae56fdc713fb3b3f678502df357e4e9e525fcf2db2f5a5df9a417754ee36217",
+    "size": 5408,
+    "annotations": {
+      "org.opencontainers.image.created": "2026-11-16T09:44:12Z"
+    },
+    "platform": {
+      "architecture": "arm64",
+      "os": "linux"
+    }
+  },
+  "containerimage.digest": "sha256:3ae56fdc713fb3b3f678502df357e4e9e525fcf2db2f5a5df9a417754ee36217",
+  "image.name": "docker.io/kelvin/scanner-zap:2.17.0"
+}

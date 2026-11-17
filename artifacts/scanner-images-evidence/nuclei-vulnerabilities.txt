@@ -1,0 +1,5 @@
+=== Kelvin Scanner Vulnerability Diagnostic Report: ProjectDiscovery Nuclei ===
+Total HIGH/CRITICAL Vulnerabilities: 0
+
+Vulnerability ID     | Severity   | Component                                     | Recommendation
+--------------------------------------------------------------------------------------------------------------

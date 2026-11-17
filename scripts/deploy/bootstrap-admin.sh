@@ -2,7 +2,7 @@
 # =============================================================================
 # Kelvin First-Admin Bootstrap Script (Hardened)
 # Run AFTER auth-deploy.sh passes all checks.
-# Run in: Oracle Cloud Shell (or on Oracle host as opc)
+# Run in: Oracle Cloud Shell (or directly on Oracle host with sudo)
 # =============================================================================
 set -euo pipefail
 
@@ -17,22 +17,49 @@ echo "================================================================"
 echo "  Kelvin First-Admin Bootstrap (Hardened)  —  $(date -u)"
 echo "================================================================"
 
+# Detect sudo / docker command prefix
+DOCKER_CMD=(docker)
+if ! docker info &>/dev/null && command -v sudo &>/dev/null; then
+  DOCKER_CMD=(sudo docker)
+fi
+
 # ---------------------------------------------------------------------------
 # 0. Resolve environment file dynamically
 # ---------------------------------------------------------------------------
 ENV_FILE=""
-if [ -f "/etc/kelvin/api.env" ]; then
-  ENV_FILE="/etc/kelvin/api.env"
-elif [ -f "/etc/kelvin/staging.env" ]; then
+if [ -f "/etc/kelvin/staging.env" ]; then
   ENV_FILE="/etc/kelvin/staging.env"
+elif [ -f "/etc/kelvin/api.env" ]; then
+  ENV_FILE="/etc/kelvin/api.env"
+elif sudo test -f "/etc/kelvin/staging.env"; then
+  ENV_FILE="/etc/kelvin/staging.env"
+elif sudo test -f "/etc/kelvin/api.env"; then
+  ENV_FILE="/etc/kelvin/api.env"
 else
-  echo "ERROR: Environment file not found (/etc/kelvin/api.env or staging.env)" >&2
+  echo "ERROR: Environment file not found (/etc/kelvin/staging.env or api.env)" >&2
   exit 1
 fi
 echo "[+] Detected environment file: ${ENV_FILE}"
 
 # Source environment
-set -a; source "$ENV_FILE"; set +a
+set -a
+# shellcheck disable=SC1090
+source <(sudo cat "$ENV_FILE")
+set +a
+
+run_psql() {
+  if command -v psql &>/dev/null; then
+    psql "$@"
+  else
+    local ca_mount=()
+    local ca_env=()
+    if [ -n "${SUPABASE_CA_CERT_PATH:-}" ] && sudo test -f "$SUPABASE_CA_CERT_PATH"; then
+      ca_mount=(-v "${SUPABASE_CA_CERT_PATH}:${SUPABASE_CA_CERT_PATH}:ro")
+      ca_env=(-e "PGSSLROOTCERT=${SUPABASE_CA_CERT_PATH}")
+    fi
+    "${DOCKER_CMD[@]}" run --rm "${ca_mount[@]}" "${ca_env[@]}" postgres:15-alpine psql "$@"
+  fi
+}
 
 # ---------------------------------------------------------------------------
 # 1. Check existing administrator accounts & specifically bootstrap target email
@@ -40,22 +67,22 @@ set -a; source "$ENV_FILE"; set +a
 echo ""
 echo "▶ [1] Checking existing administrator accounts and bootstrap target user..."
 
-EXISTING_ADMINS=$(psql "$KELVIN_DATABASE_URL" -t -c \
+EXISTING_ADMINS=$(run_psql "$KELVIN_DATABASE_URL" -t -c \
   "SELECT count(*) FROM users
    WHERE role IN ('PLATFORM_ADMIN','TENANT_ADMIN')
      AND is_active = true
-     AND deleted_at IS NULL;" 2>/dev/null | tr -d ' ')
+     AND deleted_at IS NULL;" 2>/dev/null | tr -d ' ' || echo "0")
 echo "  Existing active admin accounts in DB: ${EXISTING_ADMINS}"
 
-TARGET_EXISTS=$(psql "$KELVIN_DATABASE_URL" -t -c \
+TARGET_EXISTS=$(run_psql "$KELVIN_DATABASE_URL" -t -c \
   "SELECT count(*) FROM users
    WHERE lower(email) = lower('${BOOTSTRAP_EMAIL}')
-     AND deleted_at IS NULL;" 2>/dev/null | tr -d ' ')
+     AND deleted_at IS NULL;" 2>/dev/null | tr -d ' ' || echo "0")
 
 if [ "$TARGET_EXISTS" -gt 0 ]; then
   echo ""
   echo "  [!] NOTICE: User '${BOOTSTRAP_EMAIL}' already exists in database:"
-  psql "$KELVIN_DATABASE_URL" -c \
+  run_psql "$KELVIN_DATABASE_URL" -c \
     "SELECT u.id, u.email, u.role, u.is_active, u.created_at, u.updated_at, t.name AS tenant
      FROM users u
      JOIN tenants t ON u.tenant_id = t.id
@@ -71,7 +98,7 @@ if [ "$TARGET_EXISTS" -gt 0 ]; then
 elif [ "$EXISTING_ADMINS" -gt 0 ]; then
   echo ""
   echo "  Existing administrator(s):"
-  psql "$KELVIN_DATABASE_URL" -c \
+  run_psql "$KELVIN_DATABASE_URL" -c \
     "SELECT u.email, u.role, u.is_active, u.created_at, t.name AS tenant
      FROM users u
      JOIN tenants t ON u.tenant_id = t.id
@@ -94,7 +121,7 @@ echo ""
 echo "▶ [2] Checking bootstrap executable..."
 
 USE_DOCKER_BOOTSTRAP=0
-if docker run --rm kelvin-api:staging ls /app/bootstrap &>/dev/null; then
+if "${DOCKER_CMD[@]}" run --rm kelvin-api:staging ls /app/bootstrap &>/dev/null; then
   echo "  /app/bootstrap found inside kelvin-api:staging ✓"
   USE_DOCKER_BOOTSTRAP=1
 else
@@ -105,11 +132,12 @@ else
   if command -v go &>/dev/null; then
     (cd /opt/kelvin/apps/api && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /opt/kelvin/bin/kelvin-bootstrap ./cmd/bootstrap)
   else
-    docker run --rm \
+    "${DOCKER_CMD[@]}" run --rm \
       -v /opt/kelvin:/src -w /src/apps/api \
       -e GOWORK=off \
+      -e CGO_ENABLED=0 \
       golang:1.26-alpine \
-      go build -trimpath -ldflags="-s -w" -o /opt/kelvin/bin/kelvin-bootstrap ./cmd/bootstrap
+      go build -trimpath -ldflags="-s -w" -o /src/bin/kelvin-bootstrap ./cmd/bootstrap
   fi
   chmod 0755 /opt/kelvin/bin/kelvin-bootstrap
   echo "  Native host binary compiled: /opt/kelvin/bin/kelvin-bootstrap ✓"
@@ -133,12 +161,12 @@ echo ""
 
 # Build CA volume mount flag if configured
 CA_MOUNT_OPTS=()
-if [ -n "${SUPABASE_CA_CERT_PATH:-}" ] && [ -f "$SUPABASE_CA_CERT_PATH" ]; then
+if [ -n "${SUPABASE_CA_CERT_PATH:-}" ] && sudo test -f "$SUPABASE_CA_CERT_PATH"; then
   CA_MOUNT_OPTS=(-v "${SUPABASE_CA_CERT_PATH}:${SUPABASE_CA_CERT_PATH}:ro")
 fi
 
 if [ "$USE_DOCKER_BOOTSTRAP" -eq 1 ]; then
-  docker run --rm -it \
+  "${DOCKER_CMD[@]}" run --rm -it \
     --env-file "$ENV_FILE" \
     "${CA_MOUNT_OPTS[@]}" \
     kelvin-api:staging \
@@ -162,7 +190,7 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 echo "▶ [4] Verifying bootstrap record in database..."
-psql "$KELVIN_DATABASE_URL" -c \
+run_psql "$KELVIN_DATABASE_URL" -c \
   "SELECT u.id, u.email, u.role, u.is_active, u.created_at, t.name AS tenant, t.slug
    FROM users u
    JOIN tenants t ON u.tenant_id = t.id
@@ -245,5 +273,5 @@ unset ACCESS_TOKEN NEW_ACCESS REFRESH_TOKEN
 echo ""
 echo "================================================================"
 echo "  BOOTSTRAP & AUTH CYCLE VERIFIED SUCCESSFULLY ✓"
-echo "  Next step: Deploy frontend to Vercel (Stage 9)"
+echo "  Next step: Deploy frontend to Vercel (Stage 4)"
 echo "================================================================"

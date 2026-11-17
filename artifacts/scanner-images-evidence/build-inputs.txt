@@ -1,0 +1,6 @@
+ZAP_BASE_IMAGE=ghcr.io/zaproxy/zaproxy:stable@sha256:0b8847b2c722b16f0964431aabcbb499560a1f17e8698d52326d82db29efac1d
+ZAP_VERSION=2.17.0
+NUCLEI_SOURCE_IMAGE=projectdiscovery/nuclei@sha256:f1c96471d38ee2d55e308dd4a20aac0cc983d4cf2e1caa3e12282bf444573c51
+NUCLEI_VERSION=3.11.1
+DISTROLESS_BASE_IMAGE=gcr.io/distroless/static-debian12:nonroot@sha256:06c3c14b7fa252d9f4285242d2d665ce3b51f74b02d3c529464f220f2912aecb
+PLATFORM=linux/arm64

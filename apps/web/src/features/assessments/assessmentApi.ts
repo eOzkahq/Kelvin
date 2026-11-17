@@ -64,7 +64,7 @@ export async function createAssessment(payload: CreateAssessmentPayload): Promis
   }
   return apiClient.post<{ id: string }>("/assessments", payload, {
     headers: {
-      "X-Idempotency-Key": payload.idempotencyKey,
+      "Idempotency-Key": payload.idempotencyKey,
     },
   });
 }

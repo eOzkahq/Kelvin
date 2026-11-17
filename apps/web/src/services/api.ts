@@ -116,12 +116,14 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     requestHeaders["Authorization"] = `Bearer ${currentAuthToken}`;
   }
 
-  // Interceptor: Inject Tenant & Workspace Context
-  if (currentTenantContext.tenantId && !requestHeaders["X-Tenant-ID"]) {
-    requestHeaders["X-Tenant-ID"] = currentTenantContext.tenantId;
-  }
-  if (currentTenantContext.workspaceId && !requestHeaders["X-Workspace-ID"]) {
-    requestHeaders["X-Workspace-ID"] = currentTenantContext.workspaceId;
+  // Interceptor: Inject Tenant & Workspace Context (for unauthenticated or internal context)
+  if (!currentAuthToken) {
+    if (currentTenantContext.tenantId && !requestHeaders["X-Tenant-ID"]) {
+      requestHeaders["X-Tenant-ID"] = currentTenantContext.tenantId;
+    }
+    if (currentTenantContext.workspaceId && !requestHeaders["X-Workspace-ID"]) {
+      requestHeaders["X-Workspace-ID"] = currentTenantContext.workspaceId;
+    }
   }
 
   const url = `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;

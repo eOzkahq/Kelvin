@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Kelvin PR #637 — Authentication Release Deployment Script (Hardened)
-# Run in: Oracle Cloud Shell (or directly on the Oracle host as opc)
-# Target: kelvin-staging-api  |  Merge commit: be05a80
+# Kelvin PR #637 / #638 — Authentication Release Deployment Script (Hardened)
+# Run in: Oracle Cloud Shell (or directly on the Oracle host with sudo)
+# Target: kelvin-staging-api  |  Merge commit: 4e6bd36
 # =============================================================================
 set -euo pipefail
 
 DEPLOY_DIR="/opt/kelvin"
 COMPOSE_FILE="deploy/staging/docker-compose.yml"
-MERGE_COMMIT="be05a80ddc674cdacf01c5e38b58ddf187b8a449"
+MERGE_COMMIT="4e6bd3651bee3d9c3a29c9fa1195a67b48cf0f40"
 BACKUP_TAG="pre-auth-$(date +%Y%m%d-%H%M)"
 API_HOST="https://api.eozka.com"
 LOOPBACK_HOST="http://127.0.0.1:8080"
@@ -18,16 +18,26 @@ echo "  Kelvin Auth Deployment (Hardened)  —  $(date -u)"
 echo "  Merge commit: ${MERGE_COMMIT}"
 echo "================================================================"
 
+# Detect sudo / docker command prefix
+DOCKER_CMD=(docker)
+if ! docker info &>/dev/null && command -v sudo &>/dev/null; then
+  DOCKER_CMD=(sudo docker)
+fi
+
 # ---------------------------------------------------------------------------
 # STEP 0: Resolve environment file path dynamically
 # ---------------------------------------------------------------------------
 ENV_FILE=""
-if [ -f "/etc/kelvin/api.env" ]; then
-  ENV_FILE="/etc/kelvin/api.env"
-elif [ -f "/etc/kelvin/staging.env" ]; then
+if [ -f "/etc/kelvin/staging.env" ]; then
   ENV_FILE="/etc/kelvin/staging.env"
+elif [ -f "/etc/kelvin/api.env" ]; then
+  ENV_FILE="/etc/kelvin/api.env"
+elif sudo test -f "/etc/kelvin/staging.env"; then
+  ENV_FILE="/etc/kelvin/staging.env"
+elif sudo test -f "/etc/kelvin/api.env"; then
+  ENV_FILE="/etc/kelvin/api.env"
 else
-  echo "ERROR: Neither /etc/kelvin/api.env nor /etc/kelvin/staging.env was found." >&2
+  echo "ERROR: Neither /etc/kelvin/staging.env nor /etc/kelvin/api.env was found." >&2
   exit 1
 fi
 echo "[+] Detected environment file: ${ENV_FILE}"
@@ -49,7 +59,7 @@ echo "  kelvin-worker.service state: ${WORKER_STATE} ✓"
 # ---------------------------------------------------------------------------
 echo ""
 echo "▶ [B] Verifying KELVIN_CANARY_ONLY=true in ${ENV_FILE}..."
-if ! grep -q "KELVIN_CANARY_ONLY=true" "$ENV_FILE"; then
+if ! grep -q "KELVIN_CANARY_ONLY=true" "$ENV_FILE" 2>/dev/null && ! sudo grep -q "KELVIN_CANARY_ONLY=true" "$ENV_FILE"; then
   echo "ERROR: KELVIN_CANARY_ONLY=true not found in ${ENV_FILE} — aborting." >&2
   exit 1
 fi
@@ -60,12 +70,12 @@ echo "  KELVIN_CANARY_ONLY=true confirmed ✓"
 # ---------------------------------------------------------------------------
 echo ""
 echo "▶ [C] Verifying KELVIN_JWT_SECRET is configured..."
-if ! grep -q "KELVIN_JWT_SECRET=" "$ENV_FILE"; then
+if ! grep -q "KELVIN_JWT_SECRET=" "$ENV_FILE" 2>/dev/null && ! sudo grep -q "KELVIN_JWT_SECRET=" "$ENV_FILE"; then
   echo "ERROR: KELVIN_JWT_SECRET not found in ${ENV_FILE}." >&2
   echo "       Add it before deploying: echo 'KELVIN_JWT_SECRET=<min32chars>' | sudo tee -a ${ENV_FILE}" >&2
   exit 1
 fi
-JWT_VAL=$(grep "KELVIN_JWT_SECRET=" "$ENV_FILE" | head -n 1 | cut -d'=' -f2- | tr -d '"\r\n ')
+JWT_VAL=$(sudo grep "KELVIN_JWT_SECRET=" "$ENV_FILE" | head -n 1 | cut -d'=' -f2- | tr -d '"\r\n ')
 JWT_LEN=${#JWT_VAL}
 if [ "$JWT_LEN" -lt 32 ]; then
   echo "ERROR: KELVIN_JWT_SECRET length is ${JWT_LEN} (must be at least 32 characters)." >&2
@@ -83,18 +93,18 @@ unset JWT_VAL
 # ---------------------------------------------------------------------------
 echo ""
 echo "▶ [D] Preserving rollback images..."
-docker images kelvin-api --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}"
+"${DOCKER_CMD[@]}" images kelvin-api --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}"
 
 # Tag current running image as pre-auth backup
-if docker inspect kelvin-api:staging &>/dev/null; then
-  docker tag kelvin-api:staging "kelvin-api:${BACKUP_TAG}"
+if "${DOCKER_CMD[@]}" inspect kelvin-api:staging &>/dev/null; then
+  "${DOCKER_CMD[@]}" tag kelvin-api:staging "kelvin-api:${BACKUP_TAG}"
   echo "  Tagged kelvin-api:staging → kelvin-api:${BACKUP_TAG} ✓"
 else
   echo "  WARNING: kelvin-api:staging image not found — no pre-auth tag created"
 fi
 
 # Confirm staging-backup-20261116 still exists
-if docker inspect kelvin-api:staging-backup-20261116 &>/dev/null; then
+if "${DOCKER_CMD[@]}" inspect kelvin-api:staging-backup-20261116 &>/dev/null; then
   echo "  kelvin-api:staging-backup-20261116 present ✓"
 else
   echo "  WARNING: kelvin-api:staging-backup-20261116 not found"
@@ -102,25 +112,45 @@ fi
 
 echo ""
 echo "Current images:"
-docker images kelvin-api --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}"
+"${DOCKER_CMD[@]}" images kelvin-api --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}"
 
 # ---------------------------------------------------------------------------
 # STEP E: Check live Supabase migration state
 # ---------------------------------------------------------------------------
 echo ""
 echo "▶ [E] Checking applied DB migrations..."
-set -a; source "$ENV_FILE"; set +a
-MIGRATION_COUNT=$(psql "$KELVIN_DATABASE_URL" -t -c \
+
+# Export env vars from file securely
+set -a
+# shellcheck disable=SC1090
+source <(sudo cat "$ENV_FILE")
+set +a
+
+run_psql() {
+  if command -v psql &>/dev/null; then
+    psql "$@"
+  else
+    local ca_mount=()
+    local ca_env=()
+    if [ -n "${SUPABASE_CA_CERT_PATH:-}" ] && sudo test -f "$SUPABASE_CA_CERT_PATH"; then
+      ca_mount=(-v "${SUPABASE_CA_CERT_PATH}:${SUPABASE_CA_CERT_PATH}:ro")
+      ca_env=(-e "PGSSLROOTCERT=${SUPABASE_CA_CERT_PATH}")
+    fi
+    "${DOCKER_CMD[@]}" run --rm "${ca_mount[@]}" "${ca_env[@]}" postgres:15-alpine psql "$@"
+  fi
+}
+
+MIGRATION_COUNT=$(run_psql "$KELVIN_DATABASE_URL" -t -c \
   "SELECT count(*) FROM schema_migrations;" 2>/dev/null | tr -d ' ' || echo "QUERY_FAILED")
 echo "  Applied migrations count: ${MIGRATION_COUNT}"
 
-HIGHEST=$(psql "$KELVIN_DATABASE_URL" -t -c \
+HIGHEST=$(run_psql "$KELVIN_DATABASE_URL" -t -c \
   "SELECT MAX(version) FROM schema_migrations;" 2>/dev/null | tr -d ' ' || echo "QUERY_FAILED")
 echo "  Highest applied version: ${HIGHEST}"
 
 echo ""
 echo "  Verifying auth tables exist..."
-TABLE_CHECK=$(psql "$KELVIN_DATABASE_URL" -t -c \
+TABLE_CHECK=$(run_psql "$KELVIN_DATABASE_URL" -t -c \
   "SELECT table_name FROM information_schema.tables
    WHERE table_schema='public'
      AND table_name IN ('tenants','users','auth_sessions')
@@ -133,15 +163,12 @@ fi
 echo "  All required auth tables present ✓"
 
 # ---------------------------------------------------------------------------
-# STEP F: Fetch merged main and verify commit
+# STEP F: Verify commit on deployment directory
 # ---------------------------------------------------------------------------
 echo ""
-echo "▶ [F] Fetching merged main (expected: ${MERGE_COMMIT})..."
+echo "▶ [F] Verifying local repository is on canonical merge commit (${MERGE_COMMIT})..."
 cd "$DEPLOY_DIR"
 git config --global --add safe.directory "$DEPLOY_DIR" 2>/dev/null || true
-sudo git fetch origin main
-sudo git checkout main
-sudo git pull origin main
 
 ACTUAL_COMMIT=$(git rev-parse HEAD)
 echo "  Local HEAD: ${ACTUAL_COMMIT}"
@@ -158,11 +185,11 @@ echo "  Commit verified ✓"
 # ---------------------------------------------------------------------------
 echo ""
 echo "▶ [G] Building ARM64 API image..."
-sudo docker compose -f "${COMPOSE_FILE}" --env-file "$ENV_FILE" build --no-cache api 2>&1 | tee /tmp/kelvin-build-$(date +%Y%m%d-%H%M).log
+"${DOCKER_CMD[@]}" compose -f "${COMPOSE_FILE}" --env-file "$ENV_FILE" build --no-cache api 2>&1 | tee /tmp/kelvin-build-$(date +%Y%m%d-%H%M).log
 echo "  Build complete ✓"
 
-docker tag kelvin-api:staging "kelvin-api:auth-be05a80"
-echo "  Tagged new image as kelvin-api:auth-be05a80 ✓"
+"${DOCKER_CMD[@]}" tag kelvin-api:staging "kelvin-api:auth-4e6bd36"
+echo "  Tagged new image as kelvin-api:auth-4e6bd36 ✓"
 
 # ---------------------------------------------------------------------------
 # STEP H: Deploy API container (with automated rollback on failure)
@@ -172,9 +199,9 @@ echo "▶ [H] Deploying new API container..."
 rollback() {
   echo "" >&2
   echo "[-] DEPLOYMENT FAILURE DETECTED — INITIATING AUTOMATIC ROLLBACK..." >&2
-  if docker inspect "kelvin-api:${BACKUP_TAG}" &>/dev/null; then
-    docker tag "kelvin-api:${BACKUP_TAG}" kelvin-api:staging
-    sudo docker compose -f "${COMPOSE_FILE}" --env-file "$ENV_FILE" up -d --no-deps api
+  if "${DOCKER_CMD[@]}" inspect "kelvin-api:${BACKUP_TAG}" &>/dev/null; then
+    "${DOCKER_CMD[@]}" tag "kelvin-api:${BACKUP_TAG}" kelvin-api:staging
+    "${DOCKER_CMD[@]}" compose -f "${COMPOSE_FILE}" --env-file "$ENV_FILE" up -d --no-deps api
     echo "[+] Rollback to ${BACKUP_TAG} completed." >&2
   else
     echo "[-] Cannot rollback: backup tag kelvin-api:${BACKUP_TAG} not found." >&2
@@ -182,7 +209,7 @@ rollback() {
   exit 1
 }
 
-sudo docker compose -f "${COMPOSE_FILE}" --env-file "$ENV_FILE" up -d --no-deps api
+"${DOCKER_CMD[@]}" compose -f "${COMPOSE_FILE}" --env-file "$ENV_FILE" up -d --no-deps api
 
 # Poll startup for up to 30 seconds
 echo "  Awaiting container startup (polling loopback port 8080)..."
@@ -202,12 +229,12 @@ done
 
 if [ $READY -ne 1 ]; then
   echo "[-] ERROR: Container failed to respond on 127.0.0.1:8080 after ${MAX_ATTEMPTS} attempts." >&2
-  docker logs kelvin-staging-api --tail 30 2>&1 >&2 || true
+  "${DOCKER_CMD[@]}" logs kelvin-staging-api --tail 30 2>&1 >&2 || true
   rollback
 fi
 
 # Show container status
-docker ps --filter name=kelvin --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+"${DOCKER_CMD[@]}" ps --filter name=kelvin --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 # ---------------------------------------------------------------------------
 # STEP I: Verify API endpoints (both Loopback and Caddy reverse-proxy)

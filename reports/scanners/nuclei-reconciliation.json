@@ -1,0 +1,233 @@
+{
+  "schema_version": "1.0.0",
+  "audit_date": "2026-11-16",
+  "scanner": "nuclei",
+  "total_raw_findings": 0,
+  "total_registered_waivers": 27,
+  "summary": {
+    "fixed": 27,
+    "approved": 0,
+    "pending": 0,
+    "expired": 0,
+    "unhandled": 0
+  },
+  "verdict": "PASS",
+  "findings": [
+    {
+      "cve_id": "CVE-2024-40641",
+      "component": "pkg:golang/github.com/projectdiscovery/nuclei/v3@v3.11.1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-100349",
+      "component": "pkg:golang/github.com/getkin/kin-openapi@v0.144.0",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-100351",
+      "component": "pkg:golang/github.com/getkin/kin-openapi@v0.144.0",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-100352",
+      "component": "pkg:golang/github.com/getkin/kin-openapi@v0.144.0",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-100353",
+      "component": "pkg:golang/github.com/getkin/kin-openapi@v0.144.0",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-100354",
+      "component": "pkg:golang/github.com/getkin/kin-openapi@v0.144.0",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-111943",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-116587",
+      "component": "pkg:golang/github.com/go-jose/go-jose/v4@v4.1.4",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-33818",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-39821",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-46600",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-05-14"
+    },
+    {
+      "cve_id": "CVE-2026-56851",
+      "component": "pkg:golang/golang.org/x/text@v0.39.0",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-56853",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-56854",
+      "component": "pkg:golang/golang.org/x/crypto@v0.53.0",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-56858",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-56859",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-56860",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-56862",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-56864",
+      "component": "pkg:golang/golang.org/x/mod@v0.37.0",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-56865",
+      "component": "pkg:golang/golang.org/x/mod@v0.37.0",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-71556",
+      "component": "pkg:golang/github.com/go-git/go-git/v5@v5.19.1",
+      "severity": "CRITICAL",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2026-12-15"
+    },
+    {
+      "cve_id": "CVE-2026-78661",
+      "component": "pkg:golang/golang.org/x/net@v0.56.0",
+      "severity": "MEDIUM",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-05-14"
+    },
+    {
+      "cve_id": "CVE-2026-78667",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-78669",
+      "component": "pkg:golang/golang.org/x/net@v0.56.0",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-84304",
+      "component": "pkg:golang/google.golang.org/grpc@v1.82.1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-84445",
+      "component": "pkg:golang/google.golang.org/grpc@v1.82.1",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    },
+    {
+      "cve_id": "CVE-2026-97031",
+      "component": "pkg:golang/stdlib@v1.26.5",
+      "severity": "HIGH",
+      "disposition": "fixed",
+      "reason": "Finding no longer detected in target SBOM (remediated)",
+      "expiry_date": "2027-02-13"
+    }
+  ]
+}

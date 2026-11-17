@@ -1,0 +1,5 @@
+=== Kelvin Scanner Vulnerability Diagnostic Report: OWASP ZAP ===
+Total HIGH/CRITICAL Vulnerabilities: 0
+
+Vulnerability ID     | Severity   | Component                                     | Recommendation
+--------------------------------------------------------------------------------------------------------------

@@ -1,0 +1,14 @@
+build/
+artifacts/
+reports/
+apps/api/
+apps/worker/
+deploy/
+docs/
+infra/
+mock-target/
+tests/
+tools/
+.github/
+scripts/
+*.log

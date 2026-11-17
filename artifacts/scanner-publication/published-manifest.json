@@ -1,0 +1,24 @@
+{
+  "status": "published-and-verified",
+  "published_at": "2026-11-16T10:02:50Z",
+  "scanners": {
+    "zap": {
+      "immutable_reference": "ghcr.io/eozkahq/kelvin/scanner-zap@sha256:3ae56fdc713fb3b3f678502df357e4e9e525fcf2db2f5a5df9a417754ee36217",
+      "digest": "sha256:3ae56fdc713fb3b3f678502df357e4e9e525fcf2db2f5a5df9a417754ee36217",
+      "version": "2.17.0",
+      "sbom_digest": "sha256:4175220984adb3e97e9552f8ac37e7736e92a1cf5b2f1656f78f4ed179a1cc44",
+      "signature_ref": "ghcr.io/eozkahq/kelvin/scanner-zap:sha256-3ae56fdc713fb3b3f678502df357e4e9e525fcf2db2f5a5df9a417754ee36217.sig",
+      "provenance_ref": "ghcr.io/eozkahq/kelvin/scanner-zap:sha256-3ae56fdc713fb3b3f678502df357e4e9e525fcf2db2f5a5df9a417754ee36217.att",
+      "scorecard_status": "ELIGIBLE"
+    },
+    "nuclei": {
+      "immutable_reference": "ghcr.io/eozkahq/kelvin/scanner-nuclei@sha256:3653bf7c9a700afb3e68bc4c8ccd8d727465b7ebad36650a94d1a024844e480f",
+      "digest": "sha256:3653bf7c9a700afb3e68bc4c8ccd8d727465b7ebad36650a94d1a024844e480f",
+      "version": "3.11.1",
+      "sbom_digest": "sha256:ff6f78171d662ced9557a7d0a1226e8e1739df30e5bd1cb6d41e72c9f58e4086",
+      "signature_ref": "ghcr.io/eozkahq/kelvin/scanner-nuclei:sha256-3653bf7c9a700afb3e68bc4c8ccd8d727465b7ebad36650a94d1a024844e480f.sig",
+      "provenance_ref": "ghcr.io/eozkahq/kelvin/scanner-nuclei:sha256-3653bf7c9a700afb3e68bc4c8ccd8d727465b7ebad36650a94d1a024844e480f.att",
+      "scorecard_status": "ELIGIBLE"
+    }
+  }
+}
