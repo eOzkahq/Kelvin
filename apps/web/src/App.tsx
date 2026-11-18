@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "./features/auth/AuthContext";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import { AppShell } from "./components/layout";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const AssessmentListPage = lazy(() => import("./pages/AssessmentListPage"));
@@ -58,50 +59,54 @@ function SessionExpiredBanner() {
 
 function AppRoutes() {
   return (
-    <Suspense fallback={LOADER}>
-      <Routes>
-        {/* Public */}
-        <Route path="/login" element={<LoginPage />} />
+    <ErrorBoundary fallbackTitle="Application Error">
+      <Suspense fallback={LOADER}>
+        <Routes>
+          {/* Public */}
+          <Route path="/login" element={<LoginPage />} />
 
-        {/* Catch-all: redirect / to /dashboard */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {/* Catch-all: redirect / to /dashboard */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-        {/* All protected routes wrapped in AppShell */}
-        <Route
-          path="/*"
-          element={
-            <ProtectedRoute>
-              <AppShell>
-                <Suspense fallback={<div className="py-16 text-center text-xs text-zinc-400">Loading module…</div>}>
-                  <Routes>
-                    <Route path="/dashboard" element={<DashboardPage />} />
-                    <Route path="/assessments" element={<AssessmentListPage />} />
-                    <Route path="/assessments/new" element={<AssessmentWizardPage />} />
-                    <Route path="/assessments/:id" element={<AssessmentDetailPage />} />
-                    <Route path="/findings" element={<FindingsWorkspacePage />} />
-                    <Route path="/findings/:id" element={<FindingDetailPage />} />
-                    <Route path="/remediation" element={<RemediationWorkspacePage />} />
-                    <Route path="/targets" element={<TargetsManagementPage />} />
-                    <Route path="/compare" element={<AssessmentComparePage />} />
-                    <Route path="/reports" element={<ReportCenterPage />} />
-                    <Route path="/audit" element={<AuditLogsPage />} />
-                    <Route path="/account" element={<AccountProfilePage />} />
-                    <Route path="/profile" element={<AccountProfilePage />} />
-                    <Route path="/admin" element={<OrgAdminPage />} />
-                    <Route path="/team" element={<TeamMembersPage />} />
-                    <Route path="/roles" element={<RolesPermissionsSsoPage />} />
-                    <Route path="/integrations" element={<IntegrationsNotificationPage />} />
-                    <Route path="/settings" element={<PlatformSettingsPage />} />
-                    {/* Unknown sub-routes → dashboard */}
-                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                  </Routes>
-                </Suspense>
-              </AppShell>
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </Suspense>
+          {/* All protected routes wrapped in AppShell */}
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <ErrorBoundary fallbackTitle="Module Rendering Error">
+                    <Suspense fallback={<div className="py-16 text-center text-xs text-zinc-400">Loading module…</div>}>
+                      <Routes>
+                        <Route path="/dashboard" element={<DashboardPage />} />
+                        <Route path="/assessments" element={<AssessmentListPage />} />
+                        <Route path="/assessments/new" element={<AssessmentWizardPage />} />
+                        <Route path="/assessments/:id" element={<AssessmentDetailPage />} />
+                        <Route path="/findings" element={<FindingsWorkspacePage />} />
+                        <Route path="/findings/:id" element={<FindingDetailPage />} />
+                        <Route path="/remediation" element={<RemediationWorkspacePage />} />
+                        <Route path="/targets" element={<TargetsManagementPage />} />
+                        <Route path="/compare" element={<AssessmentComparePage />} />
+                        <Route path="/reports" element={<ReportCenterPage />} />
+                        <Route path="/audit" element={<AuditLogsPage />} />
+                        <Route path="/account" element={<AccountProfilePage />} />
+                        <Route path="/profile" element={<AccountProfilePage />} />
+                        <Route path="/admin" element={<OrgAdminPage />} />
+                        <Route path="/team" element={<TeamMembersPage />} />
+                        <Route path="/roles" element={<RolesPermissionsSsoPage />} />
+                        <Route path="/integrations" element={<IntegrationsNotificationPage />} />
+                        <Route path="/settings" element={<PlatformSettingsPage />} />
+                        {/* Unknown sub-routes → dashboard */}
+                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                      </Routes>
+                    </Suspense>
+                  </ErrorBoundary>
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 

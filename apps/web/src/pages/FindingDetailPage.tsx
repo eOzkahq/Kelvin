@@ -123,7 +123,10 @@ export default function FindingDetailPage() {
     );
   }
 
-  const selectedEvidence = finding.evidence[selectedEvidenceIndex] || finding.evidence[0];
+  const evidenceList = finding.evidence || [];
+  const observationsList = finding.observations || [];
+  const auditTrailList = finding.auditTrail || [];
+  const selectedEvidence = evidenceList[selectedEvidenceIndex] || evidenceList[0];
 
   return (
     <div className="space-y-6">
@@ -150,9 +153,9 @@ export default function FindingDetailPage() {
               <SeverityBadge severity={finding.severity} />
               <StatusPill status={finding.status} />
               <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono text-zinc-400">
-                Risk Score: {finding.riskScore.toFixed(1)} / 10.0
+                Risk Score: {(finding.riskScore ?? 0).toFixed(1)} / 10.0
               </span>
-              {finding.cvssScore && (
+              {typeof finding.cvssScore === "number" && (
                 <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono text-zinc-400">
                   CVSS: {finding.cvssScore.toFixed(1)}
                 </span>
@@ -164,15 +167,15 @@ export default function FindingDetailPage() {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-400">
               <div>
                 <span className="text-zinc-500">Target:</span>{" "}
-                <span className="font-mono text-zinc-300">{finding.target}</span>
+                <span className="font-mono text-zinc-300">{finding.target || "N/A"}</span>
               </div>
               <div>
                 <span className="text-zinc-500">Endpoint:</span>{" "}
-                <span className="font-mono text-zinc-300">{finding.affectedEndpoint}</span>
+                <span className="font-mono text-zinc-300">{finding.affectedEndpoint || "N/A"}</span>
               </div>
               <div>
                 <span className="text-zinc-500">Scanner:</span>{" "}
-                <span className="text-zinc-300">{finding.scanner}</span>
+                <span className="text-zinc-300">{finding.scanner || "Automated"}</span>
               </div>
             </div>
           </div>
@@ -193,13 +196,13 @@ export default function FindingDetailPage() {
           <div className="flex items-center gap-2">
             <span>Fingerprint:</span>
             <code className="rounded bg-zinc-950 px-2 py-0.5 font-mono text-zinc-400">
-              {finding.fingerprint}
+              {finding.fingerprint || "—"}
             </code>
           </div>
           <div>
-            <span>First Detected: {new Date(finding.firstSeenAt).toLocaleString()}</span>
+            <span>First Detected: {finding.firstSeenAt && !isNaN(new Date(finding.firstSeenAt).getTime()) ? new Date(finding.firstSeenAt).toLocaleString() : "—"}</span>
             <span className="mx-2">|</span>
-            <span>Last Verified: {new Date(finding.lastSeenAt).toLocaleString()}</span>
+            <span>Last Verified: {finding.lastSeenAt && !isNaN(new Date(finding.lastSeenAt).getTime()) ? new Date(finding.lastSeenAt).toLocaleString() : "—"}</span>
           </div>
         </div>
       </Card>
@@ -210,10 +213,10 @@ export default function FindingDetailPage() {
           [
             { key: "overview", label: "Overview & Description" },
             { key: "risk", label: "Risk Explainability" },
-            { key: "evidence", label: `Evidence (${finding.evidence.length})` },
-            { key: "observations", label: `Observations (${finding.observations.length})` },
+            { key: "evidence", label: `Evidence (${evidenceList.length})` },
+            { key: "observations", label: `Observations (${observationsList.length})` },
             { key: "remediation", label: "Remediation & SLA" },
-            { key: "audit", label: `Audit Trail (${finding.auditTrail.length})` },
+            { key: "audit", label: `Audit Trail (${auditTrailList.length})` },
           ] as { key: TabKey; label: string }[]
         ).map((tab) => (
           <button
@@ -337,7 +340,7 @@ export default function FindingDetailPage() {
 
             {/* Evidence Selector Pills */}
             <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2">
-              {finding.evidence.map((ev, index) => (
+              {evidenceList.map((ev, index) => (
                 <button
                   key={ev.id}
                   onClick={() => setSelectedEvidenceIndex(index)}
@@ -384,7 +387,7 @@ export default function FindingDetailPage() {
             </CardHeader>
 
             <div className="relative border-l-2 border-zinc-800 pl-4 space-y-6 mt-4">
-              {finding.observations.map((obs) => (
+              {observationsList.map((obs) => (
                 <div key={obs.id} className="relative">
                   <span className="absolute -left-[21px] top-1 h-3 w-3 rounded-full border-2 border-zinc-900 bg-cyan-400" />
                   <div className="text-xs text-zinc-500">{new Date(obs.observedAt || obs.timestamp || Date.now()).toLocaleString()}</div>
@@ -460,7 +463,7 @@ export default function FindingDetailPage() {
             </CardHeader>
 
             <div className="space-y-4 mt-4">
-              {finding.auditTrail.map((entry) => (
+              {auditTrailList.map((entry) => (
                 <div
                   key={entry.id}
                   className="rounded-lg border border-zinc-800/80 bg-zinc-900/40 p-4 text-xs space-y-1"

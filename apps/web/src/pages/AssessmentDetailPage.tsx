@@ -83,8 +83,8 @@ export default function AssessmentDetailPage() {
 
   const currentStageIndex = STAGES.indexOf(detail.currentStage);
 
-  const filteredLogs = detail.logs.filter((log) =>
-    log.message.toLowerCase().includes(logFilter.toLowerCase())
+  const filteredLogs = (detail.logs || []).filter((log) =>
+    log && log.message && log.message.toLowerCase().includes(logFilter.toLowerCase())
   );
 
   return (
@@ -165,7 +165,7 @@ export default function AssessmentDetailPage() {
 
       {/* Per-Scanner Worker Status */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {detail.scanners.map((task) => (
+        {(detail.scanners || []).map((task) => (
           <Card key={task.scanner} className="p-4 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-xs text-zinc-100">{task.scanner}</span>
@@ -173,8 +173,16 @@ export default function AssessmentDetailPage() {
             </div>
             <p className="text-xs text-zinc-400">{task.currentActivity || "Standby"}</p>
             <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-2 border-t border-zinc-800/60 font-mono">
-              <span>Findings: {task.findingsDiscovered}</span>
-              <span>{task.durationSeconds ? `${task.durationSeconds}s elapsed` : "Queued"}</span>
+              <span>Findings: {task.findingsDiscovered ?? task.findingsCount ?? 0}</span>
+              <span>
+                {task.durationSeconds !== undefined && task.durationSeconds > 0
+                  ? `${task.durationSeconds}s elapsed`
+                  : task.status === "COMPLETED"
+                  ? "Completed"
+                  : task.status === "RUNNING"
+                  ? "Running"
+                  : "Queued"}
+              </span>
             </div>
           </Card>
         ))}

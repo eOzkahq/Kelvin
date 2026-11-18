@@ -633,25 +633,27 @@ export default function FindingsWorkspacePage() {
                     <td className="px-4 py-3 font-mono text-xs">
                       <span
                         className={
-                          f.riskScore >= 8.0
+                          (f.riskScore ?? 0) >= 8.0
                             ? "text-red-400 font-bold"
-                            : f.riskScore >= 6.0
+                            : (f.riskScore ?? 0) >= 6.0
                             ? "text-amber-400 font-semibold"
                             : "text-zinc-300"
                         }
                       >
-                        {f.riskScore.toFixed(1)}
+                        {(f.riskScore ?? 0).toFixed(1)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill status={f.status} />
                     </td>
                     <td className="px-4 py-3 text-xs font-mono text-zinc-400 truncate max-w-[180px]">
-                      {f.target}
+                      {f.target || "N/A"}
                     </td>
-                    <td className="px-4 py-3 text-xs text-zinc-400">{f.scanner}</td>
+                    <td className="px-4 py-3 text-xs text-zinc-400">{f.scanner || "Automated"}</td>
                     <td className="px-4 py-3 text-xs text-zinc-500">
-                      {new Date(f.lastSeenAt).toLocaleDateString()}
+                      {f.lastSeenAt && !isNaN(new Date(f.lastSeenAt).getTime())
+                        ? new Date(f.lastSeenAt).toLocaleDateString()
+                        : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link

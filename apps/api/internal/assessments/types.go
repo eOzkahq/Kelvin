@@ -93,10 +93,10 @@ type ScannerExecution struct {
 	Scanner            string     `json:"scanner"`
 	Status             string     `json:"status"`
 	FindingsCount      int        `json:"findingsCount"`
-	FindingsDiscovered int        `json:"findingsDiscovered,omitempty"`
+	FindingsDiscovered int        `json:"findingsDiscovered"`
 	StartTime          *time.Time `json:"startTime,omitempty"`
 	EndTime            *time.Time `json:"endTime,omitempty"`
-	DurationSeconds    int        `json:"durationSeconds,omitempty"`
+	DurationSeconds    int        `json:"durationSeconds"`
 	CurrentActivity    string     `json:"currentActivity,omitempty"`
 	Error              string     `json:"error,omitempty"`
 }

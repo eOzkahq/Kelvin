@@ -9,4 +9,5 @@ export * from "./EmptyState";
 export * from "./SkeletonLoader";
 export * from "./CustomCursor";
 export * from "./BackgroundParticles";
+export * from "./ErrorBoundary";
 

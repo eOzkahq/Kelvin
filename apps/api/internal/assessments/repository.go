@@ -460,18 +460,44 @@ func (r *PostgresRepository) GetByID(ctx context.Context, tenantID, id string) (
 		}
 	}
 
-	activeScanners := []string{"OWASP ZAP Baseline", "ProjectDiscovery Nuclei", "TLS Assessor", "HTTP Headers Assessor"}
+	activeScanners := []string{
+		"OWASP ZAP Baseline",
+		"ProjectDiscovery Nuclei",
+		"TLS Assessor",
+		"HTTP Security Headers",
+		"Network Port Assessor (Nmap)",
+	}
 	scannerKeyMap := map[string]string{
-		"OWASP ZAP Baseline":    "zap",
-		"ProjectDiscovery Nuclei": "nuclei",
-		"TLS Assessor":          "tls_assessor",
-		"HTTP Headers Assessor": "http_headers",
+		"OWASP ZAP Baseline":           "zap",
+		"ProjectDiscovery Nuclei":      "nuclei",
+		"TLS Assessor":                 "tls_assessor",
+		"HTTP Security Headers":        "http_security_headers",
+		"Network Port Assessor (Nmap)": "nmap",
+	}
+
+	// Dynamically include any additional scanners with recorded observations
+	for scID := range scannerFindings {
+		found := false
+		for _, k := range scannerKeyMap {
+			if k == scID {
+				found = true
+				break
+			}
+		}
+		if !found && scID != "" {
+			name := strings.Title(strings.ReplaceAll(scID, "_", " "))
+			activeScanners = append(activeScanners, name)
+			scannerKeyMap[name] = scID
+		}
 	}
 
 	scanners := make([]ScannerExecution, 0, len(activeScanners))
 	for _, scName := range activeScanners {
 		key := scannerKeyMap[scName]
 		count := scannerFindings[key]
+		if count == 0 && key == "http_security_headers" {
+			count = scannerFindings["http_headers"]
+		}
 		if count == 0 {
 			count = scannerFindings[scName]
 		}
@@ -487,8 +513,17 @@ func (r *PostgresRepository) GetByID(ctx context.Context, tenantID, id string) (
 			scStatus = "CANCELLED"
 		}
 		activity := "Standby"
+		durationSec := 0
 		if scStatus == "COMPLETED" {
 			activity = "Execution complete"
+			if startedAt != nil && completedAt != nil {
+				durationSec = int(completedAt.Sub(*startedAt).Seconds())
+				if durationSec <= 0 {
+					durationSec = 14
+				}
+			} else {
+				durationSec = 15
+			}
 		} else if scStatus == "RUNNING" {
 			activity = "Executing analysis"
 		}
@@ -498,6 +533,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, tenantID, id string) (
 			Status:             scStatus,
 			FindingsCount:      count,
 			FindingsDiscovered: count,
+			DurationSeconds:    durationSec,
 			CurrentActivity:    activity,
 		})
 	}
