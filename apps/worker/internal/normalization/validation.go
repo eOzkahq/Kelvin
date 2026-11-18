@@ -222,6 +222,30 @@ func (v *ResultValidator) ValidateBatch(rawFindings []json.RawMessage, expectedA
 					continue
 				}
 			}
+
+			// Layer 2.6: Check raw evidence size bounds
+			if evList, ok := rawMap["evidence"].([]any); ok {
+				hasHugeEvidence := false
+				var hugeViolations []string
+				for idx, evItem := range evList {
+					if evMap, ok := evItem.(map[string]any); ok {
+						if content, ok := evMap["content_redacted"].(string); ok && len(content) > MaxEvidenceBytesPerFinding {
+							hasHugeEvidence = true
+							hugeViolations = append(hugeViolations, fmt.Sprintf("evidence[%d]: inline content size %d exceeds 64KiB cap", idx, len(content)))
+						}
+					}
+				}
+				if hasHugeEvidence {
+					report.RejectedCount++
+					report.Quarantined = append(report.Quarantined, QuarantineRecord{
+						Index:      i,
+						Reason:     "evidence size violation",
+						Violations: hugeViolations,
+						DetectedAt: time.Now().UTC(),
+					})
+					continue
+				}
+			}
 		}
 
 		// Layer 3: Normalization & fingerprint derivation

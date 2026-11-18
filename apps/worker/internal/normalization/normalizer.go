@@ -10,6 +10,7 @@ import (
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/parserguard"
 	commonnorm "github.com/kelvin/kelvin/packages/common/normalization"
+	commonredact "github.com/kelvin/kelvin/packages/common/redaction"
 )
 
 // Re-export common canonical models for backward compatibility and cross-boundary unification.
@@ -165,12 +166,9 @@ func (n *Normalizer) Normalize(raw []byte, ctx Context) (CanonicalFinding, error
 		finding.ScannerMeta["kelvin.assessment_id"] = ctx.AssessmentID
 	}
 
-	// Ensure evidence attestation
-	for i := range finding.Evidence {
-		if finding.Evidence[i].RedactedFields == nil {
-			finding.Evidence[i].RedactedFields = []string{}
-		}
-	}
+	// Automated lossy sensitive data scrubbing across reproduction steps, description, and evidence
+	redactor := commonredact.NewDefaultRedactor()
+	redactor.RedactFinding(&finding)
 
 	// Re-serialize and validate through schema validation gate
 	encoded, err := json.Marshal(finding)
