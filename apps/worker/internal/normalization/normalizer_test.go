@@ -100,36 +100,87 @@ func TestNormalizerProcessesMVPAdapterFindings(t *testing.T) {
 		t.Errorf("unexpected normalized nuclei finding: %+v", resNuclei)
 	}
 
-	// 3. Built-in TLS finding
-	tlsFinding := []byte(`{
+	// 4. Containerized Nmap finding
+	nmapFinding := []byte(`{
 		"schema_version": "1.0",
-		"title": "Deprecated TLS Protocol",
-		"severity": "MEDIUM",
-		"confidence": 1.0,
+		"title": "Plaintext Service (Telnet)",
+		"severity": "HIGH",
+		"confidence": 0.95,
 		"target": {
 			"asset": "target.example.com",
-			"endpoint": "https://target.example.com:443"
+			"endpoint": "https://target.example.com:23"
 		},
 		"vulnerability": {
-			"template_id": "kelvin.tls.protocol.deprecated"
+			"cwe_id": "319",
+			"cve_ids": ["cve-2020-1234", "CVE-2020-1234", " cve-2020-0001 "]
 		},
-		"description": "Server accepts TLS 1.0",
-		"remediation": {
-			"summary": "Disable TLS 1.0"
-		},
+		"description": "Telnet service transmitting data in cleartext",
 		"scanner": {
-			"name": "tls-assessor",
+			"name": "nmap",
 			"adapter_version": "1.0.0"
 		},
 		"discovered_at": "2026-11-01T20:00:00Z"
 	}`)
 
-	resTLS, err := normalizer.Normalize(tlsFinding, ctx)
+	resNmap, err := normalizer.Normalize(nmapFinding, ctx)
 	if err != nil {
-		t.Fatalf("Normalize TLS finding failed: %v", err)
+		t.Fatalf("Normalize Nmap finding failed: %v", err)
 	}
-	if resTLS.Severity != "MEDIUM" || resTLS.Fingerprint == "" {
-		t.Errorf("unexpected normalized TLS finding: %+v", resTLS)
+	if resNmap.Severity != "HIGH" {
+		t.Errorf("expected HIGH severity for Telnet, got: %s", resNmap.Severity)
+	}
+	if resNmap.Vulnerability.CWEID != "CWE-319" {
+		t.Errorf("expected CWE-319, got: %s", resNmap.Vulnerability.CWEID)
+	}
+	if len(resNmap.Vulnerability.CVEIDs) != 2 || resNmap.Vulnerability.CVEIDs[0] != "CVE-2020-0001" {
+		t.Errorf("expected deduplicated sorted CVEs, got: %+v", resNmap.Vulnerability.CVEIDs)
+	}
+	if len(resNmap.Fingerprint) != 64 {
+		t.Errorf("expected 64-character hex fingerprint, got: %s", resNmap.Fingerprint)
+	}
+}
+
+func TestNormalizerCWEAndCVENormalizationConsistency(t *testing.T) {
+	normalizer := NewNormalizer()
+	ctx := Context{AssessmentID: "11111111-1111-1111-1111-111111111111"}
+
+	// Finding A: ZAP reporting numeric CWE and tagged fingerprint
+	findingA := []byte(`{
+		"schema_version": "1.0",
+		"title": "SQL Injection",
+		"severity": "CRITICAL",
+		"confidence": 0.95,
+		"target": {"asset": "example.com", "endpoint": "https://example.com/api/user"},
+		"vulnerability": {"cwe_id": "89"},
+		"scanner": {"name": "zap", "adapter_version": "1.0.0"}
+	}`)
+
+	// Finding B: Nuclei reporting uppercase CWE-89
+	findingB := []byte(`{
+		"schema_version": "1.0",
+		"title": "SQL Injection",
+		"severity": "CRITICAL",
+		"confidence": 0.95,
+		"target": {"asset": "example.com", "endpoint": "https://example.com/api/user"},
+		"vulnerability": {"cwe_id": "CWE-89"},
+		"scanner": {"name": "nuclei", "adapter_version": "1.0.0"}
+	}`)
+
+	resA, errA := normalizer.Normalize(findingA, ctx)
+	if errA != nil {
+		t.Fatalf("Normalize A failed: %v", errA)
+	}
+	resB, errB := normalizer.Normalize(findingB, ctx)
+	if errB != nil {
+		t.Fatalf("Normalize B failed: %v", errB)
+	}
+
+	if resA.Vulnerability.CWEID != "CWE-89" || resB.Vulnerability.CWEID != "CWE-89" {
+		t.Fatalf("expected both CWEs normalized to CWE-89, got %s and %s", resA.Vulnerability.CWEID, resB.Vulnerability.CWEID)
+	}
+
+	if resA.Fingerprint != resB.Fingerprint {
+		t.Fatalf("expected identical fingerprints for matching findings across scanners, got %s vs %s", resA.Fingerprint, resB.Fingerprint)
 	}
 }
 

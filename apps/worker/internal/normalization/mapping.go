@@ -122,6 +122,37 @@ func MapNucleiSeverityAndConfidence(nucleiSeverity string, cvssScore float64) (s
 	return severity, confidence, nativeSev, nil
 }
 
+// MapNmapSeverityAndConfidence maps Nmap open port or NSE findings into canonical severity and confidence.
+func MapNmapSeverityAndConfidence(service string, port int, isPlaintext bool, nseSeverity string, cvssScore float64) (severity string, confidence float64) {
+	if cvssScore > 0.0 && cvssScore <= 10.0 {
+		return MapCVSSScoreToSeverity(cvssScore), 0.95
+	}
+	if nseSeverity != "" {
+		switch strings.ToLower(strings.TrimSpace(nseSeverity)) {
+		case "critical":
+			return SeverityCritical, 0.95
+		case "high":
+			return SeverityHigh, 0.90
+		case "medium":
+			return SeverityMedium, 0.80
+		case "low":
+			return SeverityLow, 0.70
+		case "info", "informational":
+			return SeverityInformational, 0.95
+		}
+	}
+	if isPlaintext {
+		if port == 23 || strings.EqualFold(service, "telnet") {
+			return SeverityHigh, 0.95
+		}
+		if port == 21 || strings.EqualFold(service, "ftp") {
+			return SeverityMedium, 0.95
+		}
+		return SeverityMedium, 0.90
+	}
+	return SeverityInformational, 0.99
+}
+
 // ConfidenceFloatToLevel categorizes a normalized 0..1 confidence float into qualitative levels.
 func ConfidenceFloatToLevel(score float64) string {
 	switch {
