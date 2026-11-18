@@ -114,3 +114,35 @@ func TestStandardProfileScannerDependenciesAndPhases(t *testing.T) {
 		t.Errorf("phase 3 should run in parallel and require previous phase success: %+v", phase3)
 	}
 }
+
+func TestDeepProfilePhasesAndScanners(t *testing.T) {
+	p, err := GetAssessmentProfile(ProfileDeep)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(p.DefaultScannerOrder) != 4 {
+		t.Fatalf("expected 4 phases in deep profile execution order, got %d", len(p.DefaultScannerOrder))
+	}
+
+	// Verify all 6 candidate scanners are permitted under deep profile
+	expectedPermitted := map[string]bool{
+		ScannerHTTPPreflight: true,
+		ScannerNmap:          true,
+		ScannerTLSAssessor:   true,
+		ScannerHTTPHeaders:   true,
+		ScannerZAPBaseline:   true,
+		ScannerNuclei:        true,
+	}
+	for _, sc := range p.PermittedScanners {
+		delete(expectedPermitted, sc)
+	}
+	if len(expectedPermitted) != 0 {
+		t.Errorf("missing permitted scanners in deep profile: %v", expectedPermitted)
+	}
+
+	phase2 := p.DefaultScannerOrder[1]
+	if phase2.PhaseName != "network_and_service_discovery" || len(phase2.Scanners) != 1 || phase2.Scanners[0] != ScannerNmap {
+		t.Errorf("phase 2 should be nmap service discovery: %+v", phase2)
+	}
+}

@@ -1067,7 +1067,7 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 				zap.Int("phase_index", phase.PhaseIndex),
 				zap.String("phase_name", phase.PhaseName),
 			)
-			break
+			continue
 		}
 
 		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(assessmentCtx.Err(), context.Canceled) {
@@ -1215,8 +1215,8 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 		}
 
 		report.PhaseResults = append(report.PhaseResults, phaseRes)
-		if !phaseRes.Success && phase.RequirePrev {
-			break
+		if !phaseRes.Success {
+			prevPhaseSucceeded = false
 		}
 	}
 

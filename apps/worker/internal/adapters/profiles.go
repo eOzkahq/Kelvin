@@ -119,6 +119,7 @@ var mvpProfiles = map[string]AssessmentProfile{
 		},
 		PermittedScanners: []string{
 			ScannerHTTPPreflight,
+			ScannerNmap,
 			ScannerTLSAssessor,
 			ScannerHTTPHeaders,
 			ScannerZAPBaseline,
@@ -134,13 +135,20 @@ var mvpProfiles = map[string]AssessmentProfile{
 			},
 			{
 				PhaseIndex:  2,
+				PhaseName:   "network_and_service_discovery",
+				Scanners:    []string{ScannerNmap},
+				Parallel:    false,
+				RequirePrev: true,
+			},
+			{
+				PhaseIndex:  3,
 				PhaseName:   "passive_analysis",
 				Scanners:    []string{ScannerTLSAssessor, ScannerHTTPHeaders, ScannerZAPBaseline},
 				Parallel:    true,
 				RequirePrev: true,
 			},
 			{
-				PhaseIndex:  3,
+				PhaseIndex:  4,
 				PhaseName:   "vulnerability_inspection",
 				Scanners:    []string{ScannerNuclei},
 				Parallel:    false,
