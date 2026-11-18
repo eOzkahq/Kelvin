@@ -274,9 +274,35 @@ func (v *ResultValidator) ValidateBatch(rawFindings []json.RawMessage, expectedA
 			continue
 		}
 
-		// Layer 5: In-batch deduplication (first occurrence wins)
+		// Layer 5: In-batch deduplication (first occurrence wins with evidence & secondary scanner aggregation)
 		if seenFingerprints[normFinding.Fingerprint] {
 			report.DuplicateCount++
+			for idx := range report.Accepted {
+				if report.Accepted[idx].Fingerprint == normFinding.Fingerprint {
+					report.Accepted[idx].Evidence = mergeWorkerEvidence(report.Accepted[idx].Evidence, normFinding.Evidence)
+					if report.Accepted[idx].ScannerMeta == nil {
+						report.Accepted[idx].ScannerMeta = make(map[string]any)
+					}
+					var secScanners []string
+					if existingSec, ok := report.Accepted[idx].ScannerMeta["secondary_scanners"].([]string); ok {
+						secScanners = existingSec
+					} else {
+						secScanners = []string{report.Accepted[idx].Scanner.Name}
+					}
+					hasScanner := false
+					for _, s := range secScanners {
+						if s == normFinding.Scanner.Name {
+							hasScanner = true
+							break
+						}
+					}
+					if !hasScanner {
+						secScanners = append(secScanners, normFinding.Scanner.Name)
+					}
+					report.Accepted[idx].ScannerMeta["secondary_scanners"] = secScanners
+					break
+				}
+			}
 			continue
 		}
 		seenFingerprints[normFinding.Fingerprint] = true
@@ -286,4 +312,29 @@ func (v *ResultValidator) ValidateBatch(rawFindings []json.RawMessage, expectedA
 	}
 
 	return report
+}
+
+func mergeWorkerEvidence(existing, additional []Evidence) []Evidence {
+	if len(additional) == 0 {
+		return existing
+	}
+	merged := make([]Evidence, len(existing))
+	copy(merged, existing)
+	for _, add := range additional {
+		isDup := false
+		for _, ex := range existing {
+			if ex.ChecksumSHA256 != "" && ex.ChecksumSHA256 == add.ChecksumSHA256 {
+				isDup = true
+				break
+			}
+			if ex.ContentRedacted != "" && ex.ContentRedacted == add.ContentRedacted {
+				isDup = true
+				break
+			}
+		}
+		if !isDup {
+			merged = append(merged, add)
+		}
+	}
+	return merged
 }

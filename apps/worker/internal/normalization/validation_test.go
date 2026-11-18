@@ -60,6 +60,91 @@ func TestResultValidatorAcceptsValidAndDeduplicates(t *testing.T) {
 	}
 }
 
+func TestResultValidatorCrossScannerEvidenceAggregation(t *testing.T) {
+	validator := NewResultValidator()
+
+	f1 := json.RawMessage(`{
+		"schema_version": "1.0",
+		"title": "SQL Injection in Search Form",
+		"severity": "HIGH",
+		"confidence": 0.9,
+		"target": {
+			"asset": "target.example.com",
+			"endpoint": "https://target.example.com/search"
+		},
+		"vulnerability": {
+			"cwe_id": "CWE-89",
+			"template_id": "sqli-search"
+		},
+		"description": "SQL injection discovered",
+		"remediation": {
+			"summary": "Use prepared statements"
+		},
+		"evidence": [
+			{
+				"type": "LOG",
+				"content_type": "text/plain",
+				"content_redacted": "SELECT * FROM users WHERE id='1'",
+				"redacted_fields": []
+			}
+		],
+		"scanner": {
+			"name": "nuclei",
+			"adapter_version": "1.0.0"
+		},
+		"discovered_at": "2026-11-01T20:00:00Z"
+	}`)
+
+	f2 := json.RawMessage(`{
+		"schema_version": "1.0",
+		"title": "SQL Injection in Search Form",
+		"severity": "HIGH",
+		"confidence": 0.9,
+		"target": {
+			"asset": "target.example.com",
+			"endpoint": "https://target.example.com/search"
+		},
+		"vulnerability": {
+			"cwe_id": "CWE-89",
+			"template_id": "sqli-search"
+		},
+		"description": "SQL injection discovered",
+		"remediation": {
+			"summary": "Use prepared statements"
+		},
+		"evidence": [
+			{
+				"type": "LOG",
+				"content_type": "text/plain",
+				"content_redacted": "SELECT * FROM users WHERE id='admin'--",
+				"redacted_fields": []
+			}
+		],
+		"scanner": {
+			"name": "zap",
+			"adapter_version": "1.0.0"
+		},
+		"discovered_at": "2026-11-01T20:00:00Z"
+	}`)
+
+	report := validator.ValidateBatch([]json.RawMessage{f1, f2}, "target.example.com")
+	if report.AcceptedCount != 1 {
+		t.Fatalf("expected 1 accepted finding, got %d", report.AcceptedCount)
+	}
+	if report.DuplicateCount != 1 {
+		t.Fatalf("expected 1 duplicate, got %d", report.DuplicateCount)
+	}
+
+	accepted := report.Accepted[0]
+	if len(accepted.Evidence) != 2 {
+		t.Errorf("expected 2 aggregated evidence items, got %d", len(accepted.Evidence))
+	}
+	secScanners, ok := accepted.ScannerMeta["secondary_scanners"].([]string)
+	if !ok || len(secScanners) != 2 {
+		t.Errorf("expected 2 scanners recorded in secondary_scanners, got %v", accepted.ScannerMeta["secondary_scanners"])
+	}
+}
+
 func TestResultValidatorQuarantinesInvalidRecords(t *testing.T) {
 	validator := NewResultValidator()
 

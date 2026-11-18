@@ -74,6 +74,7 @@ type IngestionEventPublisher interface {
 type IngestionService struct {
 	resolver     *IdentityResolver
 	deduplicator *InAssessmentDeduplicator
+	correlator   *CorrelationRuleEngine
 	validator    AssessmentValidator
 	repo         FindingRepository
 	publisher    IngestionEventPublisher
@@ -88,6 +89,7 @@ func NewIngestionService(
 	return &IngestionService{
 		resolver:     NewIdentityResolver(),
 		deduplicator: NewInAssessmentDeduplicator(),
+		correlator:   NewDefaultCorrelationRuleEngine(),
 		validator:    validator,
 		repo:         repo,
 		publisher:    publisher,
@@ -321,6 +323,11 @@ func (s *IngestionService) IngestBatch(
 		if res.IsAmbiguous {
 			summary.AmbiguousCount++
 		}
+
+		// Automated correlation: evaluate correlation rules against existing project findings
+		if corrRepo, ok := s.repo.(CorrelationRepository); ok && s.correlator != nil {
+			s.correlateFinding(ctx, tenantID, asmtCtx.ProjectID, res.Finding, currentFindings, corrRepo)
+		}
 	}
 
 	if s.publisher != nil {
@@ -328,5 +335,71 @@ func (s *IngestionService) IngestBatch(
 	}
 
 	return summary, nil
+}
+
+// correlateFinding evaluates versioned correlation rules against existing findings in the same tenant/project,
+// clustering related findings into correlation groups without collapsing their independent identities.
+func (s *IngestionService) correlateFinding(
+	ctx context.Context,
+	tenantID, projectID uuid.UUID,
+	finding *PersistentFinding,
+	existingFindings []*PersistentFinding,
+	repo CorrelationRepository,
+) {
+	if finding == nil || repo == nil || s.correlator == nil {
+		return
+	}
+	for _, other := range existingFindings {
+		if other.ID == finding.ID || other.TenantID != tenantID || other.ProjectID != projectID {
+			continue
+		}
+		match := s.correlator.EvaluatePair(finding, other)
+		if match != nil && match.Matched {
+			var groupID uuid.UUID
+			if other.CorrelationGroupID != nil && *other.CorrelationGroupID != uuid.Nil {
+				groupID = *other.CorrelationGroupID
+			} else {
+				newID, err := uuid.NewV7()
+				if err != nil {
+					newID = uuid.New()
+				}
+				groupID = newID
+				group := &CorrelationGroup{
+					ID:              groupID,
+					TenantID:        tenantID,
+					Name:            match.GroupName,
+					CorrelationType: match.CorrelationType,
+					Description:     match.Rationale,
+					RulePattern:     match.RuleID,
+					Metadata: map[string]any{
+						"confidence":      match.Confidence,
+						"rationale":       match.Rationale,
+						"matched_factors": match.MatchedFactors,
+					},
+				}
+				if err := repo.CreateCorrelationGroup(ctx, group); err != nil {
+					continue
+				}
+				_ = repo.AddFindingToGroup(ctx, &CorrelationGroupMember{
+					TenantID:  tenantID,
+					GroupID:   groupID,
+					FindingID: other.ID,
+					Reason:    match.Rationale,
+				})
+				other.CorrelationGroupID = &groupID
+				_ = s.repo.SaveFinding(ctx, other)
+			}
+
+			_ = repo.AddFindingToGroup(ctx, &CorrelationGroupMember{
+				TenantID:  tenantID,
+				GroupID:   groupID,
+				FindingID: finding.ID,
+				Reason:    match.Rationale,
+			})
+			finding.CorrelationGroupID = &groupID
+			_ = s.repo.SaveFinding(ctx, finding)
+			break
+		}
+	}
 }
 
