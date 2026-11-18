@@ -36,7 +36,9 @@ export default function AssessmentWizardPage() {
 
   // Form State
   const [assessmentName, setAssessmentName] = useState("");
+  const [targetMode, setTargetMode] = useState<"preconfigured" | "custom">("preconfigured");
   const [selectedTargetId, setSelectedTargetId] = useState("");
+  const [customTargetUrl, setCustomTargetUrl] = useState("");
   const [selectedProfileId, setSelectedProfileId] = useState("");
   const [rateLimit, setRateLimit] = useState(50);
   const [timeoutMinutes, setTimeoutMinutes] = useState(30);
@@ -53,13 +55,24 @@ export default function AssessmentWizardPage() {
     queryFn: fetchProfiles,
   });
 
-  const selectedTarget: TargetOption | undefined = targets?.find((t) => t.id === selectedTargetId);
+  const selectedTarget: TargetOption | undefined =
+    targetMode === "custom"
+      ? {
+          id: "custom",
+          name: "Custom Lab Target",
+          address: customTargetUrl.trim(),
+          verified: false,
+          environment: "STAGING",
+        }
+      : targets?.find((t) => t.id === selectedTargetId);
   const selectedProfile: ScanProfile | undefined = profiles?.find((p) => p.id === selectedProfileId);
 
   const canAdvance = () => {
     switch (currentStep) {
       case 1:
-        return Boolean(selectedTargetId && assessmentName.trim());
+        return Boolean(
+          (targetMode === "custom" ? customTargetUrl.trim() : selectedTargetId) && assessmentName.trim()
+        );
       case 2:
         return Boolean(selectedProfileId);
       case 3:
@@ -97,7 +110,9 @@ export default function AssessmentWizardPage() {
     try {
       const res = await createAssessment({
         name: assessmentName,
-        targetId: selectedTargetId,
+        targetId: targetMode === "preconfigured" ? selectedTargetId : undefined,
+        targetAddress: targetMode === "custom" ? customTargetUrl.trim() : selectedTarget?.address,
+        targets: targetMode === "custom" && customTargetUrl.trim() ? [{ host: customTargetUrl.trim() }] : undefined,
         profileId: selectedProfileId,
         rateLimit,
         timeoutMinutes,
@@ -194,33 +209,70 @@ export default function AssessmentWizardPage() {
               required
             />
 
-            <div className="space-y-2 pt-2">
-              <span className="text-xs font-medium text-zinc-300 block">Verified Targets:</span>
-              <div className="grid grid-cols-1 gap-2">
-                {targets?.map((tgt) => (
-                  <button
-                    key={tgt.id}
-                    type="button"
-                    onClick={() => setSelectedTargetId(tgt.id)}
-                    className={`flex items-center justify-between p-3 rounded-lg border text-left transition-all ${
-                      selectedTargetId === tgt.id
-                        ? "border-cyan-500 bg-cyan-950/40 text-cyan-100"
-                        : "border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 text-zinc-300"
-                    }`}
-                  >
-                    <div>
-                      <p className="font-semibold text-xs text-zinc-100">{tgt.name}</p>
-                      <p className="font-mono text-[11px] text-zinc-400">{tgt.address}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
-                        {tgt.environment}
-                      </span>
-                      {selectedTargetId === tgt.id && <span className="text-cyan-400">✓</span>}
-                    </div>
-                  </button>
-                ))}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setTargetMode("preconfigured")}
+                  className={`text-xs font-medium px-2.5 py-1 rounded transition-colors ${
+                    targetMode === "preconfigured"
+                      ? "bg-cyan-950 text-cyan-300 border border-cyan-800"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  Verified Targets ({targets?.length ?? 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetMode("custom")}
+                  className={`text-xs font-medium px-2.5 py-1 rounded transition-colors ${
+                    targetMode === "custom"
+                      ? "bg-cyan-950 text-cyan-300 border border-cyan-800"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  Custom Target URL
+                </button>
               </div>
+
+              {targetMode === "preconfigured" ? (
+                <div className="grid grid-cols-1 gap-2">
+                  {targets?.map((tgt) => (
+                    <button
+                      key={tgt.id}
+                      type="button"
+                      onClick={() => setSelectedTargetId(tgt.id)}
+                      className={`flex items-center justify-between p-3 rounded-lg border text-left transition-all ${
+                        selectedTargetId === tgt.id
+                          ? "border-cyan-500 bg-cyan-950/40 text-cyan-100"
+                          : "border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 text-zinc-300"
+                      }`}
+                    >
+                      <div>
+                        <p className="font-semibold text-xs text-zinc-100">{tgt.name}</p>
+                        <p className="font-mono text-[11px] text-zinc-400">{tgt.address}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                          {tgt.environment}
+                        </span>
+                        {selectedTargetId === tgt.id && <span className="text-cyan-400">✓</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2 p-3 rounded-lg border border-zinc-800 bg-zinc-900/40">
+                  <Input
+                    label="Custom Target Address / URL"
+                    placeholder="e.g., https://juice-shop.herokuapp.com or http://127.0.0.1:8080"
+                    value={customTargetUrl}
+                    onChange={(e) => setCustomTargetUrl(e.target.value)}
+                    helperText="Specify the authorized domain or HTTP/HTTPS endpoint for this assessment run."
+                    required
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}

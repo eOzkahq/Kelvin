@@ -85,6 +85,7 @@ export interface AssessmentDetail extends AssessmentRecord {
 export interface CreateAssessmentPayload {
   name: string;
   targetId?: string;
+  targetAddress?: string;
   profileId: string;
   rateLimit?: number;
   timeoutMinutes?: number;
