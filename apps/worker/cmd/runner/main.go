@@ -161,6 +161,11 @@ func main() {
 		if err != nil {
 			log.Fatal("worker queue initialization failed", zap.Error(err))
 		}
+		log.Info("worker connected to redis job stream",
+			zap.String("stream", "kelvin:jobs:stream"),
+			zap.String("group", "workers"),
+			zap.String("consumer", cfg.WorkerID),
+		)
 	} else if cfg.Env == config.EnvProduction {
 		log.Fatal("worker queue must be connected to Redis in production")
 	}

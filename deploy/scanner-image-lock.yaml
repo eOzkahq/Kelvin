@@ -10,7 +10,7 @@ scanners:
     version: "2.17.0"
     adapter_version: "1.0.0"
     image_reference: "ghcr.io/eozkahq/kelvin/scanner-zap:2.17.0"
-    image_digest: "sha256:3ae56fdc713fb3b3f678502df357e4e9e525fcf2db2f5a5df9a417754ee36217"
+    image_digest: "sha256:0b8847b2c722b16f0964431aabcbb499560a1f17e8698d52326d82db29efac1d"
     executable: "/zap/zap-baseline.py"
     user: "10001:10001"
     security_options:
@@ -28,7 +28,7 @@ scanners:
     version: "3.11.1"
     adapter_version: "1.0.0"
     image_reference: "ghcr.io/eozkahq/kelvin/scanner-nuclei:3.11.1"
-    image_digest: "sha256:3653bf7c9a700afb3e68bc4c8ccd8d727465b7ebad36650a94d1a024844e480f"
+    image_digest: "sha256:f1c96471d38ee2d55e308dd4a20aac0cc983d4cf2e1caa3e12282bf444573c51"
     template_catalog_version: "kelvin.safe.web.v1"
     template_catalog_digest: "sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2"
     executable: "/nuclei"

@@ -469,7 +469,18 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	for key, value := range spec.Labels {
 		args = append(args, "--label", key+"="+value)
 	}
-	args = append(args, spec.Image)
+	imgRef := spec.Image
+	if strings.Contains(imgRef, "@") {
+		baseRef := strings.SplitN(imgRef, "@", 2)[0]
+		cmd := exec.Command(e.RuntimePath(), "image", "exists", imgRef)
+		if err := cmd.Run(); err != nil {
+			cmdBase := exec.Command(e.RuntimePath(), "image", "exists", baseRef)
+			if errBase := cmdBase.Run(); errBase == nil {
+				imgRef = baseRef
+			}
+		}
+	}
+	args = append(args, imgRef)
 	args = append(args, spec.Invocation.Args...)
 	return args
 }

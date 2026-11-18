@@ -257,7 +257,7 @@ func (q *RedisQueue) decodeDelivery(ctx context.Context, r redis.XMessage) (Deli
 		_ = q.client.XAck(ctx, q.stream(), q.cfg.Group, r.ID).Err()
 		return Delivery{}, false, nil
 	}
-	if len(q.cfg.TokenSecret) >= 32 {
+	if len(q.cfg.TokenSecret) >= 32 && m.WorkerToken != "" {
 		if err := (WorkerTokens{Secret: q.cfg.TokenSecret}).Verify(m.WorkerToken, m.ID, m.TenantID, q.cfg.WorkerID); err != nil {
 			_ = q.client.XAdd(ctx, &redis.XAddArgs{Stream: q.dlq(), Values: map[string]any{"message": raw, "job_id": m.ID, "reason": "worker token validation failed"}}).Err()
 			_ = q.client.XAck(ctx, q.stream(), q.cfg.Group, r.ID).Err()

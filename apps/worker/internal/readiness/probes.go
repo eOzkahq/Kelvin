@@ -107,6 +107,7 @@ type ImageInspectInfo struct {
 	ImageReference string
 	Digest         string
 	Available      bool
+	RepoDigests    []string
 }
 
 // MockImageInspector is a testable image inspector.
@@ -176,6 +177,13 @@ func (insp *OCIImageInspector) InspectImage(ctx context.Context, imageRef string
 	}
 
 	out, err := insp.commandRunner(ctx, runtime, "image", "inspect", imageRef)
+	if err != nil && strings.Contains(imageRef, "@") {
+		baseRef := strings.SplitN(imageRef, "@", 2)[0]
+		if outFallback, errFallback := insp.commandRunner(ctx, runtime, "image", "inspect", baseRef); errFallback == nil {
+			out = outFallback
+			err = nil
+		}
+	}
 	if err != nil {
 		outStr := strings.ToLower(string(out))
 		if strings.Contains(outStr, "no such image") ||
@@ -230,6 +238,7 @@ func (insp *OCIImageInspector) InspectImage(ctx context.Context, imageRef string
 		ImageReference: imageRef,
 		Digest:         digest,
 		Available:      true,
+		RepoDigests:    entry.RepoDigests,
 	}, nil
 }
 
@@ -298,14 +307,23 @@ func (p *ContainerImageProbe) Check(ctx context.Context) ProbeResult {
 	}
 
 	if p.digest != "" && info.Digest != "" && !strings.EqualFold(p.digest, info.Digest) {
-		return ProbeResult{
-			Name:      p.Name(),
-			Target:    p.Target(),
-			Status:    StatusUnavailable,
-			Message:   fmt.Sprintf("container image digest mismatch for %s: expected %s, got %s", p.imageRef, p.digest, info.Digest),
-			Error:     fmt.Sprintf("expected digest %s, got %s", p.digest, info.Digest),
-			CheckedAt: start,
-			Duration:  time.Since(start),
+		matchedRepo := false
+		for _, rd := range info.RepoDigests {
+			if strings.EqualFold(rd, p.digest) || strings.HasSuffix(strings.ToLower(rd), "@"+strings.ToLower(p.digest)) {
+				matchedRepo = true
+				break
+			}
+		}
+		if !matchedRepo {
+			return ProbeResult{
+				Name:      p.Name(),
+				Target:    p.Target(),
+				Status:    StatusUnavailable,
+				Message:   fmt.Sprintf("container image digest mismatch for %s: expected %s, got %s", p.imageRef, p.digest, info.Digest),
+				Error:     fmt.Sprintf("expected digest %s, got %s", p.digest, info.Digest),
+				CheckedAt: start,
+				Duration:  time.Since(start),
+			}
 		}
 	}
 
