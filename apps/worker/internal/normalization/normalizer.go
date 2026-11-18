@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
@@ -67,6 +68,23 @@ func (n *Normalizer) Normalize(raw []byte, ctx Context) (CanonicalFinding, error
 		}
 	}
 
+	// Canonicalize vulnerability indicators
+	if finding.Vulnerability.CWEID != "" {
+		finding.Vulnerability.CWEID = NormalizeCWE(finding.Vulnerability.CWEID)
+	}
+	if len(finding.Vulnerability.CVEIDs) > 0 {
+		finding.Vulnerability.CVEIDs = NormalizeCVEs(finding.Vulnerability.CVEIDs)
+	} else if finding.Vulnerability.CVEIDs == nil {
+		finding.Vulnerability.CVEIDs = []string{}
+	}
+	if finding.Vulnerability.CVSS != nil {
+		if finding.Vulnerability.CVSS.Score < 0.0 {
+			finding.Vulnerability.CVSS.Score = 0.0
+		} else if finding.Vulnerability.CVSS.Score > 10.0 {
+			finding.Vulnerability.CVSS.Score = 10.0
+		}
+	}
+
 	// Normalize severity
 	sev := strings.ToUpper(strings.TrimSpace(finding.Severity))
 	switch sev {
@@ -99,19 +117,40 @@ func (n *Normalizer) Normalize(raw []byte, ctx Context) (CanonicalFinding, error
 		finding.Target.Endpoint = normEndpoint
 	}
 
-	// Compute deterministic fingerprint
-	fp, _, err := ComputeFingerprint(
-		finding.Target.Asset,
-		finding.Target.Endpoint,
-		finding.Vulnerability.TemplateID,
-		finding.Vulnerability.CVEIDs,
-		finding.Vulnerability.CWEID,
-		finding.Title,
-	)
-	if err != nil {
-		return CanonicalFinding{}, fmt.Errorf("normalization: compute fingerprint: %w", err)
+	// Compute deterministic fingerprint if absent or extract from tagged format
+	if strings.HasPrefix(finding.Fingerprint, "fp_") {
+		if _, digest, err := ParseTaggedFingerprint(finding.Fingerprint); err == nil {
+			finding.Fingerprint = digest
+		}
 	}
-	finding.Fingerprint = fp
+	if finding.Fingerprint == "" {
+		fp, _, err := ComputeFingerprint(
+			finding.Target.Asset,
+			finding.Target.Endpoint,
+			finding.Vulnerability.TemplateID,
+			finding.Vulnerability.CVEIDs,
+			finding.Vulnerability.CWEID,
+			finding.Title,
+		)
+		if err != nil {
+			return CanonicalFinding{}, fmt.Errorf("normalization: compute fingerprint: %w", err)
+		}
+		finding.Fingerprint = fp
+	}
+
+	// Ensure standard defaults
+	if strings.TrimSpace(finding.DiscoveredAt) == "" {
+		finding.DiscoveredAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	if strings.TrimSpace(finding.Status) == "" {
+		finding.Status = "OPEN"
+	}
+	if finding.Tags == nil {
+		finding.Tags = []string{}
+	}
+	if finding.ReproductionSteps == nil {
+		finding.ReproductionSteps = []string{}
+	}
 
 	// Correlate scanner run ID
 	if ctx.RunID != "" {

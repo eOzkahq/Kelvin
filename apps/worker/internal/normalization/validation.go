@@ -112,9 +112,15 @@ func (v *ResultValidator) ValidateSingle(f CanonicalFinding, expectedAsset strin
 		f.Vulnerability.CWEID,
 		f.Title,
 	)
+	claimedFP := f.Fingerprint
+	if strings.HasPrefix(claimedFP, "fp_") {
+		if _, digest, parseErr := ParseTaggedFingerprint(claimedFP); parseErr == nil {
+			claimedFP = digest
+		}
+	}
 	if err != nil {
 		violations = append(violations, fmt.Sprintf("fingerprint recomputation failed: %v", err))
-	} else if f.Fingerprint != "" && f.Fingerprint != recomputedFP {
+	} else if f.Fingerprint != "" && claimedFP != recomputedFP {
 		violations = append(violations, fmt.Sprintf("fingerprint mismatch: claimed %q, computed %q", f.Fingerprint, recomputedFP))
 	}
 

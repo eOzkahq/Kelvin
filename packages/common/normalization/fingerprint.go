@@ -10,6 +10,7 @@ import (
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -50,6 +51,55 @@ type FingerprintResult struct {
 	Algorithm string // Algorithm version string ("v1", "v2")
 }
 
+// NormalizeCWE standardizes CWE identifiers to canonical "CWE-<number>" format.
+func NormalizeCWE(cweID string) string {
+	trimmed := strings.TrimSpace(cweID)
+	if trimmed == "" {
+		return ""
+	}
+	upper := strings.ToUpper(trimmed)
+	if strings.HasPrefix(upper, "CWE-") {
+		numPart := strings.TrimPrefix(upper, "CWE-")
+		if _, err := strconv.Atoi(numPart); err == nil {
+			return upper
+		}
+	} else if strings.HasPrefix(upper, "CWE_") {
+		numPart := strings.TrimPrefix(upper, "CWE_")
+		if _, err := strconv.Atoi(numPart); err == nil {
+			return "CWE-" + numPart
+		}
+	} else if _, err := strconv.Atoi(upper); err == nil {
+		return "CWE-" + upper
+	}
+	return upper
+}
+
+// NormalizeCVEs cleans, standardizes to "CVE-YYYY-NNNN", deduplicates, and sorts CVE IDs.
+func NormalizeCVEs(cveIDs []string) []string {
+	if len(cveIDs) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]bool)
+	var result []string
+	for _, raw := range cveIDs {
+		trimmed := strings.ToUpper(strings.TrimSpace(raw))
+		if trimmed == "" {
+			continue
+		}
+		if !strings.HasPrefix(trimmed, "CVE-") {
+			if strings.HasPrefix(trimmed, "CVE_") {
+				trimmed = "CVE-" + strings.TrimPrefix(trimmed, "CVE_")
+			}
+		}
+		if !seen[trimmed] {
+			seen[trimmed] = true
+			result = append(result, trimmed)
+		}
+	}
+	sort.Strings(result)
+	return result
+}
+
 // DeriveVulnerabilityKey derives the canonical vulnerability key according to FINDING_SCHEMA.md §5.3.
 // Precedence:
 // 1. vulnerability.template_id (lowercased, trimmed)
@@ -61,20 +111,13 @@ func DeriveVulnerabilityKey(templateID string, cveIDs []string, cweID string, ti
 		return strings.ToLower(tID)
 	}
 
-	validCVEs := make([]string, 0, len(cveIDs))
-	for _, cve := range cveIDs {
-		trimmed := strings.ToUpper(strings.TrimSpace(cve))
-		if trimmed != "" {
-			validCVEs = append(validCVEs, trimmed)
-		}
-	}
+	validCVEs := NormalizeCVEs(cveIDs)
 	if len(validCVEs) > 0 {
-		sort.Strings(validCVEs)
 		return validCVEs[0]
 	}
 
-	if cwe := strings.TrimSpace(cweID); cwe != "" {
-		return strings.ToUpper(cwe)
+	if cwe := NormalizeCWE(cweID); cwe != "" {
+		return cwe
 	}
 
 	return SlugifyTitle(title)
