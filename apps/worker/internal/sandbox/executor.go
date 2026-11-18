@@ -52,7 +52,16 @@ func (p ProcessInvocation) Validate() error {
 	case "sh", "bash", "dash", "zsh", "cmd", "cmd.exe", "powershell", "pwsh":
 		return fmt.Errorf("sandbox: shell executables are prohibited")
 	}
-	if p.Executable != "/zap/zap-baseline.py" && p.Executable != "/nuclei" {
+	approvedExecutables := map[string]bool{
+		"/nuclei":               true,
+		"/zap/zap-baseline.py":  true,
+		"/zap/zap-full-scan.py": true,
+		"/usr/bin/sslscan":      true,
+		"/usr/bin/nmap":         true,
+		"/usr/bin/whatweb":      true,
+		"/usr/bin/subfinder":    true,
+	}
+	if !approvedExecutables[p.Executable] {
 		return fmt.Errorf("sandbox: executable is not an approved scanner")
 	}
 	if len(p.Args) > maxInvocationArgs {
@@ -130,14 +139,14 @@ type Spec struct {
 	EgressProxy string
 }
 
-var approvedScanners = map[string]string{
-	"nuclei":       "/nuclei",
-	"zap":          "/zap/zap-baseline.py",
-	"zap-baseline": "/zap/zap-baseline.py",
-	"sslscan":      "/usr/bin/sslscan",
-	"nmap":         "/usr/bin/nmap",
-	"whatweb":      "/usr/bin/whatweb",
-	"subfinder":    "/usr/bin/subfinder",
+var approvedScanners = map[string][]string{
+	"nuclei":       {"/nuclei"},
+	"zap":          {"/zap/zap-baseline.py", "/zap/zap-full-scan.py"},
+	"zap-baseline": {"/zap/zap-baseline.py", "/zap/zap-full-scan.py"},
+	"sslscan":      {"/usr/bin/sslscan"},
+	"nmap":         {"/usr/bin/nmap"},
+	"whatweb":      {"/usr/bin/whatweb"},
+	"subfinder":    {"/usr/bin/subfinder"},
 }
 
 // ScannerID resolves the effective scanner identity from Spec.Scanner or Spec.Labels["scanner"].
@@ -185,10 +194,19 @@ func (s Spec) Validate() error {
 	scanner := s.ScannerID()
 	if scanner == "" {
 		errs = append(errs, "scanner identity is required and must not be empty")
-	} else if expected, ok := approvedScanners[scanner]; !ok {
+	} else if approvedList, ok := approvedScanners[scanner]; !ok {
 		errs = append(errs, fmt.Sprintf("unknown scanner identity %q is rejected", scanner))
-	} else if s.Invocation.Executable != expected {
-		errs = append(errs, fmt.Sprintf("scanner executable %q is not approved for scanner %q", s.Invocation.Executable, scanner))
+	} else {
+		matched := false
+		for _, exp := range approvedList {
+			if s.Invocation.Executable == exp {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			errs = append(errs, fmt.Sprintf("scanner executable %q is not approved for scanner %q", s.Invocation.Executable, scanner))
+		}
 	}
 
 	// 2. Invocation argv validation

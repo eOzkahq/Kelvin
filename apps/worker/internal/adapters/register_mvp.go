@@ -182,6 +182,7 @@ func NewOCINmapRunnerWithScope(executor sandbox.Executor, policyProvider ScopePo
 			SecurityOpt:     []string{"no-new-privileges"},
 			CapDrop:         []string{"ALL"},
 			Deadline:        task.HardDeadline,
+			PIDsLimit:       256,
 			NetworkDisabled: true,
 		}
 		if task.EgressProxy != "" {
@@ -239,6 +240,7 @@ func NewOCINucleiRunnerWithScope(executor sandbox.Executor, policyProvider Scope
 			SecurityOpt:     []string{"no-new-privileges"},
 			CapDrop:         []string{"ALL"},
 			Deadline:        task.HardDeadline,
+			PIDsLimit:       256,
 			NetworkDisabled: true,
 		}
 		if task.EgressProxy != "" {
@@ -285,6 +287,10 @@ func NewOCIZAPRunnerWithScope(executor sandbox.Executor, policyProvider ScopePol
 		executable := "/zap/zap-baseline.py"
 		cfg, _ := zapConfig(task.Payload)
 		if cfg.ExecutionMode == "ACTIVE" || (cfg.ZAP != nil && cfg.ZAP.ActiveScan) {
+			profile, err := GetAssessmentProfile(task.ProfileID)
+			if err != nil || profile.TrafficLevel != "active" || !profile.AdminSignoffRequired {
+				return nil, fmt.Errorf("adapters: ZAP active scanning requires explicit authorization under an active assessment profile (got profile: %q)", task.ProfileID)
+			}
 			executable = "/zap/zap-full-scan.py"
 		}
 		spec := sandbox.Spec{
@@ -302,6 +308,7 @@ func NewOCIZAPRunnerWithScope(executor sandbox.Executor, policyProvider ScopePol
 			CapDrop:          []string{"ALL"},
 			CaptureZAPReport: true,
 			Deadline:         task.HardDeadline,
+			PIDsLimit:        256,
 			NetworkDisabled:  true,
 		}
 		if task.EgressProxy != "" {
