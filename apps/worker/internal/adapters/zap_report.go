@@ -92,8 +92,8 @@ func NormalizeZAPReport(task Task, raw []byte, scannerVersion string, started, c
 	if len(report.Sites) == 0 || len(report.Sites) > 32 {
 		return Result{}, fmt.Errorf("%w: ZAP report site count is invalid", ErrMalformedOutput)
 	}
-	if report.Version != scannerVersion {
-		return Result{}, fmt.Errorf("%w: report version does not match verified ZAP runtime", ErrMalformedOutput)
+	if strings.TrimPrefix(report.Version, "v") != strings.TrimPrefix(scannerVersion, "v") {
+		return Result{}, fmt.Errorf("%w: report version %q does not match verified ZAP runtime %q", ErrMalformedOutput, report.Version, scannerVersion)
 	}
 	if started.IsZero() {
 		started = time.Now().UTC()

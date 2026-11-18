@@ -224,7 +224,7 @@ func (s *PostgresStateSyncer) SyncJobResults(
 	ctx context.Context,
 	tenantID, assessmentID, jobID string,
 	rawFindings []json.RawMessage,
-	_ string,
+	correlationID string,
 ) error {
 	if s.pool == nil || len(rawFindings) == 0 {
 		return nil
@@ -251,8 +251,27 @@ func (s *PostgresStateSyncer) SyncJobResults(
 		return fmt.Errorf("sync_results: lookup assessment project: %w", err)
 	}
 
+	// Ensure job record exists to satisfy foreign key constraint findings_job_id_fkey
+	const ensureJob = `
+		INSERT INTO jobs (id, tenant_id, assessment_id, correlation_id, status)
+		VALUES ($1, $2, $3, $4, 'RUNNING')
+		ON CONFLICT (id) DO UPDATE SET updated_at = NOW();
+	`
+	corrUUID, _ := uuid.Parse(correlationID)
+	if corrUUID == uuid.Nil {
+		corrUUID = uuid.New()
+	}
+	if _, err := tx.Exec(ctx, ensureJob, jobID, tenantID, assessmentID, corrUUID); err != nil {
+		return fmt.Errorf("sync_results: ensure job: %w", err)
+	}
+
 	validator := normalization.NewResultValidator()
-	report := validator.ValidateBatch(rawFindings, targetAddress)
+	report := validator.ValidateBatch(rawFindings, normalization.NormalizeAsset(targetAddress))
+	if len(report.Quarantined) > 0 {
+		for _, q := range report.Quarantined {
+			fmt.Printf("sync_results: quarantined finding [%d] reason=%q violations=%v snippet=%q\n", q.Index, q.Reason, q.Violations, q.RawSnippet)
+		}
+	}
 
 	for _, f := range report.Accepted {
 		findingID, err := uuid.NewV7()

@@ -686,6 +686,7 @@ func (e *OCIExecutor) captureZAPReport(containerName string, result *Result, spe
 	if spec.WorkspaceMount != "" {
 		hostCandidates := []string{
 			filepath.Join(spec.WorkspaceMount, "kelvin-zap-report.json"),
+			filepath.Join(spec.WorkspaceMount, "test-report.json"),
 			filepath.Join(spec.WorkspaceMount, "report.json"),
 			filepath.Join(spec.WorkspaceMount, "zap.json"),
 		}

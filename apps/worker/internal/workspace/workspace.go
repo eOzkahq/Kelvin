@@ -174,6 +174,13 @@ func (w *Workspace) Cleanup() error {
 		return nil
 	}
 
+	_ = filepath.Walk(w.RootDir, func(p string, _ os.FileInfo, err error) error {
+		if err == nil {
+			_ = os.Chmod(p, 0777)
+		}
+		return nil
+	})
+
 	return os.RemoveAll(w.RootDir)
 }
 

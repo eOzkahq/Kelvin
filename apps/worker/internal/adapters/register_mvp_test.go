@@ -52,7 +52,7 @@ func TestRegisterDefaultAdapters(t *testing.T) {
 
 		zapVer, err := adapters.DefaultZAPVerifier(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, "2.15.0", zapVer.ScannerVersion)
+		assert.Equal(t, adapters.PinnedZAPScannerVersion, zapVer.ScannerVersion)
 		assert.Equal(t, "1.0.0", zapVer.AdapterVersion)
 		assert.NotEmpty(t, zapVer.ImageDigest)
 

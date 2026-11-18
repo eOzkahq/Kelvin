@@ -152,6 +152,17 @@ func NormalizeAsset(asset string) string {
 		return ""
 	}
 
+	// If a URL scheme is present, extract the hostname
+	if strings.Contains(trimmed, "://") {
+		if u, err := url.Parse(trimmed); err == nil && u.Hostname() != "" {
+			trimmed = u.Hostname()
+		}
+	} else if strings.Contains(trimmed, "/") {
+		if u, err := url.Parse("https://" + trimmed); err == nil && u.Hostname() != "" {
+			trimmed = u.Hostname()
+		}
+	}
+
 	// If IP literal: canonicalize via RFC 5952
 	if ip, err := netip.ParseAddr(trimmed); err == nil {
 		return ip.String()

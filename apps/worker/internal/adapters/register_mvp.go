@@ -5,12 +5,30 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 	"github.com/kelvin/kelvin/packages/common/scope"
 )
+
+func findImagesLockPath() string {
+	candidates := []string{
+		os.Getenv("KELVIN_IMAGES_LOCK_PATH"),
+		"/opt/kelvin/deploy/scanners/images.lock.json",
+		"deploy/scanners/images.lock.json",
+		"../../deploy/scanners/images.lock.json",
+	}
+	for _, c := range candidates {
+		if c != "" {
+			if _, err := os.Stat(c); err == nil {
+				return c
+			}
+		}
+	}
+	return "deploy/scanners/images.lock.json"
+}
 
 const (
 	PinnedNucleiScannerVersion         = "3.3.7"
@@ -20,7 +38,7 @@ const (
 	PinnedNucleiTemplateCatalogVersion = "kelvin.safe.web.v1"
 	PinnedNucleiTemplateCatalogDigest  = "sha256:72544e12d0409da7ce430a89dafb86bdf2a971e34986eb936db55f53fb9915b2"
 
-	PinnedZAPScannerVersion = "2.15.0"
+	PinnedZAPScannerVersion = "2.17.0"
 	PinnedZAPAdapterVersion = "1.0.0"
 	PinnedZAPImageReference = "ghcr.io/zaproxy/zaproxy:2.15.0@sha256:d9b23b169527be63660fb1e57c6b9eb97cf1e2c9ef806dc5e7e3e7f53cfc0919"
 	PinnedZAPImageDigest    = "sha256:d9b23b169527be63660fb1e57c6b9eb97cf1e2c9ef806dc5e7e3e7f53cfc0919"
@@ -52,7 +70,7 @@ func DefaultNucleiVerifier(_ context.Context) (RuntimeVersionInfo, error) {
 		TemplateCatalogVersion: PinnedNucleiTemplateCatalogVersion,
 		TemplateCatalogDigest:  PinnedNucleiTemplateCatalogDigest,
 	}
-	if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+	if lock, err := manifest.LoadCanonicalLock(findImagesLockPath()); err == nil && lock != nil {
 		if lock.Status == manifest.StatusCertified || lock.Status == "released" {
 			if img, ok := lock.Images["nuclei"]; ok {
 				if img.Version != nil && *img.Version != "" {
@@ -85,7 +103,7 @@ func DefaultZAPVerifier(_ context.Context) (RuntimeVersionInfo, error) {
 		ImageReference: PinnedZAPImageReference,
 		ImageDigest:    PinnedZAPImageDigest,
 	}
-	if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+	if lock, err := manifest.LoadCanonicalLock(findImagesLockPath()); err == nil && lock != nil {
 		if lock.Status == manifest.StatusCertified || lock.Status == "released" {
 			if img, ok := lock.Images["zap"]; ok {
 				if img.Version != nil && *img.Version != "" {
@@ -115,7 +133,7 @@ func DefaultNmapVerifier(_ context.Context) (RuntimeVersionInfo, error) {
 		ImageReference: PinnedNmapImageReference,
 		ImageDigest:    PinnedNmapImageDigest,
 	}
-	if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+	if lock, err := manifest.LoadCanonicalLock(findImagesLockPath()); err == nil && lock != nil {
 		if lock.Status == manifest.StatusCertified || lock.Status == "released" {
 			if img, ok := lock.Images["nmap"]; ok {
 				if img.Version != nil && *img.Version != "" {
@@ -158,7 +176,7 @@ func NewOCINmapRunnerWithScope(executor sandbox.Executor, policyProvider ScopePo
 		}
 		imgRef := PinnedNmapImageReference
 		imgDigest := PinnedNmapImageDigest
-		if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+		if lock, err := manifest.LoadCanonicalLock(findImagesLockPath()); err == nil && lock != nil {
 			if (lock.Status == manifest.StatusCertified || lock.Status == "released") && lock.Images["nmap"].KelvinImage != nil {
 				imgRef = *lock.Images["nmap"].KelvinImage
 				if lock.Images["nmap"].KelvinDigest != nil {
@@ -234,7 +252,7 @@ func NewOCINucleiRunnerWithScope(executor sandbox.Executor, policyProvider Scope
 		}
 		imgRef := PinnedNucleiImageReference
 		imgDigest := PinnedNucleiImageDigest
-		if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+		if lock, err := manifest.LoadCanonicalLock(findImagesLockPath()); err == nil && lock != nil {
 			if (lock.Status == manifest.StatusCertified || lock.Status == "released") && lock.Images["nuclei"].KelvinImage != nil {
 				imgRef = *lock.Images["nuclei"].KelvinImage
 				if lock.Images["nuclei"].KelvinDigest != nil {
@@ -295,7 +313,7 @@ func NewOCIZAPRunnerWithScope(executor sandbox.Executor, policyProvider ScopePol
 		}
 		imgRef := PinnedZAPImageReference
 		imgDigest := PinnedZAPImageDigest
-		if lock, err := manifest.LoadCanonicalLock("deploy/scanners/images.lock.json"); err == nil && lock != nil {
+		if lock, err := manifest.LoadCanonicalLock(findImagesLockPath()); err == nil && lock != nil {
 			if (lock.Status == manifest.StatusCertified || lock.Status == "released") && lock.Images["zap"].KelvinImage != nil {
 				imgRef = *lock.Images["zap"].KelvinImage
 				if lock.Images["zap"].KelvinDigest != nil {
