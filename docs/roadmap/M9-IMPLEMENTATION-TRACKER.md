@@ -3,8 +3,8 @@
 
 **Status:** IN PROGRESS  
 **Canonical Repository:** `https://github.com/eOzkahq/Kelvin`  
-**Current Canonical Commit:** `957cee1`  
-**Last Updated:** Tuesday, November 17, 2026
+**Current Canonical Commit:** `c199298`  
+**Last Updated:** Wednesday, November 18, 2026
 
 ---
 
@@ -16,8 +16,8 @@
 | **M9.2** | Scanner Isolation using Podman/crun | Milestone #15 | **COMPLETED** | 0 / 4 | 4 |
 | **M9.3** | Target Authorization, Scope Enforcement & SSRF | Milestone #16 | **COMPLETED** | 0 / 4 | 4 |
 | **M9.4** | Controlled Egress Proxy & Network Restrictions | Milestone #17 | **COMPLETED** | 0 / 4 | 4 |
-| **M9.5** | Real Scanner Execution (Nmap, Nuclei, ZAP) | Milestone #18 | **ACTIVE** | 0 / 0 | 0 |
-| **M9.6** | Finding Normalization & Evidence Collection | Milestone #19 | PLANNED | 0 / 0 | 0 |
+| **M9.5** | Real Scanner Execution (Nmap, Nuclei, ZAP) | Milestone #18 | **COMPLETED** | 0 / 4 | 4 |
+| **M9.6** | Finding Normalization & Evidence Collection | Milestone #19 | **ACTIVE** | 0 / 0 | 0 |
 | **M9.7** | End-to-End Real Scan Validation | Milestone #20 | PLANNED | 0 / 0 | 0 |
 
 ---
@@ -42,6 +42,10 @@
 | M9.4 | #665 | M9.4-02: Target Destination & Port Verification Engine with Strict Protocol Lockdown | `feat/m9-4-destination-port-lockdown` | #669 | `2eeafe7` | Passed (100%) | Passed | MERGED |
 | M9.4 | #666 | M9.4-03: Outbound Bypass Prevention, Anti-OAST & Callback Blocking | `feat/m9-4-anti-oast-callback-blocking` | #670 | `f490e20` | Passed (100%) | Passed | MERGED |
 | M9.4 | #667 | M9.4-04: Worker Container Network Namespace Egress Wiring & Integration | `feat/m9-4-container-egress-wiring` | #671 | `d9631a3` | Passed (100%) | Passed | MERGED |
+| M9.5 | #672 | M9.5-01: Containerized Nmap Port & Service Scanner Adapter Integration | `feat/m9-5-nmap-adapter-integration` | #676 | `3379420` | Passed (100%) | Passed | MERGED |
+| M9.5 | #673 | M9.5-02: Nuclei Vulnerability Scanner Container Execution & Profile Controls | `feat/m9-5-nuclei-execution-profile-controls` | #677 | `0cbeafa` | Passed (100%) | Passed | MERGED |
+| M9.5 | #674 | M9.5-03: OWASP ZAP Baseline & Active Scanner Adapter Hardening | `feat/m9-5-zap-adapter-hardening` | #678 | `5283484` | Passed (100%) | Passed | MERGED |
+| M9.5 | #675 | M9.5-04: Scanner Readiness Diagnostics & Truthful Capability Matrix | `feat/m9-5-scanner-readiness-diagnostics` | #679 | `c199298` | Passed (100%) | Passed | MERGED |
 
 ---
 
