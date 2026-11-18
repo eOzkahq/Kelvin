@@ -63,6 +63,8 @@ func DefaultScannerConfig(scannerID string) (ScannerConfigV1, error) {
 	switch scannerID {
 	case ScannerHTTPPreflight:
 		cfg.MaxDurationSeconds, cfg.RequestsPerSecond = 30, 2
+	case ScannerNmap:
+		cfg.MaxDurationSeconds, cfg.RequestsPerSecond, cfg.MaxConcurrency = 300, 5, 1
 	case ScannerTLSAssessor, ScannerHTTPHeaders:
 		cfg.MaxDurationSeconds, cfg.RequestsPerSecond = 60, 2
 	case ScannerZAPBaseline:
@@ -149,9 +151,9 @@ func (cfg ScannerConfigV1) Validate() error {
 		return fmt.Errorf("adapters: max_concurrency must be in 1..2")
 	}
 	switch cfg.ScannerID {
-	case ScannerHTTPPreflight, ScannerTLSAssessor, ScannerHTTPHeaders:
+	case ScannerHTTPPreflight, ScannerTLSAssessor, ScannerHTTPHeaders, ScannerNmap:
 		if cfg.ZAP != nil || cfg.Nuclei != nil {
-			return fmt.Errorf("adapters: built-in scanner config cannot contain external scanner settings")
+			return fmt.Errorf("adapters: scanner config cannot contain external web scanner settings")
 		}
 	case ScannerZAPBaseline:
 		if cfg.ZAP == nil || cfg.Nuclei != nil {

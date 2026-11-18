@@ -22,7 +22,7 @@ func TestDefaultScannerConfigs(t *testing.T) {
 			}
 		})
 	}
-	if _, err := DefaultScannerConfig("nmap"); err == nil {
+	if _, err := DefaultScannerConfig("unknown_scanner"); err == nil {
 		t.Fatal("unsupported scanner received a default config")
 	}
 }
@@ -53,7 +53,7 @@ func TestDecodeScannerConfigAppliesDefaultsAndRejectsUnsafeOptions(t *testing.T)
 		{"wrong ZAP safety profile", `{"schema_version":"1.0","scanner_id":"zap","zap":{"safety_profile":"custom"}}`},
 		{"arbitrary template set", `{"schema_version":"1.0","scanner_id":"nuclei","nuclei":{"template_set_id":"/tmp/custom.yaml","severity_allowlist":["low"]}}`},
 		{"incomplete nuclei settings", `{"schema_version":"1.0","scanner_id":"nuclei","nuclei":{"template_set_id":"kelvin.safe.web.v1"}}`},
-		{"unsupported scanner", `{"schema_version":"1.0","scanner_id":"nmap"}`},
+		{"unsupported scanner", `{"schema_version":"1.0","scanner_id":"unknown_scanner"}`},
 		{"wrong schema version", `{"schema_version":"2.0","scanner_id":"nuclei"}`},
 		{"cross-scanner settings", `{"schema_version":"1.0","scanner_id":"tls_assessor","nuclei":{"template_set_id":"kelvin.safe.web.v1","severity_allowlist":["low"]}}`},
 	}
