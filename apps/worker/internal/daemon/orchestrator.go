@@ -1316,6 +1316,9 @@ func (o *Orchestrator) ExecutePipeline(ctx context.Context, jobLog *zap.Logger, 
 		}
 	}
 
+	for _, env := range report.Envelopes {
+		diagnostics = append(diagnostics, env.Diagnostics...)
+	}
 	if len(scopeViolations) > 0 {
 		diagnostics = append(diagnostics, scopevalidator.ToDiagnostics(scopeViolations)...)
 	}
