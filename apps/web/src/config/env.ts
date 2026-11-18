@@ -21,8 +21,9 @@ export function isDemoMode(): boolean {
 }
 
 export function loadAppConfig(): AppConfig {
-  const apiBase = import.meta.env?.VITE_API_BASE ?? "/api/v1";
-  const appEnv = (import.meta.env?.VITE_APP_ENV ?? "development") as "development" | "staging" | "production";
+  const defaultApi = import.meta.env?.PROD ? "https://api.eozka.com/api/v1" : "/api/v1";
+  const apiBase = (import.meta.env?.VITE_API_BASE_URL ?? import.meta.env?.VITE_API_BASE ?? defaultApi).trim();
+  const appEnv = (import.meta.env?.VITE_APP_ENV ?? (import.meta.env?.PROD ? "production" : "development")) as "development" | "staging" | "production";
   const basePath =
     import.meta.env?.VITE_BASE_PATH ??
     (import.meta.env?.BASE_URL && import.meta.env.BASE_URL !== "/"

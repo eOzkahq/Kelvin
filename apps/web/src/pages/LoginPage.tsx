@@ -7,7 +7,16 @@ export default function LoginPage() {
   const { login, loginWithSSO, isLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const returnUrl = searchParams.get("returnUrl") || "/dashboard";
+  const rawReturnUrl = searchParams.get("returnUrl") || "/dashboard";
+  const basename = (import.meta.env.VITE_ROUTER_BASENAME ?? import.meta.env.BASE_URL ?? "/services/kelvin").replace(/\/+$/, "");
+  let returnUrl = rawReturnUrl;
+  if (basename && basename !== "/" && returnUrl.startsWith(basename)) {
+    returnUrl = returnUrl.slice(basename.length) || "/dashboard";
+  }
+  // Enforce local relative path to prevent open redirect vulnerabilities
+  if (!returnUrl.startsWith("/") || returnUrl.startsWith("//")) {
+    returnUrl = "/dashboard";
+  }
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

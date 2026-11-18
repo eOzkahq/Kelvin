@@ -1,9 +1,20 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 
-export const UserMenu: React.FC = () => {
-  const { user, logout } = useAuth();
+export interface UserMenuProps {
+  user?: {
+    name?: string;
+    email?: string;
+    role?: string;
+    organization?: string;
+    organizationId?: string;
+  };
+}
+
+export const UserMenu: React.FC<UserMenuProps> = ({ user: userProp }) => {
+  const { user: authUser, logout } = useAuth();
+  const user = userProp ?? authUser;
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -66,22 +77,22 @@ export const UserMenu: React.FC = () => {
 
           {/* Nav links */}
           <div className="py-1">
-            <a
-              href="/account"
+            <Link
+              to="/account"
               role="menuitem"
               onClick={() => setIsOpen(false)}
               className="block px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded transition-colors"
             >
               Account / Profile
-            </a>
-            <a
-              href="/admin"
+            </Link>
+            <Link
+              to="/admin"
               role="menuitem"
               onClick={() => setIsOpen(false)}
               className="block px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 rounded transition-colors"
             >
               Organization Settings
-            </a>
+            </Link>
           </div>
 
           {/* Sign out */}

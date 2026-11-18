@@ -8,9 +8,12 @@ export default tseslint.config(
       "**/dist/**",
       "**/node_modules/**",
       "**/.vite-temp/**",
+      "**/.vercel/**",
       "apps/api/**",
       "apps/worker/**",
       "mock-target/**",
+      "tests/**",
+      "scripts/**",
     ],
   },
   js.configs.recommended,
@@ -22,10 +25,12 @@ export default tseslint.config(
         ...globals.node,
       },
     },
+    linterOptions: {
+      reportUnusedDisableDirectives: "off",
+    },
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },
   }
 );
-

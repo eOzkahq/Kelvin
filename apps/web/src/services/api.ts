@@ -75,7 +75,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 export function getApiBaseUrl(): string {
   const envUrl = (import.meta.env?.VITE_API_BASE_URL || import.meta.env?.VITE_API_BASE || "").trim();
   if (!envUrl) {
-    return "/api/v1";
+    return import.meta.env?.PROD ? "https://api.eozka.com/api/v1" : "/api/v1";
   }
   const clean = envUrl.replace(/\/+$/, "");
   if (clean.endsWith("/api/v1")) {

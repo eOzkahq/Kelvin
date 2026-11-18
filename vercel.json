@@ -3,6 +3,18 @@
   "outputDirectory": "apps/web/dist",
   "rewrites": [
     {
+      "source": "/services/kelvin/assets/(.*)",
+      "destination": "/assets/$1"
+    },
+    {
+      "source": "/services/kelvin/(.*)",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/services/kelvin",
+      "destination": "/index.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

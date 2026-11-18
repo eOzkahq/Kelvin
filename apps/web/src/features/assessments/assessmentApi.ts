@@ -54,7 +54,7 @@ export async function cancelAssessment(id: string): Promise<AssessmentCancelResp
   try {
     return await apiClient.post<AssessmentCancelResponse>(`/assessments/${encodeURIComponent(id)}/cancel`, {});
   } catch (err: unknown) {
-    throw new Error(`Failed to cancel assessment: ${(err as Error).message}`);
+    throw new Error(`Failed to cancel assessment: ${(err as Error).message}`, { cause: err });
   }
 }
 

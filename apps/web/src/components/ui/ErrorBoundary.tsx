@@ -2,6 +2,7 @@ import { Component, ErrorInfo, ReactNode } from "react";
 
 interface Props {
   children: ReactNode;
+  fallback?: ReactNode;
   fallbackTitle?: string;
 }
 
@@ -29,11 +30,15 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleGoHome = () => {
-    window.location.href = "/dashboard";
+    const rawBase = (import.meta.env?.VITE_ROUTER_BASENAME ?? import.meta.env?.BASE_URL ?? "/services/kelvin").replace(/\/+$/, "");
+    window.location.href = `${rawBase || ""}/dashboard`;
   };
 
   public render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
       return (
         <div className="min-h-[400px] flex items-center justify-center p-6">
           <div className="max-w-lg w-full rounded-xl border border-red-900/50 bg-zinc-900/90 p-6 shadow-2xl backdrop-blur text-center space-y-4">

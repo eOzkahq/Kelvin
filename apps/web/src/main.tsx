@@ -12,11 +12,30 @@ if (!container) {
   throw new Error("root container missing");
 }
 
+// Subpath basename normalization:
+// e.g. "/services/kelvin/" -> "/services/kelvin"
+const rawBasename =
+  import.meta.env.VITE_ROUTER_BASENAME ??
+  (import.meta.env.BASE_URL && import.meta.env.BASE_URL !== "/"
+    ? import.meta.env.BASE_URL
+    : "/services/kelvin");
+
+const basename = rawBasename === "/" ? "/" : rawBasename.replace(/\/+$/, "") || "/";
+
+// Standalone fallback: redirect root or non-subpath access to subpath prefix
+if (basename !== "/" && typeof window !== "undefined") {
+  const currentPath = window.location.pathname;
+  if (!currentPath.startsWith(basename)) {
+    const targetPath = currentPath === "/" ? "/dashboard" : currentPath;
+    window.location.replace(`${basename}${targetPath}${window.location.search}${window.location.hash}`);
+  }
+}
+
 createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <UIProvider>
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <BrowserRouter basename={basename}>
           <App />
         </BrowserRouter>
       </UIProvider>

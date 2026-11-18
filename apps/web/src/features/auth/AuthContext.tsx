@@ -5,6 +5,7 @@ import {
   onUnauthorized,
   apiClient,
   setTenantContext,
+  getApiBaseUrl,
 } from "../../services/api";
 import { type User, type AuthSession } from "./types";
 
@@ -150,7 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithSSO = useCallback((provider: string) => {
     const returnUrl = encodeURIComponent(window.location.pathname);
-    window.location.href = `/api/v1/auth/sso/${provider}?returnUrl=${returnUrl}`;
+    window.location.href = `${getApiBaseUrl()}/auth/sso/${provider}?returnUrl=${returnUrl}`;
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {

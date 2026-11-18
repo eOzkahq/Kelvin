@@ -21,6 +21,7 @@ describe("FE-21: 10 Critical User Journeys (CUJ) Integration State Machine", () 
       { id: "ws-staging", name: "Staging Cluster" },
     ];
     let activeWs = workspaces[0].id;
+    expect(activeWs).toBe("ws-default");
     activeWs = workspaces[1].id;
     expect(activeWs).toBe("ws-staging");
   });

@@ -6,7 +6,7 @@ import { defineConfig } from "vite";
 const apiTarget = process.env.KELVIN_API_URL ?? "http://localhost:8080";
 
 export default defineConfig({
-  base: process.env.VITE_BASE_PATH ?? "/",
+  base: process.env.VITE_BASE_PATH && process.env.VITE_BASE_PATH !== "/" ? process.env.VITE_BASE_PATH : "/services/kelvin/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
