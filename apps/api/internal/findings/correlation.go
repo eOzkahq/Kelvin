@@ -61,6 +61,16 @@ type CorrelationGroupMember struct {
 	CreatedAt time.Time  `json:"created_at"`
 }
 
+// CorrelationRepository defines persistence operations for finding correlation groups.
+type CorrelationRepository interface {
+	CreateCorrelationGroup(ctx context.Context, group *CorrelationGroup) error
+	GetCorrelationGroupByID(ctx context.Context, tenantID, groupID uuid.UUID) (*CorrelationGroup, error)
+	AddFindingToGroup(ctx context.Context, member *CorrelationGroupMember) error
+	RemoveFindingFromGroup(ctx context.Context, tenantID, groupID, findingID uuid.UUID) error
+	GetGroupMembers(ctx context.Context, tenantID, groupID uuid.UUID) ([]*CorrelationGroupMember, error)
+	GetFindingGroups(ctx context.Context, tenantID, findingID uuid.UUID) ([]*CorrelationGroup, error)
+}
+
 // CreateCorrelationGroup persists a new correlation group within tenant boundaries.
 func (r *PostgresFindingRepository) CreateCorrelationGroup(ctx context.Context, group *CorrelationGroup) error {
 	if group == nil {

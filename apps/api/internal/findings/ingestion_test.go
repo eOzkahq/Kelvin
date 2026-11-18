@@ -28,6 +28,8 @@ type mockFindingRepo struct {
 	findings     map[uuid.UUID]*PersistentFinding
 	observations map[uuid.UUID]*FindingObservation
 	events       map[uuid.UUID]*FindingEvent
+	groups       map[uuid.UUID]*CorrelationGroup
+	groupMembers map[uuid.UUID][]*CorrelationGroupMember
 }
 
 func newMockFindingRepo() *mockFindingRepo {
@@ -35,6 +37,8 @@ func newMockFindingRepo() *mockFindingRepo {
 		findings:     make(map[uuid.UUID]*PersistentFinding),
 		observations: make(map[uuid.UUID]*FindingObservation),
 		events:       make(map[uuid.UUID]*FindingEvent),
+		groups:       make(map[uuid.UUID]*CorrelationGroup),
+		groupMembers: make(map[uuid.UUID][]*CorrelationGroupMember),
 	}
 }
 
@@ -88,6 +92,53 @@ func (m *mockFindingRepo) SaveObservation(ctx context.Context, obs *FindingObser
 func (m *mockFindingRepo) SaveEvent(ctx context.Context, ev *FindingEvent) error {
 	m.events[ev.ID] = ev
 	return nil
+}
+
+func (m *mockFindingRepo) CreateCorrelationGroup(ctx context.Context, group *CorrelationGroup) error {
+	m.groups[group.ID] = group
+	return nil
+}
+
+func (m *mockFindingRepo) GetCorrelationGroupByID(ctx context.Context, tenantID, groupID uuid.UUID) (*CorrelationGroup, error) {
+	g, ok := m.groups[groupID]
+	if !ok || g.TenantID != tenantID {
+		return nil, ErrGroupNotFound
+	}
+	return g, nil
+}
+
+func (m *mockFindingRepo) AddFindingToGroup(ctx context.Context, member *CorrelationGroupMember) error {
+	m.groupMembers[member.GroupID] = append(m.groupMembers[member.GroupID], member)
+	return nil
+}
+
+func (m *mockFindingRepo) RemoveFindingFromGroup(ctx context.Context, tenantID, groupID, findingID uuid.UUID) error {
+	var remaining []*CorrelationGroupMember
+	for _, mem := range m.groupMembers[groupID] {
+		if mem.FindingID != findingID {
+			remaining = append(remaining, mem)
+		}
+	}
+	m.groupMembers[groupID] = remaining
+	return nil
+}
+
+func (m *mockFindingRepo) GetGroupMembers(ctx context.Context, tenantID, groupID uuid.UUID) ([]*CorrelationGroupMember, error) {
+	return m.groupMembers[groupID], nil
+}
+
+func (m *mockFindingRepo) GetFindingGroups(ctx context.Context, tenantID, findingID uuid.UUID) ([]*CorrelationGroup, error) {
+	var res []*CorrelationGroup
+	for gID, members := range m.groupMembers {
+		for _, mem := range members {
+			if mem.FindingID == findingID && mem.TenantID == tenantID {
+				if g, ok := m.groups[gID]; ok {
+					res = append(res, g)
+				}
+			}
+		}
+	}
+	return res, nil
 }
 
 type mockEventPublisher struct {
