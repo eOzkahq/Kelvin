@@ -504,6 +504,22 @@ func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.
 		cleanupCtx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 	}
+
+	var envelopeFindings []json.RawMessage
+	if len(result.OutputEnvelope) > 0 {
+		env, decErr := adapters.DecodeOutputEnvelope(result.OutputEnvelope)
+		if decErr == nil {
+			envelopeFindings = env.Findings
+		}
+	} else if len(result.Findings) > 0 {
+		_ = json.Unmarshal(result.Findings, &envelopeFindings)
+	}
+
+	if cfg.StateSyncer != nil && len(envelopeFindings) > 0 {
+		if err := cfg.StateSyncer.SyncJobResults(cleanupCtx, job.TenantID, job.AssessmentID, job.ID, envelopeFindings, job.CorrelationID); err != nil {
+			log.Error("failed to persist finding results to database", zap.Error(err))
+		}
+	}
 	if cfg.StateSyncer != nil {
 		_ = cfg.StateSyncer.SyncJobState(cleanupCtx, job.TenantID, job.AssessmentID, job.ID, "COMPLETED", "")
 	}
