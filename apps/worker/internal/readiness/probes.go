@@ -2,6 +2,7 @@ package readiness
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/kelvin/kelvin/apps/worker/internal/adapters"
 	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
-	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
 )
 
 // Status represents the health state of a readiness probe or scanner.
@@ -98,7 +98,7 @@ func (p *OCIEngineProbe) Check(ctx context.Context) ProbeResult {
 	}
 }
 
-// ImageInspector provides container image inspection.
+// ImageInspector provides container image inspection against the host container engine.
 type ImageInspector interface {
 	InspectImage(ctx context.Context, imageRef string) (ImageInspectInfo, error)
 }
@@ -119,6 +119,118 @@ func (m MockImageInspector) InspectImage(ctx context.Context, imageRef string) (
 		return m.InspectFn(ctx, imageRef)
 	}
 	return ImageInspectInfo{}, fmt.Errorf("inspect not implemented")
+}
+
+// CommandRunner defines the signature for executing system commands.
+type CommandRunner func(ctx context.Context, name string, args ...string) ([]byte, error)
+
+// OCIImageInspector inspects container images against local OCI runtime storage (Podman or Docker).
+type OCIImageInspector struct {
+	runtime       string
+	lookPathFn    func(string) (string, error)
+	commandRunner CommandRunner
+}
+
+// NewOCIImageInspector creates a new OCIImageInspector.
+// If lookPathFn is nil, exec.LookPath is used.
+// If runner is nil, exec.CommandContext is used.
+func NewOCIImageInspector(lookPathFn func(string) (string, error), runner CommandRunner) *OCIImageInspector {
+	if lookPathFn == nil {
+		lookPathFn = exec.LookPath
+	}
+	if runner == nil {
+		runner = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			cmd := exec.CommandContext(ctx, name, args...)
+			return cmd.CombinedOutput()
+		}
+	}
+	return &OCIImageInspector{
+		lookPathFn:    lookPathFn,
+		commandRunner: runner,
+	}
+}
+
+func (insp *OCIImageInspector) getRuntime() (string, error) {
+	if insp.runtime != "" {
+		return insp.runtime, nil
+	}
+	if explicit := os.Getenv("KELVIN_OCI_RUNTIME"); explicit != "" {
+		if path, err := insp.lookPathFn(explicit); err == nil {
+			insp.runtime = path
+			return path, nil
+		}
+	}
+	for _, candidate := range []string{"podman", "docker"} {
+		if path, err := insp.lookPathFn(candidate); err == nil {
+			insp.runtime = path
+			return path, nil
+		}
+	}
+	return "", fmt.Errorf("no OCI runtime (podman/docker) found")
+}
+
+func (insp *OCIImageInspector) InspectImage(ctx context.Context, imageRef string) (ImageInspectInfo, error) {
+	runtime, err := insp.getRuntime()
+	if err != nil {
+		return ImageInspectInfo{ImageReference: imageRef, Available: false}, err
+	}
+
+	out, err := insp.commandRunner(ctx, runtime, "image", "inspect", imageRef)
+	if err != nil {
+		outStr := strings.ToLower(string(out))
+		if strings.Contains(outStr, "no such image") ||
+			strings.Contains(outStr, "image not found") ||
+			strings.Contains(outStr, "not found") ||
+			strings.Contains(outStr, "could not find image") ||
+			strings.Contains(outStr, "error response from daemon") {
+			return ImageInspectInfo{
+				ImageReference: imageRef,
+				Available:      false,
+			}, nil
+		}
+		// In case output indicates non-existence or exit code 125/1
+		if len(out) > 0 {
+			return ImageInspectInfo{
+				ImageReference: imageRef,
+				Available:      false,
+			}, nil
+		}
+		return ImageInspectInfo{ImageReference: imageRef, Available: false}, fmt.Errorf("oci inspect error: %w", err)
+	}
+
+	var inspectList []struct {
+		ID          string   `json:"Id"`
+		Digest      string   `json:"Digest"`
+		RepoDigests []string `json:"RepoDigests"`
+	}
+
+	if err := json.Unmarshal(out, &inspectList); err != nil {
+		return ImageInspectInfo{ImageReference: imageRef, Available: false}, fmt.Errorf("failed to parse inspect output: %w", err)
+	}
+
+	if len(inspectList) == 0 {
+		return ImageInspectInfo{ImageReference: imageRef, Available: false}, nil
+	}
+
+	entry := inspectList[0]
+	digest := entry.Digest
+	if digest == "" {
+		for _, repoDigest := range entry.RepoDigests {
+			if idx := strings.Index(repoDigest, "@"); idx != -1 {
+				digest = repoDigest[idx+1:]
+				break
+			}
+		}
+	}
+	if digest == "" {
+		digest = entry.ID
+	}
+
+	return ImageInspectInfo{
+		ImageReference: imageRef,
+		Digest:         digest,
+		Available:      true,
+	}, nil
 }
 
 // ContainerImageProbe verifies that a required container image exists and matches version policy.
@@ -155,41 +267,18 @@ func (p *ContainerImageProbe) Check(ctx context.Context) ProbeResult {
 		}
 	}
 
-	if p.inspector == nil {
-		// Default OCI executor check
-		_, err := sandbox.NewOCIExecutor()
-		if err != nil {
-			return ProbeResult{
-				Name:      p.Name(),
-				Target:    p.Target(),
-				Status:    StatusUnavailable,
-				Message:   "OCI runtime unavailable to inspect image",
-				Error:     err.Error(),
-				CheckedAt: start,
-				Duration:  time.Since(start),
-			}
-		}
-		return ProbeResult{
-			Name:      p.Name(),
-			Target:    p.Target(),
-			Status:    StatusReady,
-			Message:   fmt.Sprintf("image %s configured for execution", p.imageRef),
-			CheckedAt: start,
-			Duration:  time.Since(start),
-			Diagnostics: map[string]string{
-				"image_ref": p.imageRef,
-				"digest":    p.digest,
-			},
-		}
+	inspector := p.inspector
+	if inspector == nil {
+		inspector = NewOCIImageInspector(nil, nil)
 	}
 
-	info, err := p.inspector.InspectImage(ctx, p.imageRef)
+	info, err := inspector.InspectImage(ctx, p.imageRef)
 	if err != nil {
 		return ProbeResult{
 			Name:      p.Name(),
 			Target:    p.Target(),
 			Status:    StatusUnavailable,
-			Message:   fmt.Sprintf("failed to inspect image %s", p.imageRef),
+			Message:   fmt.Sprintf("OCI runtime unavailable to inspect image %s: %v", p.imageRef, err),
 			Error:     err.Error(),
 			CheckedAt: start,
 			Duration:  time.Since(start),
@@ -201,8 +290,8 @@ func (p *ContainerImageProbe) Check(ctx context.Context) ProbeResult {
 			Name:      p.Name(),
 			Target:    p.Target(),
 			Status:    StatusUnavailable,
-			Message:   fmt.Sprintf("container image %s is not pulled or available", p.imageRef),
-			Error:     "image not found",
+			Message:   fmt.Sprintf("container image %q is not present on host; run 'podman pull %s' or build image before dispatch", p.imageRef, p.imageRef),
+			Error:     "container image not present on host",
 			CheckedAt: start,
 			Duration:  time.Since(start),
 		}
@@ -213,7 +302,7 @@ func (p *ContainerImageProbe) Check(ctx context.Context) ProbeResult {
 			Name:      p.Name(),
 			Target:    p.Target(),
 			Status:    StatusUnavailable,
-			Message:   fmt.Sprintf("container image digest mismatch for %s", p.imageRef),
+			Message:   fmt.Sprintf("container image digest mismatch for %s: expected %s, got %s", p.imageRef, p.digest, info.Digest),
 			Error:     fmt.Sprintf("expected digest %s, got %s", p.digest, info.Digest),
 			CheckedAt: start,
 			Duration:  time.Since(start),

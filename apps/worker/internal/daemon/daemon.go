@@ -132,6 +132,20 @@ func Run(ctx context.Context, log *zap.Logger, cfg Config, q queue.Queue, regist
 func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adapters.Registry, job queue.Job, cfg Config) {
 	jobLog := log.With(zap.String("job_id", job.ID), zap.String("job_type", job.Type), zap.String("correlation_id", job.CorrelationID))
 
+	isAssessmentPipeline := strings.EqualFold(job.Type, JobTypeAssessment) || strings.EqualFold(job.Type, JobTypePipeline)
+
+	// Pre-lease readiness verification: Prevent job lease acquisition for unavailable scanners fail-closed
+	if !isAssessmentPipeline && cfg.ReadinessChecker != nil {
+		scannerKey := strings.ToLower(job.Type)
+		if !cfg.ReadinessChecker.IsScannerReady(ctx, scannerKey) && !cfg.ReadinessChecker.IsScannerReady(ctx, job.Type) {
+			jobLog.Warn("scanner runtime readiness check failed; refusing distributed job lease acquisition fail-closed",
+				zap.String("scanner", job.Type),
+			)
+			fail(jobLog, q, ctx, job, fmt.Sprintf("scanner %q runtime readiness check failed", job.Type), cfg)
+			return
+		}
+	}
+
 	// Enforce distributed lease locking (ADR-M9-01) to prevent duplicate concurrent execution
 	if lm, ok := q.(queue.LeaseManager); ok {
 		leaseTTL := cfg.HeartbeatEvery * 3
@@ -186,25 +200,6 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 
 	if cfg.StateSyncer != nil {
 		_ = cfg.StateSyncer.SyncJobState(ctx, job.TenantID, job.AssessmentID, job.ID, "RUNNING", "")
-	}
-
-	isAssessmentPipeline := strings.EqualFold(job.Type, JobTypeAssessment) || strings.EqualFold(job.Type, JobTypePipeline)
-
-	if !isAssessmentPipeline {
-		scannerKey := strings.ToLower(job.Type)
-		if cfg.ReadinessChecker != nil {
-			if !cfg.ReadinessChecker.IsScannerReady(ctx, scannerKey) && !cfg.ReadinessChecker.IsScannerReady(ctx, job.Type) {
-				fail(jobLog, q, ctx, job, fmt.Sprintf("scanner %q runtime readiness check failed", job.Type), cfg)
-				return
-			}
-		}
-
-		if _, ok := registry.LookupExecutable(job.Type); !ok {
-			if _, ok := registry.LookupExecutable(scannerKey); !ok {
-				fail(jobLog, q, ctx, job, "no executable adapter registered for job type", cfg)
-				return
-			}
-		}
 	}
 
 	// Fail closed if CanaryOnly is active and the target is not on the canary allowlist
