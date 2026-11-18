@@ -173,6 +173,8 @@ func Load() (Config, error) {
 	// Direct environment bindings for compatibility with KELVIN_* and service-specific envs
 	bindEnvWithFallback(v, "env", "KELVIN_ENV")
 	bindEnvWithFallback(v, "log_level", "KELVIN_LOG_LEVEL")
+	bindEnvWithFallback(v, "canary_only", "KELVIN_CANARY_ONLY")
+	bindEnvWithFallback(v, "canary_allowed_targets", "KELVIN_CANARY_ALLOWED_TARGETS")
 	bindEnvWithFallback(v, "api.addr", "KELVIN_API_ADDR")
 	bindEnvWithFallback(v, "api.version", "KELVIN_API_VERSION")
 	bindEnvWithFallback(v, "api.body_limit_bytes", "KELVIN_API_BODY_LIMIT_BYTES")
