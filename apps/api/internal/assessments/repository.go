@@ -250,8 +250,13 @@ func (r *PostgresRepository) ensureProfileID(ctx context.Context, profileIDStr s
 		return parsedUUID, nil
 	}
 
-	// Lookup profile by slug or name in scan_profiles
-	const findSlugQuery = `SELECT id FROM scan_profiles WHERE lower(slug) = lower($1) OR lower(name) = lower($1) LIMIT 1`
+	// Lookup profile by slug, name, or profile_id in scan_profiles
+	const findSlugQuery = `
+		SELECT id FROM scan_profiles
+		WHERE lower(slug) = lower($1) OR lower(name) = lower($1) OR lower(profile_id) = lower($1)
+		ORDER BY created_at ASC
+		LIMIT 1
+	`
 	var id uuid.UUID
 	err = r.pool.QueryRow(ctx, findSlugQuery, profileIDStr).Scan(&id)
 	if err == nil {
@@ -260,12 +265,24 @@ func (r *PostgresRepository) ensureProfileID(ctx context.Context, profileIDStr s
 
 	// Create or ensure fallback profile entry
 	newID := uuid.New()
+	cleanID := strings.ToLower(strings.TrimSpace(profileIDStr))
+	if cleanID == "" {
+		cleanID = "standard"
+	}
 	const insertProfileQuery = `
-		INSERT INTO scan_profiles (id, name, slug, description, intensity, state, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, 'NORMAL', 'ACTIVE', now(), now())
+		INSERT INTO scan_profiles (
+			id, profile_id, version, definition, name, slug, description,
+			scanners, intensity, state, status, created_at, updated_at
+		) VALUES (
+			$1, $2, '1.0', '{"scanners":["nuclei"]}'::jsonb, $3, $4, $5,
+			'["nuclei"]'::jsonb, 'NORMAL', 'ACTIVE', 'ACTIVE', now(), now()
+		)
 		ON CONFLICT (id) DO NOTHING
 	`
-	_, _ = r.pool.Exec(ctx, insertProfileQuery, newID, strings.Title(profileIDStr), strings.ToLower(profileIDStr), "Certified scan profile for "+profileIDStr)
+	_, err = r.pool.Exec(ctx, insertProfileQuery, newID, cleanID, strings.Title(cleanID), cleanID, "Certified scan profile for "+cleanID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to ensure scan profile: %w", err)
+	}
 	return newID, nil
 }
 

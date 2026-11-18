@@ -10,6 +10,7 @@ import (
 	"github.com/kelvin/kelvin/apps/api/internal/assessments"
 	kelvinerrors "github.com/kelvin/kelvin/packages/common/errors"
 	"github.com/kelvin/kelvin/packages/common/tenant"
+	"go.uber.org/zap"
 )
 
 type assessmentServiceIface interface {
@@ -79,6 +80,12 @@ func (s *Server) handleCreateAssessment(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
+		s.log.Error("create assessment failed",
+			zap.Error(err),
+			zap.String("tenant_id", tenantID.String()),
+			zap.String("target_url", req.TargetAddress),
+			zap.String("profile_id", req.ProfileID),
+		)
 		WriteProblem(w, r, kelvinerrors.NewInternal(err))
 		return
 	}
