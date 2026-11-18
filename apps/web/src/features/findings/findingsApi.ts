@@ -131,6 +131,7 @@ export async function fetchFindings(params?: FindingsFilterParams): Promise<Find
   if (params?.status) q.set("status", Array.isArray(params.status) ? params.status.join(",") : params.status);
   if (params?.target) q.set("target", params.target);
   if (params?.scanner) q.set("scanner", params.scanner);
+  if (params?.assessmentId) q.set("assessment_id", params.assessmentId);
   if (params?.page) q.set("page", String(params.page));
   if (params?.limit) q.set("limit", String(params.limit));
   

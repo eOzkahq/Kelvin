@@ -118,6 +118,7 @@ export interface FindingsFilterParams {
   status?: FindingStatus | FindingStatus[] | "";
   scanner?: string;
   target?: string;
+  assessmentId?: string;
   page?: number;
   limit?: number;
   sort?: string;
