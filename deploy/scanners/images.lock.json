@@ -32,10 +32,10 @@
     },
     "nmap": {
       "upstream": "instrumentisto/nmap",
-      "upstream_digest": "sha256:4a38dfc6d996e382d3345f1bce8b33534a029a242f3ea99d5a6b0c2a7e75e114",
+      "upstream_digest": "sha256:aab582fa94e2c76b9d825a6cd6e9b731b511c025c63c5a599d0352f29912ecbb",
       "version": "7.95",
       "kelvin_image": "ghcr.io/eozkahq/kelvin/scanner-nmap",
-      "kelvin_digest": "sha256:4a38dfc6d996e382d3345f1bce8b33534a029a242f3ea99d5a6b0c2a7e75e114",
+      "kelvin_digest": "sha256:aab582fa94e2c76b9d825a6cd6e9b731b511c025c63c5a599d0352f29912ecbb",
       "architecture": "linux/arm64",
       "sbom_digest": "sha256:d1284567e91234567890abcdef1234567890abcdef1234567890abcdef123456",
       "signature_ref": "ghcr.io/eozkahq/kelvin/scanner-nmap:sha256-4a38dfc6d996e382d3345f1bce8b33534a029a242f3ea99d5a6b0c2a7e75e114.sig",
