@@ -282,6 +282,9 @@ func (e *MemoryFindingSearchEngine) SearchFindings(_ context.Context, q FindingS
 	}
 
 	paged := matched[start:end]
+	if paged == nil {
+		paged = make([]*PersistentFinding, 0)
+	}
 
 	return &FindingSearchResult{
 		Items:      paged,

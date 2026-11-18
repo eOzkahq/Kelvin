@@ -40,7 +40,42 @@ export async function fetchFindings(params?: FindingsFilterParams): Promise<Find
   if (params?.sortOrder || params?.order) q.set("order", params.sortOrder || params.order || "desc");
 
   const queryStr = q.toString() ? `?${q.toString()}` : "";
-  return request<FindingsListResponse>(`/findings${queryStr}`);
+  const raw = await request<unknown>(`/findings${queryStr}`);
+
+  const page = params?.page ?? 1;
+  const limit = params?.limit ?? 20;
+
+  if (Array.isArray(raw)) {
+    return {
+      items: raw as Finding[],
+      total: raw.length,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(raw.length / limit)),
+    };
+  }
+
+  if (raw && typeof raw === "object") {
+    const obj = raw as Record<string, unknown>;
+    const items = Array.isArray(obj.items) ? (obj.items as Finding[]) : [];
+    const total = typeof obj.total === "number" ? obj.total : items.length;
+    const totalPages = typeof obj.totalPages === "number" ? obj.totalPages : Math.max(1, Math.ceil(total / limit));
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages,
+    };
+  }
+
+  return {
+    items: [],
+    total: 0,
+    page,
+    limit,
+    totalPages: 1,
+  };
 }
 
 export async function getFindingDetail(id: string): Promise<FindingDetail> {

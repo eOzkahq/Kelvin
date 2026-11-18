@@ -199,7 +199,9 @@ func process(ctx context.Context, log *zap.Logger, q queue.Queue, registry *adap
 	}
 
 	if cfg.StateSyncer != nil {
-		_ = cfg.StateSyncer.SyncJobState(ctx, job.TenantID, job.AssessmentID, job.ID, "RUNNING", "")
+		if err := cfg.StateSyncer.SyncJobState(ctx, job.TenantID, job.AssessmentID, job.ID, "RUNNING", ""); err != nil {
+			jobLog.Error("failed to sync job running state to database", zap.Error(err))
+		}
 	}
 
 	// Fail closed if CanaryOnly is active and the target is not on the canary allowlist
@@ -356,7 +358,9 @@ func fail(log *zap.Logger, q queue.Queue, ctx context.Context, job queue.Job, re
 		defer cancel()
 	}
 	if cfg.StateSyncer != nil {
-		_ = cfg.StateSyncer.SyncJobState(cleanupCtx, job.TenantID, job.AssessmentID, job.ID, "FAILED", reason)
+		if err := cfg.StateSyncer.SyncJobState(cleanupCtx, job.TenantID, job.AssessmentID, job.ID, "FAILED", reason); err != nil {
+			log.Error("failed to sync job failed state to database", zap.Error(err))
+		}
 	}
 	if err := q.Fail(cleanupCtx, job, reason); err != nil {
 		log.Error("failed to record job failure", zap.Error(err))
@@ -379,7 +383,9 @@ func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.
 			defer cancel()
 		}
 		if cfg.StateSyncer != nil {
-			_ = cfg.StateSyncer.SyncJobState(cleanupCtx, job.TenantID, job.AssessmentID, job.ID, "CANCELLED", "execution cancelled")
+			if err := cfg.StateSyncer.SyncJobState(cleanupCtx, job.TenantID, job.AssessmentID, job.ID, "CANCELLED", "execution cancelled"); err != nil {
+				log.Error("failed to sync job cancelled state to database", zap.Error(err))
+			}
 		}
 		fail(log, q, cleanupCtx, job, "execution cancelled", cfg)
 		return
@@ -521,7 +527,9 @@ func processResult(log *zap.Logger, q queue.Queue, job queue.Job, task adapters.
 		}
 	}
 	if cfg.StateSyncer != nil {
-		_ = cfg.StateSyncer.SyncJobState(cleanupCtx, job.TenantID, job.AssessmentID, job.ID, "COMPLETED", "")
+		if err := cfg.StateSyncer.SyncJobState(cleanupCtx, job.TenantID, job.AssessmentID, job.ID, "COMPLETED", ""); err != nil {
+			log.Error("failed to sync job completed state to database", zap.Error(err))
+		}
 	}
 	if err := q.Complete(cleanupCtx, job); err != nil {
 		log.Error("failed to record job completion", zap.Error(err))
@@ -570,6 +578,17 @@ func taskFromJob(job queue.Job) (adapters.Task, error) {
 
 func specFromTask(task adapters.Task, imageReference string, invocation sandbox.ProcessInvocation, workspaceDir string) sandbox.Spec {
 	workingDir := "/tmp"
+	tmpfs := []string{"/tmp:noexec,size=64m", "/run:noexec,size=16m"}
+	memLimit := "512m"
+	var pidsLimit int64 = 64
+
+	if task.Scanner == adapters.ScannerZAPBaseline {
+		workingDir = "/zap/wrk"
+		tmpfs = []string{"/tmp:size=256m", "/run:size=16m", "/home/zap:size=256m", "/zap/wrk:size=128m"}
+		memLimit = "2g"
+		pidsLimit = 256
+	}
+
 	env := []string{
 		"KELVIN_JOB_ID=" + task.JobID,
 		"KELVIN_TENANT_ID=" + task.TenantID,
@@ -577,6 +596,9 @@ func specFromTask(task adapters.Task, imageReference string, invocation sandbox.
 	}
 	if workspaceDir != "" {
 		workingDir = "/workspace"
+		if task.Scanner == adapters.ScannerZAPBaseline {
+			workingDir = "/zap/wrk"
+		}
 		env = append(env, "KELVIN_WORKSPACE=/workspace")
 	}
 	return sandbox.Spec{
@@ -587,12 +609,12 @@ func specFromTask(task adapters.Task, imageReference string, invocation sandbox.
 		Env:             env,
 		WorkingDir:      workingDir,
 		WorkspaceMount:  workspaceDir,
-		MemoryLimit:     "512m",
+		MemoryLimit:     memLimit,
 		CPUQuota:        "2",
-		PIDsLimit:       64,
+		PIDsLimit:       pidsLimit,
 		ReadOnlyRootfs:  true,
 		NetworkDisabled: true,
-		TmpfsMounts:     []string{"/tmp:noexec,size=64m", "/run:noexec,size=16m"},
+		TmpfsMounts:     tmpfs,
 		CapDrop:         []string{"ALL"},
 		SecurityOpt:     []string{"no-new-privileges", "seccomp=scan.json", "apparmor=kelvin-scan"},
 		Deadline:        task.HardDeadline,

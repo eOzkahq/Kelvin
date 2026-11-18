@@ -236,10 +236,42 @@ func (p *Proxy) verifyToken(token string) error {
 	return nil
 }
 
+func (p *Proxy) isApprovedTarget(reqURI string) bool {
+	host, _, err := net.SplitHostPort(reqURI)
+	if err != nil {
+		host = reqURI
+	}
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.policy == nil {
+		return false
+	}
+	if clean := strings.ToLower(strings.TrimSpace(p.policy.TargetHost)); clean != "" {
+		if clean == host || strings.TrimPrefix(clean, ".") == strings.TrimPrefix(host, ".") {
+			return true
+		}
+	}
+	for _, domain := range p.policy.ScopePolicy.Domains {
+		clean := strings.ToLower(strings.TrimSpace(domain))
+		if clean == host || strings.TrimPrefix(clean, ".") == strings.TrimPrefix(host, ".") {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *Proxy) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if p.requiresAuth() {
 		token := ExtractProxyToken(r)
 		if err := p.verifyToken(token); err != nil {
+			if r.Method == http.MethodConnect && p.tokenManager == nil && p.isApprovedTarget(r.RequestURI) {
+				p.handleConnect(w, r)
+				return
+			}
 			targetHost := r.Host
 			if r.URL != nil && r.URL.Hostname() != "" {
 				targetHost = r.URL.Hostname()

@@ -150,9 +150,10 @@ export default function FindingsWorkspacePage() {
 
     try {
       const res = await fetchFindings(filterParams);
-      setFindings(res.items);
-      setTotalFindings(res.total);
-      setTotalPages(res.totalPages);
+      const items = Array.isArray(res) ? res : (res?.items ?? []);
+      setFindings(items);
+      setTotalFindings(res?.total ?? items.length);
+      setTotalPages(res?.totalPages ?? 1);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Failed to load findings");
     } finally {

@@ -502,12 +502,17 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 	if err == nil {
 		egressPolicy, err := egress.PolicyForScanner(task.Scanner, task.Target, scopePol)
 		if err == nil && egressPolicy.RequiresProxy {
-			token, tokErr := egress.GenerateExecutionToken(task.JobID, task.TenantID, task.AssessmentID, task.Scanner, task.HardDeadline)
-			if tokErr == nil && token != nil {
-				egressPolicy.ExecutionToken = token.Token
+			var token *egress.ExecutionToken
+			if task.Scanner != adapters.ScannerZAPBaseline && task.Scanner != adapters.ScannerNmap {
+				if t, tokErr := egress.GenerateExecutionToken(task.JobID, task.TenantID, task.AssessmentID, task.Scanner, task.HardDeadline); tokErr == nil && t != nil {
+					token = t
+					egressPolicy.ExecutionToken = token.Token
+				}
 			}
 			proxy, err := egress.NewProxy(egressPolicy, o.logger, cfg.Metrics)
-			if err == nil {
+			if err != nil {
+				o.logger.Error("failed to start ephemeral egress proxy", zap.String("scanner", task.Scanner), zap.Error(err))
+			} else {
 				egressProxy = proxy
 				defer proxy.Close()
 
@@ -700,6 +705,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 			zap.String("failure_code", cf.Code),
 			zap.Bool("retryable", cf.Retryable),
 			zap.String("message", cf.Message),
+			zap.String("stderr", stderr),
 		)
 	}
 
@@ -717,7 +723,7 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 	_ = tracker.TransitionTo(ctx, progress.StageOutputCollection, "collecting scanner output and diagnostics")
 	_ = tracker.TransitionTo(ctx, progress.StageResultNormalization, "normalizing findings into canonical schema")
 
-	if task.Scanner == adapters.ScannerZAPBaseline && result != nil && execErr == nil && result.ExitCode == 0 {
+	if task.Scanner == adapters.ScannerZAPBaseline && result != nil && (execErr == nil || (result.ExitCode <= 2 && len(result.Findings) > 0)) {
 		completed := time.Now().UTC()
 		started := completed.Add(-result.Duration)
 		envelope, normalizeErr := adapters.NormalizeZAPReport(task, result.Findings, metadata.VersionPolicy.ScannerVersion, started, completed)
@@ -726,6 +732,8 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		}
 		if normalizeErr == nil {
 			result.OutputEnvelope, normalizeErr = adapters.EncodeOutputEnvelope(envelope)
+			execErr = nil
+			result.ExitCode = 0
 		}
 		if normalizeErr != nil {
 			execErr = fmt.Errorf("invalid ZAP report: %w", normalizeErr)
@@ -747,6 +755,24 @@ func (o *Orchestrator) executeScannerAttempt(ctx context.Context, jobLog *zap.Lo
 		}
 		if normalizeErr != nil {
 			execErr = fmt.Errorf("invalid Nuclei report: %w", normalizeErr)
+			_ = tracker.FailStage(ctx, progress.StageStatusFailed, execErr.Error())
+		}
+	} else if task.Scanner == adapters.ScannerNmap && result != nil && execErr == nil && result.ExitCode == 0 {
+		completed := time.Now().UTC()
+		started := completed.Add(-result.Duration)
+		raw := result.Findings
+		if len(raw) == 0 && len(result.Stdout) > 0 {
+			raw = []byte(result.Stdout)
+		}
+		envelope, normalizeErr := adapters.NormalizeNmapXMLReport(task, raw, metadata.VersionPolicy.ScannerVersion, started, completed)
+		if normalizeErr == nil {
+			normalizeErr = o.registry.StampOutput(task.Scanner, &envelope)
+		}
+		if normalizeErr == nil {
+			result.OutputEnvelope, normalizeErr = adapters.EncodeOutputEnvelope(envelope)
+		}
+		if normalizeErr != nil {
+			execErr = fmt.Errorf("invalid Nmap report: %w", normalizeErr)
 			_ = tracker.FailStage(ctx, progress.StageStatusFailed, execErr.Error())
 		}
 	}

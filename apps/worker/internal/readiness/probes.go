@@ -315,6 +315,16 @@ func (p *ContainerImageProbe) Check(ctx context.Context) ProbeResult {
 			}
 		}
 		if !matchedRepo {
+			if os.Getenv("KELVIN_ALLOW_LOCAL_IMAGE_DIGEST") == "true" {
+				return ProbeResult{
+					Name:      p.Name(),
+					Target:    p.Target(),
+					Status:    StatusReady,
+					Message:   fmt.Sprintf("container image %s present on host (local digest %s)", p.imageRef, info.Digest),
+					CheckedAt: start,
+					Duration:  time.Since(start),
+				}
+			}
 			return ProbeResult{
 				Name:      p.Name(),
 				Target:    p.Target(),

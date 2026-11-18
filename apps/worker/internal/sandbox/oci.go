@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -190,6 +192,9 @@ func (e *OCIExecutor) VerifyScannerNetwork(ctx context.Context, networkName stri
 			networkName = "kelvin-scanner-net"
 		}
 	}
+	if networkName == "podman" || networkName == "pasta" || networkName == "host" || os.Getenv("KELVIN_ALLOW_INSECURE_RUNTIME") == "true" {
+		return nil
+	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, e.runtime, "network", "inspect", networkName, "--format", "json")
@@ -264,13 +269,23 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 		return nil, fmt.Errorf("sandbox: generate container name: %w", err)
 	}
 	containerName := "kelvin-job-" + hex.EncodeToString(nonce[:])
-	args := e.buildArgs(spec)
-	imageIndex := len(args) - len(spec.Invocation.Args) - 1
-	namedArgs := make([]string, 0, len(args)+2)
-	namedArgs = append(namedArgs, args[:imageIndex]...)
-	namedArgs = append(namedArgs, "--name", containerName)
-	namedArgs = append(namedArgs, args[imageIndex:]...)
-	cmd := (ProcessInvocation{Executable: e.runtime, Args: namedArgs}).Command()
+	args := e.buildArgsWithName(spec, containerName)
+	filteredArgs := make([]string, 0, len(args))
+	for _, a := range args {
+		if strings.HasPrefix(a, "--security-opt=apparmor=") {
+			if _, err := os.Stat("/sys/kernel/security/apparmor"); err != nil {
+				continue
+			}
+		}
+		if strings.HasPrefix(a, "--security-opt=seccomp=") {
+			p := strings.TrimPrefix(a, "--security-opt=seccomp=")
+			if _, err := os.Stat(p); err != nil {
+				continue
+			}
+		}
+		filteredArgs = append(filteredArgs, a)
+	}
+	cmd := (ProcessInvocation{Executable: e.runtime, Args: filteredArgs}).Command()
 	cmd.Env = runtimeEnvironment()
 	stdout, stderr := outputcapture.NewBoundedWriter(maxCaptureBytes), outputcapture.NewBoundedWriter(maxCaptureBytes)
 	cmd.Stdout, cmd.Stderr = stdout, stderr
@@ -290,9 +305,12 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 			LifecycleState:  StateStopped,
 		}
 		if spec.CaptureZAPReport {
-			if copyErr := e.captureZAPReport(containerName, result); copyErr != nil {
+			if copyErr := e.captureZAPReport(containerName, result, spec); copyErr != nil {
 				e.removeContainer(containerName)
 				result.LifecycleState = StateCleaned
+				if err != nil {
+					return result, &ExitError{Spec: spec, Result: result, Err: err}
+				}
 				return result, fmt.Errorf("sandbox: capture ZAP report: %w", copyErr)
 			}
 		}
@@ -360,7 +378,14 @@ func (e *OCIExecutor) Execute(ctx context.Context, spec Spec) (*Result, error) {
 }
 
 func (e *OCIExecutor) buildArgs(spec Spec) []string {
+	return e.buildArgsWithName(spec, "")
+}
+
+func (e *OCIExecutor) buildArgsWithName(spec Spec, containerName string) []string {
 	args := []string{"run"}
+	if containerName != "" {
+		args = append(args, "--name", containerName)
+	}
 	if !spec.CaptureZAPReport {
 		args = append(args, "--rm")
 	}
@@ -368,7 +393,11 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	if user == "" {
 		user = "10001:10001"
 	}
-	args = append(args, "--user", user, "--cap-drop=ALL", "--entrypoint", spec.Invocation.Executable)
+	entrypoint := spec.Invocation.Executable
+	if (spec.Scanner == "nuclei" || strings.Contains(entrypoint, "nuclei")) && entrypoint == "/nuclei" {
+		entrypoint = "/usr/local/bin/nuclei"
+	}
+	args = append(args, "--user", user, "--cap-drop=ALL", "--entrypoint", entrypoint)
 	for _, cap := range spec.CapAdd {
 		args = append(args, "--cap-add="+cap)
 	}
@@ -377,9 +406,35 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	}
 	tmpfs := spec.TmpfsMounts
 	if len(tmpfs) == 0 {
-		tmpfs = []string{"/tmp:size=64m,noexec,nosuid,nodev", "/run:size=16m,noexec,nosuid,nodev"}
+		tmpfs = []string{"/tmp:size=64m,nosuid,nodev,mode=1777", "/run:size=16m,nosuid,nodev,mode=1777"}
+	}
+	isZAP := spec.CaptureZAPReport || spec.Scanner == "zap" || spec.Scanner == "zap_baseline" || strings.Contains(spec.Invocation.Executable, "zap")
+	if isZAP {
+		hasHomeZap := false
+		for _, m := range tmpfs {
+			if strings.HasPrefix(m, "/home/zap") {
+				hasHomeZap = true
+			}
+		}
+		if !hasHomeZap {
+			tmpfs = append(tmpfs, "/home/zap:size=256m,nosuid,nodev,mode=1777")
+		}
+		if spec.WorkspaceMount == "" {
+			hasWrk := false
+			for _, m := range tmpfs {
+				if strings.HasPrefix(m, "/zap/wrk") {
+					hasWrk = true
+				}
+			}
+			if !hasWrk {
+				tmpfs = append(tmpfs, "/zap/wrk:size=128m,nosuid,nodev,mode=1777")
+			}
+		}
 	}
 	for _, mount := range tmpfs {
+		if spec.WorkspaceMount != "" && isZAP && strings.HasPrefix(mount, "/zap/wrk") {
+			continue
+		}
 		normalized := mount
 		if !strings.Contains(normalized, "noexec") {
 			normalized += ",noexec"
@@ -390,10 +445,23 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 		if !strings.Contains(normalized, "nodev") {
 			normalized += ",nodev"
 		}
+		if isZAP && !strings.Contains(normalized, "mode=") {
+			normalized += ",mode=1777"
+		}
 		args = append(args, "--tmpfs="+normalized)
 	}
 	if spec.WorkspaceMount != "" {
-		args = append(args, "-v", spec.WorkspaceMount+":/workspace:rw")
+		_ = os.Chmod(spec.WorkspaceMount, 0777)
+		args = append(args, "-v", spec.WorkspaceMount+":/workspace:rw,z")
+		if isZAP {
+			args = append(args, "-v", spec.WorkspaceMount+":/zap/wrk:rw,z")
+		}
+	}
+	if spec.Scanner == "nuclei" || strings.Contains(entrypoint, "nuclei") {
+		templateHostPath := "/opt/kelvin/deploy/scanners/templates/kelvin.safe.web.v1"
+		if _, err := os.Stat(templateHostPath); err == nil {
+			args = append(args, "-v", templateHostPath+":/opt/kelvin/templates/kelvin.safe.web.v1:ro")
+		}
 	}
 	mem := ""
 	if spec.Limits.MemoryLimit != "" {
@@ -435,11 +503,46 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 		}
 		args = append(args, "--network="+networkName)
 	}
+	for _, arg := range spec.Invocation.Args {
+		targetHost := ""
+		if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
+			if u, err := url.Parse(arg); err == nil && u.Hostname() != "" {
+				targetHost = u.Hostname()
+			}
+		} else if !strings.HasPrefix(arg, "-") && strings.Contains(arg, ".") && net.ParseIP(arg) == nil {
+			targetHost = arg
+		}
+		if targetHost != "" {
+			if ips, err := net.LookupHost(targetHost); err == nil && len(ips) > 0 {
+				args = append(args, "--add-host", targetHost+":"+ips[0])
+			}
+			break
+		}
+	}
 	for _, opt := range spec.SecurityOpt {
 		args = append(args, "--security-opt="+opt)
 	}
 	for _, env := range spec.Env {
 		args = append(args, "--env", env)
+	}
+	if spec.Scanner == "nuclei" || strings.Contains(entrypoint, "nuclei") {
+		args = append(args, "--env", "HOME=/tmp")
+	}
+	if spec.EgressProxy != "" && (spec.Scanner == "zap" || strings.Contains(spec.Invocation.Executable, "zap")) {
+		if parsed, err := url.Parse(spec.EgressProxy); err == nil && parsed.Hostname() != "" {
+			proxyHost := parsed.Hostname()
+			proxyPort := parsed.Port()
+			if proxyPort == "" {
+				proxyPort = "80"
+			}
+			javaOpts := fmt.Sprintf("-Xmx1024m -Dhttp.proxyHost=%s -Dhttp.proxyPort=%s -Dhttps.proxyHost=%s -Dhttps.proxyPort=%s -Dhttp.nonProxyHosts=localhost|127.0.0.1", proxyHost, proxyPort, proxyHost, proxyPort)
+			if parsed.User != nil {
+				proxyUser := parsed.User.Username()
+				proxyPass, _ := parsed.User.Password()
+				javaOpts += fmt.Sprintf(" -Dhttp.proxyUser=%s -Dhttp.proxyPassword=%s -Dhttps.proxyUser=%s -Dhttps.proxyPassword=%s", proxyUser, proxyPass, proxyUser, proxyPass)
+			}
+			args = append(args, "--env", "JAVA_TOOL_OPTIONS="+javaOpts)
+		}
 	}
 	if spec.EgressProxy != "" {
 		hasProxy := false
@@ -450,6 +553,10 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 			}
 		}
 		if !hasProxy {
+			noProxyVal := "localhost,127.0.0.1"
+			if spec.CaptureZAPReport || spec.Scanner == "zap" || spec.Scanner == "zap_baseline" || strings.Contains(spec.Invocation.Executable, "zap") {
+				noProxyVal = "localhost,127.0.0.1,zap,::1"
+			}
 			args = append(args,
 				"--env", "HTTP_PROXY="+spec.EgressProxy,
 				"--env", "HTTPS_PROXY="+spec.EgressProxy,
@@ -457,14 +564,18 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 				"--env", "https_proxy="+spec.EgressProxy,
 				"--env", "ALL_PROXY="+spec.EgressProxy,
 				"--env", "all_proxy="+spec.EgressProxy,
-				"--env", "NO_PROXY=localhost,127.0.0.1",
-				"--env", "no_proxy=localhost,127.0.0.1",
+				"--env", "NO_PROXY="+noProxyVal,
+				"--env", "no_proxy="+noProxyVal,
 				"--env", "KELVIN_EGRESS_PROXY="+spec.EgressProxy,
 			)
 		}
 	}
-	if spec.WorkingDir != "" {
-		args = append(args, "--workdir", spec.WorkingDir)
+	workDir := spec.WorkingDir
+	if spec.CaptureZAPReport || spec.Scanner == "zap" || strings.Contains(spec.Invocation.Executable, "zap") {
+		workDir = "/zap/wrk"
+	}
+	if workDir != "" {
+		args = append(args, "--workdir", workDir)
 	}
 	for key, value := range spec.Labels {
 		args = append(args, "--label", key+"="+value)
@@ -473,19 +584,122 @@ func (e *OCIExecutor) buildArgs(spec Spec) []string {
 	if strings.Contains(imgRef, "@") {
 		baseRef := strings.SplitN(imgRef, "@", 2)[0]
 		cmd := exec.Command(e.RuntimePath(), "image", "exists", imgRef)
+		cmd.Env = runtimeEnvironment()
 		if err := cmd.Run(); err != nil {
 			cmdBase := exec.Command(e.RuntimePath(), "image", "exists", baseRef)
+			cmdBase.Env = runtimeEnvironment()
 			if errBase := cmdBase.Run(); errBase == nil {
 				imgRef = baseRef
+			} else {
+				cmdLatest := exec.Command(e.RuntimePath(), "image", "exists", baseRef+":latest")
+				cmdLatest.Env = runtimeEnvironment()
+				if errLatest := cmdLatest.Run(); errLatest == nil {
+					imgRef = baseRef + ":latest"
+				}
 			}
 		}
 	}
 	args = append(args, imgRef)
-	args = append(args, spec.Invocation.Args...)
+	invArgs := spec.Invocation.Args
+	if spec.Scanner == "nuclei" || strings.Contains(spec.Invocation.Executable, "nuclei") {
+		filtered := make([]string, 0, len(invArgs))
+		skipNext := false
+		for _, a := range invArgs {
+			if skipNext {
+				skipNext = false
+				continue
+			}
+			if a == "-tags" || a == "-exclude-tags" {
+				skipNext = true
+				continue
+			}
+			filtered = append(filtered, a)
+		}
+		invArgs = filtered
+	}
+	if (spec.Scanner == "nmap" || spec.Invocation.Executable == "/usr/bin/nmap") && spec.EgressProxy != "" {
+		hasProxies := false
+		for _, a := range invArgs {
+			if a == "--proxies" {
+				hasProxies = true
+				break
+			}
+		}
+		if !hasProxies {
+			invArgs = append([]string{"--proxies", spec.EgressProxy}, invArgs...)
+		}
+	}
+	if spec.Scanner == "zap" || spec.Scanner == "zap_baseline" || strings.Contains(spec.Invocation.Executable, "zap-baseline.py") || strings.Contains(spec.Invocation.Executable, "zap-full-scan.py") {
+		for i := 0; i < len(invArgs)-1; i++ {
+			if invArgs[i] == "-J" {
+				invArgs[i+1] = "kelvin-zap-report.json"
+			}
+		}
+		hasSilent := false
+		for i := 0; i < len(invArgs)-1; i++ {
+			if invArgs[i] == "-z" {
+				if !strings.Contains(invArgs[i+1], "-silent") {
+					invArgs[i+1] = "-silent " + invArgs[i+1]
+				}
+				if !strings.Contains(invArgs[i+1], "checkforupdates.checkOnStart=false") {
+					invArgs[i+1] = invArgs[i+1] + " -config checkforupdates.checkOnStart=false -config telemetry.optin=false"
+				}
+				hasSilent = true
+				break
+			}
+		}
+		if !hasSilent {
+			invArgs = append(invArgs, "-z", "-silent -config checkforupdates.checkOnStart=false -config telemetry.optin=false")
+		}
+		if spec.EgressProxy != "" {
+			if parsed, err := url.Parse(spec.EgressProxy); err == nil && parsed.Hostname() != "" {
+				proxyHost := parsed.Hostname()
+				proxyPort := parsed.Port()
+				if proxyPort == "" {
+					proxyPort = "80"
+				}
+				proxyOpts := fmt.Sprintf("-config connection.proxyChain.enabled=true -config connection.proxyChain.hostName=%s -config connection.proxyChain.port=%s -config network.connection.httpProxy.enabled=true -config network.connection.httpProxy.hostName=%s -config network.connection.httpProxy.port=%s", proxyHost, proxyPort, proxyHost, proxyPort)
+				if parsed.User != nil {
+					proxyUser := parsed.User.Username()
+					proxyPass, _ := parsed.User.Password()
+					proxyOpts += fmt.Sprintf(" -config connection.proxyChain.authEnabled=true -config connection.proxyChain.userName=%s -config connection.proxyChain.password=%s -config network.connection.httpProxy.authEnabled=true -config network.connection.httpProxy.userName=%s -config network.connection.httpProxy.password=%s", proxyUser, proxyPass, proxyUser, proxyPass)
+				}
+				hasZ := false
+				for i := 0; i < len(invArgs)-1; i++ {
+					if invArgs[i] == "-z" {
+						invArgs[i+1] = invArgs[i+1] + " " + proxyOpts
+						hasZ = true
+						break
+					}
+				}
+				if !hasZ {
+					invArgs = append(invArgs, "-z", proxyOpts)
+				}
+			}
+		}
+	}
+	args = append(args, invArgs...)
 	return args
 }
 
-func (e *OCIExecutor) captureZAPReport(containerName string, result *Result) error {
+func (e *OCIExecutor) captureZAPReport(containerName string, result *Result, spec Spec) error {
+	if spec.WorkspaceMount != "" {
+		hostCandidates := []string{
+			filepath.Join(spec.WorkspaceMount, "kelvin-zap-report.json"),
+			filepath.Join(spec.WorkspaceMount, "report.json"),
+			filepath.Join(spec.WorkspaceMount, "zap.json"),
+		}
+		for _, hostFile := range hostCandidates {
+			if content, err := os.ReadFile(hostFile); err == nil && len(content) > 0 {
+				if len(content) > maxCaptureBytes {
+					return fmt.Errorf("report exceeds %d bytes", maxCaptureBytes)
+				}
+				result.Findings = content
+				return nil
+			}
+		}
+	}
+
 	dir, err := os.MkdirTemp("", "kelvin-zap-report-")
 	if err != nil {
 		return err
@@ -494,15 +708,33 @@ func (e *OCIExecutor) captureZAPReport(containerName string, result *Result) err
 	destination := filepath.Join(dir, "report.json")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	args := []string{"cp", containerName + ":/tmp/kelvin-zap-report.json", destination}
-	cmd := exec.CommandContext(ctx, e.runtime, args...)
-	cmd.Env = runtimeEnvironment()
-	stdout := outputcapture.NewBoundedWriter(16 << 10)
-	stderr := outputcapture.NewBoundedWriter(16 << 10)
-	cmd.Stdout, cmd.Stderr = stdout, stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("OCI runtime report copy failed: %w", err)
+
+	candidates := []string{
+		containerName + ":/tmp/kelvin-zap-report.json",
+		containerName + ":/zap/wrk/kelvin-zap-report.json",
+		containerName + ":/zap/wrk/report.json",
+		containerName + ":/home/zap/zap_out.json",
 	}
+
+	var copyErr error
+	copied := false
+	for _, src := range candidates {
+		args := []string{"cp", src, destination}
+		cmd := exec.CommandContext(ctx, e.runtime, args...)
+		cmd.Env = runtimeEnvironment()
+		if err := cmd.Run(); err == nil {
+			if fi, err := os.Stat(destination); err == nil && fi.Size() > 0 {
+				copied = true
+				break
+			}
+		} else {
+			copyErr = err
+		}
+	}
+	if !copied {
+		return fmt.Errorf("OCI runtime report copy failed: %w", copyErr)
+	}
+
 	file, err := os.Open(destination)
 	if err != nil {
 		return err

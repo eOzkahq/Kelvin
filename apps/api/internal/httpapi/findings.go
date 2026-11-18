@@ -1815,13 +1815,18 @@ func (s *Server) handleListFindingsQuery(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	items := res.Items
+	if items == nil {
+		items = make([]*findings.PersistentFinding, 0)
+	}
+
 	meta := map[string]any{
 		"limit":       res.Limit,
 		"offset":      res.Offset,
 		"total_count": res.TotalCount,
 	}
 
-	WriteSuccess(w, r, http.StatusOK, res.Items, meta)
+	WriteSuccess(w, r, http.StatusOK, items, meta)
 }
 
 // handleGetFindingsDashboard handles GET /api/v1/findings/dashboard.

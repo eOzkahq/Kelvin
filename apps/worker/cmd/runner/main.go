@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -175,6 +178,29 @@ func main() {
 	if cfg.Database.URL != "" {
 		poolCfg, err := pgxpool.ParseConfig(cfg.Database.URL)
 		if err == nil {
+			caPath := cfg.Database.SSLRootCert
+			if caPath == "" {
+				if parsed, pErr := url.Parse(cfg.Database.URL); pErr == nil {
+					caPath = parsed.Query().Get("sslrootcert")
+				}
+			}
+			if caPath != "" {
+				if caBytes, rErr := os.ReadFile(caPath); rErr == nil {
+					pool, pErr := x509.SystemCertPool()
+					if pErr != nil || pool == nil {
+						pool = x509.NewCertPool()
+					}
+					if pool.AppendCertsFromPEM(caBytes) {
+						if poolCfg.ConnConfig.TLSConfig == nil {
+							poolCfg.ConnConfig.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+						}
+						poolCfg.ConnConfig.TLSConfig.RootCAs = pool
+						if parsed, pErr := url.Parse(cfg.Database.URL); pErr == nil && parsed.Hostname() != "" {
+							poolCfg.ConnConfig.TLSConfig.ServerName = parsed.Hostname()
+						}
+					}
+				}
+			}
 			dbPool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 			if err == nil {
 				defer dbPool.Close()

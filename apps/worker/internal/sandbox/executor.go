@@ -54,6 +54,7 @@ func (p ProcessInvocation) Validate() error {
 	}
 	approvedExecutables := map[string]bool{
 		"/nuclei":               true,
+		"/usr/local/bin/nuclei": true,
 		"/zap/zap-baseline.py":  true,
 		"/zap/zap-full-scan.py": true,
 		"/usr/bin/sslscan":      true,
@@ -140,7 +141,7 @@ type Spec struct {
 }
 
 var approvedScanners = map[string][]string{
-	"nuclei":       {"/nuclei"},
+	"nuclei":       {"/nuclei", "/usr/local/bin/nuclei"},
 	"zap":          {"/zap/zap-baseline.py", "/zap/zap-full-scan.py"},
 	"zap-baseline": {"/zap/zap-baseline.py", "/zap/zap-full-scan.py"},
 	"sslscan":      {"/usr/bin/sslscan"},
@@ -340,6 +341,7 @@ func (s Spec) Validate() error {
 		"ALL_PROXY":             true,
 		"all_proxy":             true,
 		"KELVIN_EGRESS_PROXY":   true,
+		"HOME":                  true,
 	}
 	for _, entry := range s.Env {
 		key, _, ok := strings.Cut(entry, "=")

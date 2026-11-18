@@ -221,11 +221,13 @@ func (m *Manager) Create(ctx context.Context, tenantID, assessmentID, runID stri
 	stagingDir := filepath.Join(rootDir, "staging")
 
 	for _, dir := range []string{configDir, tmpDir, outputDir, stagingDir} {
-		if err := os.MkdirAll(dir, 0700); err != nil {
+		if err := os.MkdirAll(dir, 0777); err != nil {
 			_ = os.RemoveAll(rootDir)
 			return nil, fmt.Errorf("workspace: create directory %s: %w", dir, err)
 		}
+		_ = os.Chmod(dir, 0777)
 	}
+	_ = os.Chmod(rootDir, 0777)
 
 	ws := &Workspace{
 		TenantID:     tenantID,

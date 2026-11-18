@@ -171,8 +171,8 @@ func PolicyForScanner(scanner, target string, scopePolicy scope.Policy) (*Scanne
 		policy.AllowedPorts = appendUniquePorts(allowedPorts, 443)
 
 	case ScannerNmap:
-		policy.AllowedProtocols = []string{"tcp"}
-		policy.RequiresProxy = false
+		policy.AllowedProtocols = []string{"tcp", "http", "https"}
+		policy.RequiresProxy = true
 		policy.AllowedPorts = appendUniquePorts(allowedPorts, 80, 443)
 
 	case ScannerWhatWeb:

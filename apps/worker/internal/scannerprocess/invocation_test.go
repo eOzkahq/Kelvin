@@ -37,6 +37,23 @@ func TestBuildNucleiUsesPinnedSafeOptionsAndArgv(t *testing.T) {
 	}
 }
 
+func TestBuildNmapUsesSafeOptionsAndArgv(t *testing.T) {
+	task := taskFor(adapters.ScannerNmap, "https://example.com:8443/path")
+	invocation, err := Build(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if invocation.Executable != "/usr/bin/nmap" {
+		t.Fatalf("executable = %q", invocation.Executable)
+	}
+	joined := strings.Join(invocation.Args, " ")
+	for _, want := range []string{"-sT", "-Pn", "-p 80,443", "-sV", "--version-intensity 2", "-oX -", "--max-rate 50", "--host-timeout 60s", "example.com"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("argv %q missing %q", joined, want)
+		}
+	}
+}
+
 func TestBuildZAPMapsOnlyBoundedValidatedConfiguration(t *testing.T) {
 	task := taskFor(adapters.ScannerZAPBaseline, "https://example.com")
 	config, err := adapters.DefaultScannerConfig(task.Scanner)

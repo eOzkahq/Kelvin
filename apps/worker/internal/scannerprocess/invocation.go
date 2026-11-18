@@ -51,6 +51,23 @@ func Build(task adapters.Task) (sandbox.ProcessInvocation, error) {
 		}}, nil
 	case adapters.ScannerNuclei:
 		return sandbox.ProcessInvocation{Executable: "/nuclei", Args: adapters.BuildNucleiArgs(task)}, nil
+	case adapters.ScannerNmap:
+		targetHost := target
+		if u, err := url.Parse(target); err == nil && u.Hostname() != "" {
+			targetHost = u.Hostname()
+		}
+		args := []string{
+			"-sT",
+			"-Pn",
+			"-p", "80,443",
+			"-sV",
+			"--version-intensity", "2",
+			"-oX", "-",
+			"--max-rate", "50",
+			"--host-timeout", "60s",
+			targetHost,
+		}
+		return sandbox.ProcessInvocation{Executable: "/usr/bin/nmap", Args: args}, nil
 	default:
 		return sandbox.ProcessInvocation{}, fmt.Errorf("scanner process: %q has no external executable allow-list", task.Scanner)
 	}

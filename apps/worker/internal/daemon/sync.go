@@ -245,7 +245,7 @@ func (s *PostgresStateSyncer) SyncJobResults(
 	var projectID uuid.UUID
 	var targetAddress string
 	const getAssessment = `
-		SELECT project_id, target_address FROM assessments WHERE id = $1 AND tenant_id = $2;
+		SELECT project_id, COALESCE(profile_snapshot->>'target_url', '') FROM assessments WHERE id = $1 AND tenant_id = $2;
 	`
 	if err := tx.QueryRow(ctx, getAssessment, assessmentID, tenantID).Scan(&projectID, &targetAddress); err != nil {
 		return fmt.Errorf("sync_results: lookup assessment project: %w", err)
