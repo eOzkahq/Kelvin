@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/kelvin/kelvin/apps/worker/internal/manifest"
 	"github.com/kelvin/kelvin/apps/worker/internal/sandbox"
@@ -57,11 +58,15 @@ func DefaultNucleiVerifier(_ context.Context) (RuntimeVersionInfo, error) {
 				if img.Version != nil && *img.Version != "" {
 					info.ScannerVersion = *img.Version
 				}
-				if img.KelvinImage != nil && *img.KelvinImage != "" {
-					info.ImageReference = *img.KelvinImage
-				}
 				if img.KelvinDigest != nil && *img.KelvinDigest != "" {
 					info.ImageDigest = *img.KelvinDigest
+				}
+				if img.KelvinImage != nil && *img.KelvinImage != "" {
+					ref := *img.KelvinImage
+					if info.ImageDigest != "" && !strings.Contains(ref, "@") {
+						ref = ref + "@" + info.ImageDigest
+					}
+					info.ImageReference = ref
 				}
 				if img.TemplateCatalogDigest != nil && *img.TemplateCatalogDigest != "" {
 					info.TemplateCatalogDigest = *img.TemplateCatalogDigest
@@ -86,11 +91,15 @@ func DefaultZAPVerifier(_ context.Context) (RuntimeVersionInfo, error) {
 				if img.Version != nil && *img.Version != "" {
 					info.ScannerVersion = *img.Version
 				}
-				if img.KelvinImage != nil && *img.KelvinImage != "" {
-					info.ImageReference = *img.KelvinImage
-				}
 				if img.KelvinDigest != nil && *img.KelvinDigest != "" {
 					info.ImageDigest = *img.KelvinDigest
+				}
+				if img.KelvinImage != nil && *img.KelvinImage != "" {
+					ref := *img.KelvinImage
+					if info.ImageDigest != "" && !strings.Contains(ref, "@") {
+						ref = ref + "@" + info.ImageDigest
+					}
+					info.ImageReference = ref
 				}
 			}
 		}
@@ -112,11 +121,15 @@ func DefaultNmapVerifier(_ context.Context) (RuntimeVersionInfo, error) {
 				if img.Version != nil && *img.Version != "" {
 					info.ScannerVersion = *img.Version
 				}
-				if img.KelvinImage != nil && *img.KelvinImage != "" {
-					info.ImageReference = *img.KelvinImage
-				}
 				if img.KelvinDigest != nil && *img.KelvinDigest != "" {
 					info.ImageDigest = *img.KelvinDigest
+				}
+				if img.KelvinImage != nil && *img.KelvinImage != "" {
+					ref := *img.KelvinImage
+					if info.ImageDigest != "" && !strings.Contains(ref, "@") {
+						ref = ref + "@" + info.ImageDigest
+					}
+					info.ImageReference = ref
 				}
 			}
 		}
@@ -150,6 +163,9 @@ func NewOCINmapRunnerWithScope(executor sandbox.Executor, policyProvider ScopePo
 				imgRef = *lock.Images["nmap"].KelvinImage
 				if lock.Images["nmap"].KelvinDigest != nil {
 					imgDigest = *lock.Images["nmap"].KelvinDigest
+					if !strings.Contains(imgRef, "@") {
+						imgRef = imgRef + "@" + imgDigest
+					}
 				}
 			}
 		}
@@ -223,6 +239,9 @@ func NewOCINucleiRunnerWithScope(executor sandbox.Executor, policyProvider Scope
 				imgRef = *lock.Images["nuclei"].KelvinImage
 				if lock.Images["nuclei"].KelvinDigest != nil {
 					imgDigest = *lock.Images["nuclei"].KelvinDigest
+					if !strings.Contains(imgRef, "@") {
+						imgRef = imgRef + "@" + imgDigest
+					}
 				}
 			}
 		}
@@ -281,6 +300,9 @@ func NewOCIZAPRunnerWithScope(executor sandbox.Executor, policyProvider ScopePol
 				imgRef = *lock.Images["zap"].KelvinImage
 				if lock.Images["zap"].KelvinDigest != nil {
 					imgDigest = *lock.Images["zap"].KelvinDigest
+					if !strings.Contains(imgRef, "@") {
+						imgRef = imgRef + "@" + imgDigest
+					}
 				}
 			}
 		}
@@ -340,6 +362,7 @@ func RegisterDefaultAdapters(registry *Registry, executor sandbox.Executor) erro
 	}
 
 	// 2. Nuclei Adapter with pinned metadata and sandbox runner
+	nucleiInfo, _ := DefaultNucleiVerifier(context.Background())
 	nucleiMetadata := Metadata{
 		ID:               ScannerNuclei,
 		DisplayName:      "Nuclei Vulnerability Scanner",
@@ -360,11 +383,11 @@ func RegisterDefaultAdapters(registry *Registry, executor sandbox.Executor) erro
 		},
 		ConfigVersion: ScannerConfigVersion,
 		VersionPolicy: VersionPolicy{
-			ScannerVersion:         PinnedNucleiScannerVersion,
-			ImageReference:         PinnedNucleiImageReference,
-			ImageDigest:            PinnedNucleiImageDigest,
-			TemplateCatalogVersion: PinnedNucleiTemplateCatalogVersion,
-			TemplateCatalogDigest:  PinnedNucleiTemplateCatalogDigest,
+			ScannerVersion:         nucleiInfo.ScannerVersion,
+			ImageReference:         nucleiInfo.ImageReference,
+			ImageDigest:            nucleiInfo.ImageDigest,
+			TemplateCatalogVersion: nucleiInfo.TemplateCatalogVersion,
+			TemplateCatalogDigest:  nucleiInfo.TemplateCatalogDigest,
 		},
 	}
 	nucleiRunner := NewOCINucleiRunner(executor)
@@ -375,6 +398,7 @@ func RegisterDefaultAdapters(registry *Registry, executor sandbox.Executor) erro
 	}
 
 	// 3. OWASP ZAP Baseline Adapter with pinned metadata and sandbox runner
+	zapInfo, _ := DefaultZAPVerifier(context.Background())
 	zapMetadata := Metadata{
 		ID:               ScannerZAPBaseline,
 		DisplayName:      "OWASP ZAP Baseline Scanner",
@@ -395,9 +419,9 @@ func RegisterDefaultAdapters(registry *Registry, executor sandbox.Executor) erro
 		},
 		ConfigVersion: ScannerConfigVersion,
 		VersionPolicy: VersionPolicy{
-			ScannerVersion: PinnedZAPScannerVersion,
-			ImageReference: PinnedZAPImageReference,
-			ImageDigest:    PinnedZAPImageDigest,
+			ScannerVersion: zapInfo.ScannerVersion,
+			ImageReference: zapInfo.ImageReference,
+			ImageDigest:    zapInfo.ImageDigest,
 		},
 	}
 	zapRunner := NewOCIZAPRunner(executor)
@@ -408,6 +432,7 @@ func RegisterDefaultAdapters(registry *Registry, executor sandbox.Executor) erro
 	}
 
 	// 4. Nmap Adapter with pinned metadata and sandbox runner
+	nmapInfo, _ := DefaultNmapVerifier(context.Background())
 	nmapMetadata := Metadata{
 		ID:               ScannerNmap,
 		DisplayName:      "Nmap Network Scanner",
@@ -428,9 +453,9 @@ func RegisterDefaultAdapters(registry *Registry, executor sandbox.Executor) erro
 		},
 		ConfigVersion: ScannerConfigVersion,
 		VersionPolicy: VersionPolicy{
-			ScannerVersion: PinnedNmapScannerVersion,
-			ImageReference: PinnedNmapImageReference,
-			ImageDigest:    PinnedNmapImageDigest,
+			ScannerVersion: nmapInfo.ScannerVersion,
+			ImageReference: nmapInfo.ImageReference,
+			ImageDigest:    nmapInfo.ImageDigest,
 		},
 	}
 	nmapRunner := NewOCINmapRunner(executor)
