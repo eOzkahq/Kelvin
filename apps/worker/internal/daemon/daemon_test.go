@@ -43,12 +43,13 @@ func init() {
 }
 
 type recordingQueue struct {
-	inner         *queue.MemoryQueue
-	mu            sync.Mutex
-	failed        []queue.Job
-	failedReasons []string
-	completed     []queue.Job
-	event         chan struct{}
+	inner          *queue.MemoryQueue
+	mu             sync.Mutex
+	failed         []queue.Job
+	failedReasons  []string
+	completed      []queue.Job
+	leasesAcquired int
+	event          chan struct{}
 }
 
 func newRecordingQueue() *recordingQueue {
@@ -77,6 +78,9 @@ func (r *recordingQueue) GetStatus(ctx context.Context, id string) (commonqueue.
 	return r.inner.GetStatus(ctx, id)
 }
 func (r *recordingQueue) AcquireLease(ctx context.Context, jobID string, ttl time.Duration) (bool, error) {
+	r.mu.Lock()
+	r.leasesAcquired++
+	r.mu.Unlock()
 	return r.inner.AcquireLease(ctx, jobID, ttl)
 }
 func (r *recordingQueue) RenewLease(ctx context.Context, jobID string, ttl time.Duration) error {
@@ -831,5 +835,64 @@ func TestDaemon_PreExecutionScopeAndSSRFGuard(t *testing.T) {
 		if snap.Terminations[metrics.CauseNetwork] != 1 {
 			t.Errorf("expected 1 CauseNetwork termination metric, got %d", snap.Terminations[metrics.CauseNetwork])
 		}
+	}
+}
+
+func TestDaemon_RefusesLeaseForUnavailableScanner(t *testing.T) {
+	ctx := context.Background()
+
+	reg := adapters.NewRegistry()
+	if err := registerStub(reg); err != nil {
+		t.Fatalf("failed to register stub: %v", err)
+	}
+
+	checker := readiness.NewChecker(zap.NewNop())
+	// Register probe that fails (e.g. scanner container image not present on host)
+	checker.RegisterScannerProbe(adapters.ScannerNuclei, readiness.FunctionProbe{
+		ProbeName:   "nuclei_image",
+		ProbeTarget: adapters.ScannerNuclei,
+		CheckFn: func(ctx context.Context) readiness.ProbeResult {
+			return readiness.ProbeResult{
+				Name:    "nuclei_image",
+				Target:  adapters.ScannerNuclei,
+				Status:  readiness.StatusUnavailable,
+				Message: "container image is not present on host",
+				Error:   "image not found",
+			}
+		},
+	})
+
+	q := newRecordingQueue()
+	jobID := "123e4567-e89b-12d3-a456-426614174088"
+	job := queue.Job{
+		ID:           jobID,
+		AssessmentID: "123e4567-e89b-12d3-a456-426614174001",
+		TenantID:     "123e4567-e89b-12d3-a456-426614174002",
+		Type:         adapters.ScannerNuclei,
+		Payload:      []byte(`{"target":"https://example.test","profile_id":"standard","hard_deadline_seconds":10}`),
+	}
+
+	cfg := Config{
+		WorkerID:         "worker-readiness-lease-guard-test",
+		HeartbeatEvery:   5 * time.Second,
+		ReadinessChecker: checker,
+	}
+
+	process(ctx, zap.NewNop(), q, reg, job, cfg)
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	// Verify distributed lease was NEVER acquired
+	if q.leasesAcquired != 0 {
+		t.Fatalf("expected 0 lease acquisitions for unavailable scanner, got %d", q.leasesAcquired)
+	}
+
+	// Verify job failed closed with actionable diagnostic message
+	if len(q.failed) != 1 {
+		t.Fatalf("expected 1 failed job fail-closed, got %d", len(q.failed))
+	}
+	if !strings.Contains(q.failedReasons[0], "runtime readiness check failed") {
+		t.Fatalf("expected failure reason mentioning readiness check failed, got %q", q.failedReasons[0])
 	}
 }

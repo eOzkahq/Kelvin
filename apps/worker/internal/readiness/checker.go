@@ -2,7 +2,9 @@ package readiness
 
 import (
 	"context"
+	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +36,7 @@ type Checker struct {
 	systemProbes  []Probe
 	scannerProbes map[string][]Probe
 	logger        *zap.Logger
+	registry      *adapters.Registry
 }
 
 func NewChecker(logger *zap.Logger) *Checker {
@@ -44,6 +47,13 @@ func NewChecker(logger *zap.Logger) *Checker {
 		scannerProbes: make(map[string][]Probe),
 		logger:        logger,
 	}
+}
+
+// SetRegistry associates an adapter registry with the readiness checker to maintain truthful availability.
+func (c *Checker) SetRegistry(registry *adapters.Registry) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.registry = registry
 }
 
 // RegisterSystemProbe registers a probe governing core worker prerequisites (OCI runtime, workspace).
@@ -89,6 +99,27 @@ func (c *Checker) CheckScanner(ctx context.Context, scannerID string) (Status, [
 			c.logProbeFailure(res)
 		} else if res.Status == StatusDegraded && overall != StatusUnavailable {
 			overall = StatusDegraded
+		}
+	}
+
+	c.mu.RLock()
+	reg := c.registry
+	c.mu.RUnlock()
+	if reg != nil {
+		if overall == StatusUnavailable {
+			var reason string
+			for _, res := range results {
+				if res.Status == StatusUnavailable {
+					reason = res.Message
+					if res.Error != "" && !strings.Contains(reason, res.Error) {
+						reason = fmt.Sprintf("%s (%s)", reason, res.Error)
+					}
+					break
+				}
+			}
+			reg.UpdateAvailability(scannerID, adapters.AvailabilityUnavailable, reason)
+		} else if overall == StatusReady {
+			reg.UpdateAvailability(scannerID, adapters.AvailabilityAvailable, "")
 		}
 	}
 
@@ -159,6 +190,29 @@ func (c *Checker) EvaluateAll(ctx context.Context) SystemReadinessReport {
 		}
 	}
 
+	c.mu.RLock()
+	reg := c.registry
+	c.mu.RUnlock()
+	if reg != nil {
+		for id, status := range scannerStatuses {
+			if status == StatusUnavailable {
+				var reason string
+				for _, res := range allResults {
+					if res.Target == id && res.Status == StatusUnavailable {
+						reason = res.Message
+						if res.Error != "" && !strings.Contains(reason, res.Error) {
+							reason = fmt.Sprintf("%s (%s)", reason, res.Error)
+						}
+						break
+					}
+				}
+				reg.UpdateAvailability(id, adapters.AvailabilityUnavailable, reason)
+			} else if status == StatusReady {
+				reg.UpdateAvailability(id, adapters.AvailabilityAvailable, "")
+			}
+		}
+	}
+
 	// 3. Determine Application Status (distinguishing system health from scanner availability)
 	var appStatus Status
 	if !systemHealthy {
@@ -225,7 +279,13 @@ func (c *Checker) logProbeFailure(res ProbeResult) {
 
 // NewDefaultChecker initializes a standard readiness checker with system and registered adapter probes.
 func NewDefaultChecker(registry *adapters.Registry, lookPathFn func(string) (string, error), catalogPath, workspaceDir string, logger *zap.Logger) *Checker {
+	return NewDefaultCheckerWithInspector(registry, nil, lookPathFn, catalogPath, workspaceDir, logger)
+}
+
+// NewDefaultCheckerWithInspector initializes a readiness checker using an explicit ImageInspector for container probes.
+func NewDefaultCheckerWithInspector(registry *adapters.Registry, inspector ImageInspector, lookPathFn func(string) (string, error), catalogPath, workspaceDir string, logger *zap.Logger) *Checker {
 	checker := NewChecker(logger)
+	checker.SetRegistry(registry)
 
 	// System Probes
 	checker.RegisterSystemProbe(NewOCIEngineProbe(lookPathFn))
@@ -245,7 +305,7 @@ func NewDefaultChecker(registry *adapters.Registry, lookPathFn func(string) (str
 
 			// 2. Container image probe if required
 			if meta.Capabilities.RequiresSandbox && meta.VersionPolicy.ImageReference != "" {
-				checker.RegisterScannerProbe(name, NewContainerImageProbe(name, meta.VersionPolicy.ImageReference, meta.VersionPolicy.ImageDigest, nil))
+				checker.RegisterScannerProbe(name, NewContainerImageProbe(name, meta.VersionPolicy.ImageReference, meta.VersionPolicy.ImageDigest, inspector))
 			}
 
 			// 3. Nuclei template catalog probe

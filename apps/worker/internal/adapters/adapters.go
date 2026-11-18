@@ -330,6 +330,42 @@ func (r *Registry) Names() []string {
 	return names
 }
 
+// UpdateAvailability updates the availability state and reason for a registered adapter.
+func (r *Registry) UpdateAvailability(id string, availability Availability, reason string) {
+	if r == nil {
+		return
+	}
+	entry, ok := r.entry(id)
+	if !ok {
+		return
+	}
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+	entry.metadata.Availability = availability
+	entry.metadata.UnavailableReason = reason
+	if availability != AvailabilityAvailable {
+		entry.metadata.VerifiedVersion = nil
+	}
+}
+
+// CapabilityMatrix returns a comprehensive snapshot of all registered adapters,
+// their current truthful availability, reasons for unavailability, and capabilities.
+func (r *Registry) CapabilityMatrix() []Metadata {
+	if r == nil {
+		return nil
+	}
+	names := r.Names()
+	res := make([]Metadata, 0, len(names))
+	for _, id := range names {
+		if entry, ok := r.entry(id); ok {
+			entry.mu.Lock()
+			res = append(res, cloneMetadata(entry.metadata))
+			entry.mu.Unlock()
+		}
+	}
+	return res
+}
+
 func (r *Registry) entry(id string) (*registryEntry, bool) {
 	if r == nil {
 		return nil, false
