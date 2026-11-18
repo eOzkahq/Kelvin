@@ -1,104 +1,156 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Syne", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: "Inter", "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "DM Serif Display", Georgia, serif;
-  --font-mono: "DM Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-mono: "JetBrains Mono", "DM Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Remap cyan to EOZKA champagne gold */
+  /* Calm eOzka champagne gold accents (easy on eyes) */
   --color-cyan-50: #faf8f3;
-  --color-cyan-100: #f5f0e3;
-  --color-cyan-200: #e8debe;
+  --color-cyan-100: #f3efe4;
+  --color-cyan-200: #e3d9be;
   --color-cyan-300: #d4c9a8;
-  --color-cyan-400: #d4c9a8;
-  --color-cyan-500: #b38a2b;
-  --color-cyan-600: #96701d;
-  --color-cyan-700: #6b6252;
-  --color-cyan-800: #4a4234;
-  --color-cyan-900: #2a251b;
-  --color-cyan-950: #141310;
+  --color-cyan-400: #cbbd94;
+  --color-cyan-500: #9f8344;
+  --color-cyan-600: #7f6630;
+  --color-cyan-700: #5f4c24;
+  --color-cyan-800: #42351b;
+  --color-cyan-900: #272013;
+  --color-cyan-950: #14120d;
 
-  /* Remap zinc to EOZKA rich obsidian and warm off-white */
-  --color-zinc-950: #0c0c0c;
-  --color-zinc-900: #141414;
-  --color-zinc-850: #191919;
-  --color-zinc-800: #222222;
-  --color-zinc-700: #2e2e2e;
-  --color-zinc-600: #444444;
-  --color-zinc-500: #666666;
-  --color-zinc-400: #999999;
-  --color-zinc-300: #cccccc;
-  --color-zinc-200: #e2dfd9;
-  --color-zinc-100: #f0eeea;
-  --color-zinc-50: #faf8f5;
+  /* Calm Obsidian Neutrals (high legibility without glare) */
+  --color-zinc-950: #0c0d10;
+  --color-zinc-900: #131418;
+  --color-zinc-850: #191a20;
+  --color-zinc-800: #25262e;
+  --color-zinc-700: #343640;
+  --color-zinc-600: #555866;
+  --color-zinc-500: #8b8f9c;
+  --color-zinc-400: #b1b5c0;
+  --color-zinc-300: #d4d7de;
+  --color-zinc-200: #e4e5e9;
+  --color-zinc-100: #ececef;
+  --color-zinc-50: #f7f7f8;
 }
 
 :root {
-  --black: #0c0c0c;
-  --off-black: #141414;
-  --surface: #1e1e1e;
-  --border: #2a2a2a;
-  --border-mid: #3a3a3a;
-  --white: #f0eeea;
-  --white-dim: #999999;
-  --white-dimmer: #666666;
-  --accent: #d4c9a8;
-  --accent-dim: #6b6252;
-  --accent-glow: rgba(212, 201, 168, 0.12);
-  --nav-bg: rgba(12, 12, 12, 0.94);
+  --black: #0c0d10;
+  --off-black: #131418;
+  --surface: #18191e;
+  --border: #25262e;
+  --border-mid: #343640;
+  --white: #ececef;
+  --white-dim: #b1b5c0;
+  --white-dimmer: #8b8f9c;
+  --accent: #cbbd94;
+  --accent-dim: #8a7545;
+  --accent-glow: rgba(203, 189, 148, 0.08);
+  --indigo: #211a57;
+  --indigo-soft: rgba(33, 26, 87, 0.16);
+  --nav-bg: rgba(12, 13, 16, 0.94);
+
+  /* Calm Semantic Brand Tokens (Dark mode — subtle champagne + indigo) */
+  --brand: #cbbd94;
+  --brand-text: #d9ceb0;
+  --brand-strong: #f0eeea;
+  --brand-bg: rgba(203, 189, 148, 0.08);
+  --brand-border: rgba(203, 189, 148, 0.25);
+  --brand-btn-from: #e6dcc0;
+  --brand-btn-to: #d2c39d;
+  --brand-btn-fg: #121216;
+  --brand-btn-border: #d9ceb0;
 }
 
 [data-theme="light"] {
-  --black: #faf8f5;
-  --off-black: #f3ece0;
+  --black: #f7f7f5;
+  --off-black: #ffffff;
   --surface: #ffffff;
-  --border: rgba(194, 155, 64, 0.18);
-  --border-mid: rgba(15, 20, 35, 0.12);
-  --white: #0f1423;
-  --white-dim: #374151;
-  --white-dimmer: #6b7280;
-  --accent: #b38a2b;
-  --accent-dim: #785b19;
-  --accent-glow: rgba(179, 138, 43, 0.12);
-  --nav-bg: rgba(250, 248, 245, 0.88);
+  --border: rgba(17, 24, 39, 0.09);
+  --border-mid: rgba(17, 24, 39, 0.16);
+  --white: #151821;
+  --white-dim: #444b59;
+  --white-dimmer: #646b79;
+  --accent: #916e24;
+  --accent-dim: #6e5218;
+  --accent-glow: rgba(145, 110, 36, 0.08);
+  --indigo: #211a57;
+  --indigo-soft: rgba(33, 26, 87, 0.06);
+  --nav-bg: rgba(255, 255, 255, 0.95);
 
-  --color-zinc-950: #faf8f5;
-  --color-zinc-900: #f3ece0;
-  --color-zinc-850: #ebe4d8;
-  --color-zinc-800: #e2dacf;
-  --color-zinc-700: #d0c7bb;
-  --color-zinc-600: #9c9488;
-  --color-zinc-500: #6b7280;
+  /* Calm Semantic Brand Tokens (Light mode — crisp paper, slate ink & eOzka indigo) */
+  --brand: #211a57;
+  --brand-text: #7c5c19;
+  --brand-strong: #211a57;
+  --brand-bg: rgba(33, 26, 87, 0.055);
+  --brand-border: rgba(33, 26, 87, 0.20);
+  --brand-btn-from: #211a57;
+  --brand-btn-to: #1a1447;
+  --brand-btn-fg: #ffffff;
+  --brand-btn-border: #211a57;
+
+  /* Soft clean light paper scale */
+  --color-zinc-950: #f7f7f5;
+  --color-zinc-900: #ffffff;
+  --color-zinc-850: #f1f1ee;
+  --color-zinc-800: #e5e4df;
+  --color-zinc-700: #cfd0cc;
+  --color-zinc-600: #6b7280;
+  --color-zinc-500: #4b5563;
   --color-zinc-400: #374151;
   --color-zinc-300: #1f2937;
   --color-zinc-200: #111827;
-  --color-zinc-100: #0f1423;
-  --color-zinc-50: #080b12;
+  --color-zinc-100: #151821;
+  --color-zinc-50: #090a0f;
 
-  --color-cyan-300: #b38a2b;
-  --color-cyan-400: #b38a2b;
-  --color-cyan-500: #96701d;
-  --color-cyan-600: #785b19;
-  --color-cyan-700: #57410f;
-  --color-cyan-950: #f3ece0;
+  --color-cyan-300: #785b19;
+  --color-cyan-400: #8e6412;
+  --color-cyan-500: #785b19;
+  --color-cyan-600: #5e440c;
+  --color-cyan-700: #453107;
+  --color-cyan-950: #fefce8;
+
+  /* Accessible Light-Mode Status Hues */
+  --color-emerald-300: #047857;
+  --color-emerald-400: #059669;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-950: #ecfdf5;
+
+  --color-red-300: #b91c1c;
+  --color-red-400: #dc2626;
+  --color-red-800: #fecaca;
+  --color-red-950: #fef2f2;
+
+  --color-amber-300: #b45309;
+  --color-amber-400: #d97706;
+  --color-amber-800: #fde68a;
+  --color-amber-950: #fffbeb;
+
+  --color-orange-300: #c2410c;
+  --color-orange-400: #ea580c;
+  --color-orange-800: #fed7aa;
+  --color-orange-950: #fff7ed;
+
+  --color-sky-300: #0369a1;
+  --color-sky-400: #0284c7;
+  --color-sky-800: #bae6fd;
+  --color-sky-950: #f0f9ff;
 }
 
 body {
-  background: radial-gradient(circle at top, rgba(212, 201, 168, 0.08), transparent 30%), var(--black);
+  background: var(--black);
   color: var(--white);
   font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.6;
   overflow-x: hidden;
-  transition: background 0.4s ease, color 0.4s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background 0.25s ease, color 0.25s ease;
 }
 
 [data-theme="light"] body {
-  background:
-    radial-gradient(circle at 10% 20%, rgba(194, 150, 40, 0.18), transparent 45%),
-    radial-gradient(circle at 90% 10%, rgba(37, 99, 235, 0.08), transparent 40%),
-    radial-gradient(circle at 50% 80%, rgba(225, 29, 72, 0.06), transparent 55%),
-    linear-gradient(180deg, var(--black), var(--off-black));
+  background: #faf8f5;
 }
 
 /* Custom Scrollbar matching EOZKA */
@@ -125,111 +177,13 @@ body {
   color: var(--black);
 }
 
-/* WCAG 2.2 AA Focus Rings matching EOZKA Gold */
+/* WCAG 2.2 AA Focus Rings matching eOzka Gold & Indigo */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* Custom Cursor styles matching EOZKA */
-#cursor-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--accent);
-  border-radius: 50%;
-  position: fixed;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  z-index: 9999;
-  transform: translate(-50%, -50%);
-  opacity: 0;
-  transition: width 0.2s ease, height 0.2s ease, background 0.2s, opacity 0.3s ease;
-  will-change: transform;
-}
-
-#cursor-dot.active {
-  opacity: 1;
-}
-
-#cursor-ring {
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--accent);
-  border-radius: 50%;
-  position: fixed;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  z-index: 9998;
-  transform: translate(-50%, -50%);
-  opacity: 0;
-  transition: transform 0.08s cubic-bezier(0.25, 1, 0.5, 1), width 0.25s ease, height 0.25s ease, opacity 0.3s ease;
-  will-change: transform;
-}
-
-#cursor-ring.active {
-  opacity: 1;
-}
-
-#cursor-ring-outer {
-  width: 48px;
-  height: 48px;
-  border: 1px dashed rgba(212, 201, 168, 0.3);
-  border-radius: 50%;
-  position: fixed;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  z-index: 9997;
-  transform: translate(-50%, -50%);
-  opacity: 0;
-  transition: transform 0.16s cubic-bezier(0.25, 1, 0.5, 1), width 0.25s ease, height 0.25s ease, opacity 0.3s ease, border-color 0.3s ease;
-  will-change: transform;
-}
-
-#cursor-ring-outer.active {
-  opacity: 1;
-}
-
-[data-theme="light"] #cursor-ring-outer {
-  border-color: rgba(139, 125, 87, 0.35);
-}
-
-body:has(a:hover) #cursor-dot.active,
-body:has(button:hover) #cursor-dot.active,
-body:has([role="button"]:hover) #cursor-dot.active,
-body:has(input:hover) #cursor-dot.active,
-body:has(textarea:hover) #cursor-dot.active,
-body:has(select:hover) #cursor-dot.active {
-  width: 12px;
-  height: 12px;
-  background: var(--accent);
-}
-
-body:has(a:hover) #cursor-ring.active,
-body:has(button:hover) #cursor-ring.active,
-body:has([role="button"]:hover) #cursor-ring.active,
-body:has(input:hover) #cursor-ring.active,
-body:has(textarea:hover) #cursor-ring.active,
-body:has(select:hover) #cursor-ring.active {
-  width: 60px;
-  height: 60px;
-  opacity: 0.7;
-  border-width: 1.5px;
-}
-
-#particle-canvas {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Global Select / Dropdown visibility matching EOZKA */
+/* Global Select / Dropdown visibility matching eOzka */
 select option,
 select optgroup {
   background-color: var(--off-black) !important;
@@ -253,9 +207,14 @@ select option:checked {
 }
 
 /* EOZKA Accent Glow and Typography Utilities */
+.font-display {
+  font-family: var(--font-display);
+}
+
 .stat-num,
 .value-num {
   font-family: var(--font-serif);
+  font-variant-numeric: tabular-nums;
 }
 
 .gold-glow {
@@ -270,8 +229,137 @@ select option:checked {
   border-color: var(--accent);
 }
 
+.glass-panel {
+  background: linear-gradient(180deg, rgba(24, 24, 27, 0.78) 0%, rgba(12, 12, 14, 0.9) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+[data-theme="light"] .glass-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(250, 248, 245, 0.94) 100%);
+}
+
+.surface-card {
+  position: relative;
+  background: #131317;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.42);
+}
+
+[data-theme="light"] .surface-card {
+  background: #ffffff;
+  border-color: rgba(33, 26, 87, 0.12);
+  box-shadow: 0 1px 3px rgba(33, 26, 87, 0.06);
+}
+
+.gold-hairline-top {
+  position: relative;
+}
+
+.gold-hairline-top::before {
+  content: "";
+  position: absolute;
+  inset: 0 12% auto 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 178, 60, 0.42), transparent);
+  pointer-events: none;
+}
+
+.mono-pill {
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+/* Silk Design Physics & Spring Transitions */
+.silk-transition {
+  transition-property: transform, opacity, background-color, border-color, box-shadow;
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.silk-spring-hover {
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 260ms cubic-bezier(0.16, 1, 0.3, 1), border-color 180ms ease;
+  will-change: transform;
+}
+
+.silk-spring-hover:hover {
+  transform: translateY(-1.5px);
+}
+
+.silk-press {
+  transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.silk-press:active {
+  transform: scale(0.985);
+}
+
+/* Impeccable Design: High-Precision Hairline & Substrate */
+.border-subtle {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+[data-theme="light"] .border-subtle {
+  border-color: rgba(33, 26, 87, 0.10);
+}
+
+.surface-elevated {
+  background: #141519;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 20px -8px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] .surface-elevated {
+  background: #ffffff;
+  border: 1px solid rgba(17, 24, 39, 0.10);
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.05), 0 8px 20px -6px rgba(17, 24, 39, 0.04);
+}
+
+/* Watermelon UI: Micro Status Indicators */
+.dot-pulse-nominal {
+  position: relative;
+}
+
+.dot-pulse-nominal::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: inherit;
+  opacity: 0.35;
+  animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Light-mode safety map for any residual gold/cream hex utilities */
+[data-theme="light"] .text-\[\#d4c9a8\],
+[data-theme="light"] .text-\[\#e8debe\] {
+  color: var(--brand-text) !important;
+}
+
+[data-theme="light"] .text-\[\#f0eeea\],
+[data-theme="light"] .text-\[\#f5f0e3\] {
+  color: var(--brand-strong) !important;
+}
+
+/* Native form control consistency */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+select {
+  color-scheme: dark;
+}
+
+[data-theme="light"] select {
+  color-scheme: light;
+}
+
 /* Accessible Touch Targets for Mobile (Minimum 44x44px for primary interactions) */
 @media (pointer: coarse) {
+
   button,
   a,
   input,
@@ -283,6 +371,7 @@ select option:checked {
 
 /* Prefers Reduced Motion Optimization */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -292,4 +381,3 @@ select option:checked {
     scroll-behavior: auto !important;
   }
 }
-

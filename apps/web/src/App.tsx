@@ -1,11 +1,16 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./features/auth/AuthContext";
+import { PlanProvider } from "./features/billing/PlanContext";
+import { PaywallModal } from "./components/billing/PaywallModal";
 import { ProtectedRoute } from "./features/auth/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import { AppShell } from "./components/layout";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
+const PlansBillingPage = lazy(() => import("./pages/PlansBillingPage"));
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
 const AssessmentListPage = lazy(() => import("./pages/AssessmentListPage"));
 const AssessmentWizardPage = lazy(() => import("./pages/AssessmentWizardPage"));
 const AssessmentDetailPage = lazy(() => import("./pages/AssessmentDetailPage"));
@@ -75,6 +80,9 @@ function AppRoutes() {
                 <Suspense fallback={<div className="py-16 text-center text-xs text-zinc-400">Loading module…</div>}>
                   <Routes>
                     <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="/onboarding" element={<OnboardingPage />} />
+                    <Route path="/plans" element={<PlansBillingPage />} />
+                    <Route path="/checkout" element={<CheckoutPage />} />
                     <Route path="/assessments" element={<AssessmentListPage />} />
                     <Route path="/assessments/new" element={<AssessmentWizardPage />} />
                     <Route path="/assessments/:id" element={<AssessmentDetailPage />} />
@@ -88,10 +96,15 @@ function AppRoutes() {
                     <Route path="/account" element={<AccountProfilePage />} />
                     <Route path="/profile" element={<AccountProfilePage />} />
                     <Route path="/admin" element={<OrgAdminPage />} />
+                    <Route path="/admin/org" element={<OrgAdminPage />} />
                     <Route path="/team" element={<TeamMembersPage />} />
+                    <Route path="/admin/team" element={<TeamMembersPage />} />
                     <Route path="/roles" element={<RolesPermissionsSsoPage />} />
+                    <Route path="/admin/roles" element={<RolesPermissionsSsoPage />} />
                     <Route path="/integrations" element={<IntegrationsNotificationPage />} />
+                    <Route path="/admin/integrations" element={<IntegrationsNotificationPage />} />
                     <Route path="/settings" element={<PlatformSettingsPage />} />
+                    <Route path="/admin/settings" element={<PlatformSettingsPage />} />
                     {/* Unknown sub-routes → dashboard */}
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                   </Routes>
@@ -108,8 +121,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <SessionExpiredBanner />
-      <AppRoutes />
+      <PlanProvider>
+        <SessionExpiredBanner />
+        <PaywallModal />
+        <AppRoutes />
+      </PlanProvider>
     </AuthProvider>
   );
 }

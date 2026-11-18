@@ -112,12 +112,15 @@ export default function OrgAdminPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between pb-4 border-b border-zinc-800/80">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-100">
+          <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[#d4c9a8]">
+            Tenant Governance
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-display mt-1">
             Organization Administration
           </h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-0.5 text-xs text-zinc-400">
             Enterprise organization identity, global security policies, and workspace isolation boundaries.
           </p>
         </div>

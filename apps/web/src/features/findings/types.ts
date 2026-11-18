@@ -100,6 +100,7 @@ export interface Finding {
   remediation?: string;
   remediationGuidance?: string;
   remediationSlaDays?: number;
+  requiredTier?: 1 | 2 | 3;
 }
 
 // Backward-compatible alias
@@ -118,6 +119,7 @@ export interface FindingsFilterParams {
   status?: FindingStatus | FindingStatus[] | "";
   scanner?: string;
   target?: string;
+  maxTier?: 1 | 2 | 3;
   page?: number;
   limit?: number;
   sort?: string;
@@ -132,6 +134,10 @@ export interface FindingsListResponse {
   page: number;
   limit: number;
   totalPages: number;
+  lockedTierCounts?: {
+    pro: number;
+    enterprise: number;
+  };
 }
 
 export interface BatchUpdatePayload {

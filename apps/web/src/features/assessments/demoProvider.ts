@@ -1,3 +1,4 @@
+import type { LiveProbeResult } from "../reports/liveScanStore";
 import type {
   AssessmentDetail,
   AssessmentRecord,
@@ -160,13 +161,20 @@ export const demoAssessmentProvider = {
 
   createAssessment(payload: CreateAssessmentPayload): Promise<{ id: string }> {
     const newId = `asmt-${Date.now().toString(36)}`;
+    const resolvedTarget =
+      payload.targets?.[0]?.host ||
+      mockTargets.find((t) => t.id === payload.targetId)?.address ||
+      "configured-target.internal";
+    const profileName =
+      mockProfiles.find((p) => p.id === payload.profileId)?.name || "Standard Security Profile";
+
     const newRecord: AssessmentDetail = {
       id: newId,
       name: payload.name,
       targetId: payload.targetId,
-      targetAddress: payload.targets?.[0]?.host || "configured-target.internal",
+      targetAddress: resolvedTarget,
       profileId: payload.profileId,
-      profileName: "Standard Security Profile",
+      profileName,
       status: "QUEUED",
       currentStage: "QUEUED",
       criticalCount: 0,
@@ -178,6 +186,43 @@ export const demoAssessmentProvider = {
     };
     mockAssessmentsStore.unshift(newRecord);
     return Promise.resolve({ id: newId });
+  },
+
+  attachLiveProbe(id: string, probe: LiveProbeResult): void {
+    const found = mockAssessmentsStore.find((a) => a.id === id);
+    if (!found) return;
+    found.targetAddress = probe.targetUrl;
+    found.status = "COMPLETED";
+    found.currentStage = "COMPLETED";
+    found.completedAt = new Date().toISOString();
+    found.criticalCount = probe.findings.filter((f) => f.severity === "CRITICAL").length;
+    found.highCount = probe.findings.filter((f) => f.severity === "HIGH").length;
+    found.totalFindings = probe.findings.length;
+    found.scanners = [
+      {
+        id: `sc-dns-${id}`,
+        scanner: "DNS & TLS Inspector",
+        status: "COMPLETED",
+        findingsCount: probe.findings.filter((f) => f.scanner === "dns-probe" || f.scanner === "tls-check").length,
+        startTime: found.createdAt,
+        endTime: found.completedAt,
+      },
+      {
+        id: `sc-hdr-${id}`,
+        scanner: "HTTP Header Auditor",
+        status: "COMPLETED",
+        findingsCount: probe.findings.filter((f) => f.scanner === "http-headers" || f.scanner === "http-preflight").length,
+        startTime: found.createdAt,
+        endTime: found.completedAt,
+      },
+    ];
+    found.logs = probe.logs.map((l, idx) => ({
+      id: `log-live-${idx}`,
+      timestamp: l.timestamp,
+      level: l.level,
+      message: l.message,
+      stage: l.stage,
+    }));
   },
 
   resetMockAssessments(): void {

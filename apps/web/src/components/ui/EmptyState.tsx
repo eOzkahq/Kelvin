@@ -1,5 +1,6 @@
 import React from "react";
 import { Button } from "./Button";
+import { ShieldIcon } from "./Icons";
 
 export interface EmptyStateProps {
   title: string;
@@ -17,15 +18,17 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   onAction,
 }) => {
   return (
-    <div className="flex flex-col items-center justify-center p-8 text-center border border-dashed border-zinc-800 rounded-lg bg-zinc-950/40">
-      {icon && <div className="mb-3 text-zinc-500">{icon}</div>}
-      <h4 className="text-base font-medium text-zinc-200">{title}</h4>
-      <p className="text-xs text-zinc-500 max-w-sm mt-1 mb-4">{description}</p>
-      {actionLabel && onAction && (
-        <Button variant="outline" size="sm" onClick={onAction}>
-          {actionLabel}
-        </Button>
-      )}
-    </div>
-  );
+    <div className="flex flex-col items-center justify-center p-10 text-center border border-dashed border-zinc-800/90 rounded-xl bg-zinc-950/60">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--brand-border)] bg-zinc-900 text-[var(--brand)] shadow-sm">
+          {icon ?? <ShieldIcon size={20} />}
+        </div>
+        <h4 className="text-base font-semibold text-zinc-100 font-display">{title}</h4>
+        <p className="text-xs text-zinc-400 max-w-sm mt-1.5 mb-5 leading-relaxed">{description}</p>
+        {actionLabel && onAction && (
+          <Button variant="outline" size="sm" onClick={onAction}>
+            {actionLabel}
+          </Button>
+        )}
+      </div>
+      );
 };

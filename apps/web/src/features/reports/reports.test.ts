@@ -55,11 +55,23 @@ describe("Assessment Reports & PDF Viewer (FE-12)", () => {
     expect(newReport.templateType).toBe("COMPLIANCE_AUDIT");
   });
 
-  it("renders report HTML containing KPI summaries and cryptographic seal", async () => {
+  it("renders report HTML containing KPI summaries, tier segregation, and cryptographic seal", async () => {
     const html = await getReportHtml("rep-2026-901");
     expect(html).toContain("<!DOCTYPE html>");
     expect(html).toContain("Overall Risk Score");
     expect(html).toContain("CRYPTOGRAPHIC SEAL VERIFICATION");
     expect(html).toContain("Remediation Guidance");
+    expect(html).toContain("Assessment Marking &amp; Posture Scorecard");
+    expect(html).toContain("Tier Scope Segregation");
+    expect(html).toContain("eOzka");
+    expect(html).toContain("eozka-header-svg");
+    expect(html).toContain("Augmenting Sentient");
+    expect(html).not.toMatch(/<\s+[a-zA-Z]/);
+    expect(html).not.toMatch(/&\s+[a-zA-Z]+;/);
+
+    const techHtml = await getReportHtml("rep-2026-902");
+    expect(techHtml).toContain("NEW IN TIER");
+    expect(techHtml).toContain("INHERITED");
+    expect(techHtml).toContain("Plan 2 — Extended Web DAST");
   });
 });
