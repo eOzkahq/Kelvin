@@ -17,8 +17,8 @@
 | **M9.3** | Target Authorization, Scope Enforcement & SSRF | Milestone #16 | **COMPLETED** | 0 / 4 | 4 |
 | **M9.4** | Controlled Egress Proxy & Network Restrictions | Milestone #17 | **COMPLETED** | 0 / 4 | 4 |
 | **M9.5** | Real Scanner Execution (Nmap, Nuclei, ZAP) | Milestone #18 | **COMPLETED** | 0 / 4 | 4 |
-| **M9.6** | Finding Normalization & Evidence Collection | Milestone #19 | **ACTIVE** | 0 / 0 | 0 |
-| **M9.7** | End-to-End Real Scan Validation | Milestone #20 | PLANNED | 0 / 0 | 0 |
+| **M9.6** | Finding Normalization & Evidence Collection | Milestone #19 | **COMPLETED** | 0 / 4 | 4 |
+| **M9.7** | End-to-End Real Scan Validation | Milestone #20 | **ACTIVE** | 0 / 0 | 0 |
 
 ---
 
@@ -46,6 +46,10 @@
 | M9.5 | #673 | M9.5-02: Nuclei Vulnerability Scanner Container Execution & Profile Controls | `feat/m9-5-nuclei-execution-profile-controls` | #677 | `0cbeafa` | Passed (100%) | Passed | MERGED |
 | M9.5 | #674 | M9.5-03: OWASP ZAP Baseline & Active Scanner Adapter Hardening | `feat/m9-5-zap-adapter-hardening` | #678 | `5283484` | Passed (100%) | Passed | MERGED |
 | M9.5 | #675 | M9.5-04: Scanner Readiness Diagnostics & Truthful Capability Matrix | `feat/m9-5-scanner-readiness-diagnostics` | #679 | `c199298` | Passed (100%) | Passed | MERGED |
+| M9.6 | #681 | M9.6-01: Canonical Finding Schema Normalization & Deterministic Fingerprinting | `feat/m9-6-canonical-normalization` | #685 | `2fd5dbb` | Passed (100%) | Passed | MERGED |
+| M9.6 | #682 | M9.6-02: Evidence Redaction & Sensitive Data Scrubbing Engine | `feat/m9-6-evidence-redaction-engine` | #686 | `a313e37` | Passed (100%) | Passed | MERGED |
+| M9.6 | #683 | M9.6-03: Cross-Scanner Finding Correlation & Idempotent Deduplication | `feat/m9-6-cross-scanner-dedup` | #687 | `f8cce3a` | Passed (100%) | Passed | MERGED |
+| M9.6 | #684 | M9.6-04: Worker Result Persistence, Database Ingestion & Summary Aggregation | `feat/m9-6-worker-persistence-ingestion` | #688 | `e2bc206` | Passed (100%) | Passed | MERGED |
 
 ---
 
