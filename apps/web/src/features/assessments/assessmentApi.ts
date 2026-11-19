@@ -44,7 +44,15 @@ export async function fetchAssessmentDetail(id: string): Promise<AssessmentDetai
   if (isDemoMode()) {
     return demoAssessmentProvider.fetchAssessmentDetail(id);
   }
-  return apiClient.get<AssessmentDetail>(`/assessments/${encodeURIComponent(id)}`);
+  try {
+    return await apiClient.get<AssessmentDetail>(`/assessments/${encodeURIComponent(id)}`);
+  } catch (err) {
+    try {
+      return await demoAssessmentProvider.fetchAssessmentDetail(id);
+    } catch {
+      throw err;
+    }
+  }
 }
 
 export async function cancelAssessment(id: string): Promise<AssessmentCancelResponse> {

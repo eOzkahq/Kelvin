@@ -1,6 +1,7 @@
 import { request } from "../../services/api";
 import { isDemoMode } from "../../config/env";
 import { demoFindingsProvider } from "./demoProvider";
+import { getLiveScanResult, getAllLiveScanResults, type LiveProbeFinding } from "../reports/liveScanStore";
 import type {
   BatchUpdatePayload,
   BatchUpdateResponse,
@@ -22,6 +23,34 @@ export type {
   FindingSeverity,
   FindingStatus,
 };
+
+function convertLiveProbeFinding(
+  f: LiveProbeFinding,
+  assessmentId: string,
+  targetHost: string
+): Finding {
+  return {
+    id: f.id,
+    assessmentId,
+    fingerprint: `live-${f.cwe || f.title}-${targetHost}`,
+    title: f.title,
+    severity: (f.severity.toUpperCase() as FindingSeverity) || "INFO",
+    status: "OPEN",
+    target: targetHost,
+    affectedEndpoint: f.endpoint || targetHost,
+    scanner: f.scanner || "Live Diagnostic Engine",
+    cvssScore: f.cvss,
+    riskScore: f.cvss,
+    cweId: f.cwe,
+    cveIds: [],
+    firstSeenAt: new Date().toISOString(),
+    lastSeenAt: new Date().toISOString(),
+    occurrenceCount: 1,
+    description: f.description,
+    remediation: f.remediation,
+    remediationGuidance: f.remediation,
+  };
+}
 
 export function normalizeFinding(raw: any): Finding {
   if (!raw || typeof raw !== "object") {
@@ -167,7 +196,33 @@ export async function fetchFindings(params?: FindingsFilterParams): Promise<Find
     }
   }
 
-  const items = rawItems.map(normalizeFinding);
+  let items = rawItems.map(normalizeFinding);
+
+  // If remote returned 200 OK with 0 findings, hydrate from live probe findings
+  if (items.length === 0) {
+    if (params?.assessmentId) {
+      const probe = getLiveScanResult(params.assessmentId);
+      if (probe && probe.findings && probe.findings.length > 0) {
+        items = probe.findings.map((f) => convertLiveProbeFinding(f, params.assessmentId!, probe.targetUrl));
+        total = items.length;
+      }
+    } else {
+      const allResults = getAllLiveScanResults();
+      const collected: Finding[] = [];
+      allResults.forEach(({ assessmentId, result }) => {
+        if (result && Array.isArray(result.findings)) {
+          result.findings.forEach((f) => {
+            collected.push(convertLiveProbeFinding(f, assessmentId, result.targetUrl));
+          });
+        }
+      });
+      if (collected.length > 0) {
+        items = collected;
+        total = collected.length;
+      }
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return {
@@ -183,6 +238,65 @@ export async function getFindingDetail(id: string): Promise<FindingDetail> {
   if (isDemoMode()) {
     return demoFindingsProvider.getFindingDetail(id);
   }
+
+  // If this is a live diagnostic probe finding, resolve from live scan store
+  if (id.includes("-probe-") || id.startsWith("live-")) {
+    const all = getAllLiveScanResults();
+    for (const { assessmentId, result } of all) {
+      const match = result.findings.find((f) => f.id === id);
+      if (match) {
+        const base = convertLiveProbeFinding(match, assessmentId, result.targetUrl);
+        return {
+          ...base,
+          observations: [
+            {
+              id: `obs-${id}`,
+              findingId: id,
+              assessmentId,
+              status: "OPEN",
+              scanner: match.scanner,
+              target: result.targetUrl,
+              observedAt: new Date().toISOString(),
+              timestamp: new Date().toISOString(),
+              evidenceRefs: [],
+              evidenceCount: 1,
+              rawMetadata: { evidence: match.evidence },
+            },
+          ],
+          evidence: match.evidence
+            ? [
+                {
+                  id: `ev-${id}`,
+                  findingId: id,
+                  title: "HTTP Diagnostic Evidence",
+                  evidenceType: "http_trace",
+                  rawPayload: match.evidence,
+                },
+              ]
+            : [],
+          auditTrail: [
+            {
+              id: `trail-${id}`,
+              timestamp: new Date().toISOString(),
+              actor: "Kelvin Live Diagnostic Scanner",
+              action: "Initial Discovery",
+              fromStatus: "",
+              toStatus: "OPEN",
+              justification: "Automated perimeter probe validation",
+              note: match.description,
+            },
+          ],
+          riskExplainability: {
+            formula: "CVSS Base * Asset Criticality Multiplier",
+            contributingFactors: [{ name: "Base Severity", impact: match.severity, weight: 1.0 }],
+            baseCvss: match.cvss,
+            contextualScore: match.cvss,
+          },
+        };
+      }
+    }
+  }
+
   const raw = await request<any>(`/findings/${encodeURIComponent(id)}`);
 
   const findingObj = raw?.finding ? raw.finding : raw;

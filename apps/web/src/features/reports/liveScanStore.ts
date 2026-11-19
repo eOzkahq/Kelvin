@@ -42,7 +42,17 @@ function persistStore(): void {
     memoryStore.forEach((v, k) => {
       obj[k] = v;
     });
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+    const serialized = JSON.stringify(obj);
+    try {
+      localStorage.setItem(STORAGE_KEY, serialized);
+    } catch {
+      // ignore
+    }
+    try {
+      sessionStorage.setItem(STORAGE_KEY, serialized);
+    } catch {
+      // ignore
+    }
   } catch {
     // ignore storage limits
   }
@@ -51,7 +61,19 @@ function persistStore(): void {
 function hydrateStore(): void {
   if (memoryStore.size > 0) return;
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    if (!raw) {
+      try {
+        raw = sessionStorage.getItem(STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+    }
     if (!raw) return;
     const obj = JSON.parse(raw) as Record<string, LiveProbeResult>;
     Object.entries(obj).forEach(([k, v]) => memoryStore.set(k, v));

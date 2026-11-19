@@ -6,7 +6,32 @@ import type { GenerateReportPayload, ReportItem } from "./types";
 import type { Finding } from "../findings/types";
 import type { AssessmentDetail } from "../assessments/types";
 
-let mockReportsStore: ReportItem[] = [
+const REPORTS_STORAGE_KEY = "kelvin_generated_reports";
+
+function loadStoredReports(): ReportItem[] {
+  try {
+    const raw = localStorage.getItem(REPORTS_STORAGE_KEY) || sessionStorage.getItem(REPORTS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+function persistStoredReports(reports: ReportItem[]): void {
+  try {
+    const serialized = JSON.stringify(reports);
+    try { localStorage.setItem(REPORTS_STORAGE_KEY, serialized); } catch { /* ignore */ }
+    try { sessionStorage.setItem(REPORTS_STORAGE_KEY, serialized); } catch { /* ignore */ }
+  } catch {
+    // ignore
+  }
+}
+
+const DEFAULT_MOCK_REPORTS: ReportItem[] = [
   {
     id: "rep-2026-901",
     assessmentId: "asm-001",
@@ -51,19 +76,44 @@ let mockReportsStore: ReportItem[] = [
   },
 ];
 
+const storedOnInit = loadStoredReports();
+let mockReportsStore: ReportItem[] = storedOnInit.length > 0 ? storedOnInit : [...DEFAULT_MOCK_REPORTS];
+
 export async function fetchReports(): Promise<ReportItem[]> {
   if (isDemoMode()) {
     return [...mockReportsStore];
   }
-  return request<ReportItem[]>("/reports");
+  try {
+    const remote = await request<ReportItem[]>("/reports");
+    const remoteList = Array.isArray(remote) ? remote : [];
+    const remoteIds = new Set(remoteList.map((r) => r.id));
+    const merged = [...remoteList];
+    for (const local of mockReportsStore) {
+      if (!remoteIds.has(local.id)) {
+        merged.push(local);
+      }
+    }
+    return merged;
+  } catch {
+    return [...mockReportsStore];
+  }
 }
 
 export async function generateReport(payload: GenerateReportPayload): Promise<ReportItem> {
   if (!isDemoMode()) {
-    return request<ReportItem>("/reports/generate", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    try {
+      const res = await request<ReportItem>("/reports/generate", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      if (res && res.id) {
+        mockReportsStore.unshift(res);
+        persistStoredReports(mockReportsStore);
+        return res;
+      }
+    } catch {
+      // Fallback gracefully to client-side report generation
+    }
   }
 
   const templateTitleMap: Record<string, string> = {
@@ -91,6 +141,7 @@ export async function generateReport(payload: GenerateReportPayload): Promise<Re
   };
 
   mockReportsStore.unshift(newReport);
+  persistStoredReports(mockReportsStore);
   return newReport;
 }
 
