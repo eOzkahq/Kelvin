@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { Button, Card, CardHeader, CardTitle, CardDescription, Input, SeverityBadge, StatusPill } from "../components/ui";
+import { ScaleIcon } from "../components/ui/Icons";
 
 interface DiffCategory {
   id: string;
@@ -30,14 +32,13 @@ export default function AssessmentComparePage() {
 
     setLoading(true);
     try {
-      // In production/API integration: fetch comparison from backend endpoint
-      // Simulate/fallback with structured comparison model
-      const res = await fetch(`/api/v1/assessments/${encodeURIComponent(targetId)}/compare?base=${encodeURIComponent(baseId)}`);
+      const res = await fetch(
+        `/api/v1/assessments/${encodeURIComponent(targetId)}/compare?base=${encodeURIComponent(baseId)}`
+      );
       if (res.ok) {
         const data = await res.json();
         setComparison(data);
       } else {
-        // Fallback mockup for demo / UI testing
         setComparison({
           baseAssessmentId: baseId,
           targetAssessmentId: targetId,
@@ -116,146 +117,194 @@ export default function AssessmentComparePage() {
     }
   };
 
-  const getSeverityBadgeClass = (severity: string) => {
-    switch (severity) {
-      case "CRITICAL":
-        return "bg-red-950 text-red-300 border-red-800";
-      case "HIGH":
-        return "bg-orange-950 text-orange-300 border-orange-800";
-      case "MEDIUM":
-        return "bg-amber-950 text-amber-300 border-amber-800";
-      case "LOW":
-        return "bg-sky-950 text-sky-300 border-sky-800";
-      default:
-        return "bg-zinc-800 text-zinc-300 border-zinc-700";
-    }
+  const renderDiffTable = (
+    title: string,
+    items: DiffCategory[],
+    accentBorder: string,
+    headerBg: string,
+    headerText: string
+  ) => {
+    if (items.length === 0) return null;
+    return (
+      <div className={`overflow-hidden rounded-xl border ${accentBorder} surface-card`}>
+        <div className={`${headerBg} px-4 py-2.5 font-mono font-semibold text-[11px] tracking-wider ${headerText} border-b border-zinc-800/80 uppercase flex items-center justify-between`}>
+          <span>{title}</span>
+          <span>{items.length}</span>
+        </div>
+        <table className="w-full text-left text-sm text-zinc-300">
+          <tbody className="divide-y divide-zinc-800/60">
+            {items.map((f) => (
+              <tr key={f.id} className="hover:bg-zinc-800/25 transition-colors">
+                <td className="px-4 py-3 font-medium text-xs sm:text-sm text-zinc-100">
+                  <Link to={`/findings/${f.id}`} className="hover:text-[#e8debe] transition-colors">
+                    {f.title}
+                  </Link>
+                </td>
+                <td className="px-4 py-3">
+                  <SeverityBadge severity={f.severity} size="sm" />
+                </td>
+                <td className="px-4 py-3">
+                  <StatusPill status={f.status} />
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-zinc-400 truncate max-w-[260px]">
+                  {f.endpoint}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-zinc-800/80">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Assessment Comparison</h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[#d4c9a8]">
+            Posture Drift Analysis
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-display mt-1">
+            Assessment Comparison
+          </h1>
+          <p className="mt-0.5 text-xs text-zinc-400">
             Compare two assessment runs to track security posture drift, verified resolutions, and regressions.
           </p>
         </div>
-        <Link
-          to="/findings"
-          className="rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-zinc-500 hover:text-white"
-        >
-          &larr; Back to Findings
+        <Link to="/findings">
+          <Button variant="secondary" size="sm">
+            &larr; Back to Findings
+          </Button>
         </Link>
       </div>
 
       {/* Comparison Selector Form */}
-      <form onSubmit={handleCompare} className="flex flex-wrap items-end gap-4 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
-        <div className="flex-1 min-w-[220px]">
-          <label className="block text-xs font-medium text-zinc-400 mb-1">
-            Base Assessment ID (Baseline)
-          </label>
-          <input
-            type="text"
-            required
-            placeholder="e.g. assess-2026-001"
-            value={baseId}
-            onChange={(e) => setBaseId(e.target.value)}
-            className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none"
-          />
-        </div>
+      <Card variant="elevated">
+        <CardHeader>
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <ScaleIcon size={16} className="text-[#d4c9a8]" />
+              <span>Select Baseline &amp; Target Assessment</span>
+            </CardTitle>
+            <CardDescription>
+              Compute normalized finding set deltas between two assessment snapshots
+            </CardDescription>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setBaseId("assess-2026-001");
+              setTargetId("assess-2026-002");
+            }}
+            className="text-[11px] font-mono text-[#d4c9a8] hover:text-[#f0eeea] underline cursor-pointer"
+          >
+            Fill Sample Run IDs
+          </button>
+        </CardHeader>
 
-        <div className="flex-1 min-w-[220px]">
-          <label className="block text-xs font-medium text-zinc-400 mb-1">
-            Target Assessment ID (Current Run)
-          </label>
-          <input
-            type="text"
-            required
-            placeholder="e.g. assess-2026-002"
-            value={targetId}
-            onChange={(e) => setTargetId(e.target.value)}
-            className="w-full rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:border-emerald-500 focus:outline-none"
-          />
-        </div>
+        <form onSubmit={handleCompare} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+          <div className="md:col-span-5">
+            <Input
+              label="Base Assessment ID (Baseline)"
+              type="text"
+              required
+              placeholder="e.g. assess-2026-001"
+              value={baseId}
+              onChange={(e) => setBaseId(e.target.value)}
+            />
+          </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-        >
-          {loading ? "Comparing…" : "Compare Assessments"}
-        </button>
-      </form>
+          <div className="md:col-span-5">
+            <Input
+              label="Target Assessment ID (Current Run)"
+              type="text"
+              required
+              placeholder="e.g. assess-2026-002"
+              value={targetId}
+              onChange={(e) => setTargetId(e.target.value)}
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={loading}
+              className="w-full"
+            >
+              {loading ? "Comparing…" : "Compare"}
+            </Button>
+          </div>
+        </form>
+      </Card>
 
       {/* Comparison Results */}
       {comparison && (
         <div className="space-y-6">
           {/* Delta KPI Cards */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-lg border border-red-900/40 bg-red-950/20 p-4">
-              <span className="text-xs font-medium text-red-400">Newly Detected</span>
-              <p className="mt-2 text-2xl font-bold text-red-400">+{comparison.newFindings.length}</p>
-            </div>
-            <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-4">
-              <span className="text-xs font-medium text-emerald-400">Resolved / Closed</span>
-              <p className="mt-2 text-2xl font-bold text-emerald-400">-{comparison.resolvedFindings.length}</p>
-            </div>
-            <div className="rounded-lg border border-orange-900/40 bg-orange-950/20 p-4">
-              <span className="text-xs font-medium text-orange-400">Reopened / Regressed</span>
-              <p className="mt-2 text-2xl font-bold text-orange-400">{comparison.reopenedFindings.length}</p>
-            </div>
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
-              <span className="text-xs font-medium text-zinc-400">Persistent / Unchanged</span>
-              <p className="mt-2 text-2xl font-bold text-zinc-200">{comparison.persistentFindings.length}</p>
-            </div>
+            <Card className="p-4 border-red-900/40">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-red-400">
+                Newly Detected
+              </span>
+              <p className="stat-num mt-1.5 text-3xl text-red-400">+{comparison.newFindings.length}</p>
+            </Card>
+            <Card className="p-4 border-emerald-900/40">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400">
+                Resolved / Closed
+              </span>
+              <p className="stat-num mt-1.5 text-3xl text-emerald-400">
+                -{comparison.resolvedFindings.length}
+              </p>
+            </Card>
+            <Card className="p-4 border-orange-900/40">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-orange-400">
+                Reopened / Regressed
+              </span>
+              <p className="stat-num mt-1.5 text-3xl text-orange-400">
+                {comparison.reopenedFindings.length}
+              </p>
+            </Card>
+            <Card className="p-4">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
+                Persistent / Unchanged
+              </span>
+              <p className="stat-num mt-1.5 text-3xl text-zinc-200">
+                {comparison.persistentFindings.length}
+              </p>
+            </Card>
           </div>
 
-          {/* New Findings Table */}
-          {comparison.newFindings.length > 0 && (
-            <div className="overflow-hidden rounded-lg border border-red-900/50 bg-zinc-900/60">
-              <div className="bg-red-950/40 px-4 py-2.5 font-semibold text-xs text-red-300 border-b border-red-900/50 uppercase">
-                New Vulnerabilities Discovered
-              </div>
-              <table className="w-full text-left text-sm text-zinc-300">
-                <tbody className="divide-y divide-zinc-800/60">
-                  {comparison.newFindings.map((f) => (
-                    <tr key={f.id} className="hover:bg-zinc-800/20">
-                      <td className="px-4 py-3 font-medium text-zinc-200">{f.title}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block rounded border px-2 py-0.5 text-xs font-semibold ${getSeverityBadgeClass(f.severity)}`}>
-                          {f.severity}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-zinc-400">{f.endpoint}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {renderDiffTable(
+            "New Vulnerabilities Discovered",
+            comparison.newFindings,
+            "border-red-900/45",
+            "bg-red-950/35",
+            "text-red-300"
           )}
 
-          {/* Resolved Findings Table */}
-          {comparison.resolvedFindings.length > 0 && (
-            <div className="overflow-hidden rounded-lg border border-emerald-900/50 bg-zinc-900/60">
-              <div className="bg-emerald-950/40 px-4 py-2.5 font-semibold text-xs text-emerald-300 border-b border-emerald-900/50 uppercase">
-                Resolved Findings
-              </div>
-              <table className="w-full text-left text-sm text-zinc-300">
-                <tbody className="divide-y divide-zinc-800/60">
-                  {comparison.resolvedFindings.map((f) => (
-                    <tr key={f.id} className="hover:bg-zinc-800/20">
-                      <td className="px-4 py-3 font-medium text-zinc-200">{f.title}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block rounded border px-2 py-0.5 text-xs font-semibold ${getSeverityBadgeClass(f.severity)}`}>
-                          {f.severity}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-zinc-400">{f.endpoint}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {renderDiffTable(
+            "Resolved Findings",
+            comparison.resolvedFindings,
+            "border-emerald-900/45",
+            "bg-emerald-950/35",
+            "text-emerald-300"
+          )}
+
+          {renderDiffTable(
+            "Reopened / Regressed Findings",
+            comparison.reopenedFindings,
+            "border-orange-900/45",
+            "bg-orange-950/35",
+            "text-orange-300"
+          )}
+
+          {renderDiffTable(
+            "Persistent / In-Progress Findings",
+            comparison.persistentFindings,
+            "border-zinc-800/90",
+            "bg-zinc-950/80",
+            "text-zinc-300"
           )}
         </div>
       )}

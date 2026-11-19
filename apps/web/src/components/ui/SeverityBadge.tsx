@@ -10,41 +10,42 @@ export interface SeverityBadgeProps {
 
 const severityConfig: Record<
   FindingSeverity,
-  { label: string; bg: string; text: string; border: string; dot: string }
+  { label: string; bg: string; text: string; border: string; dot: string; pulse?: boolean }
 > = {
   CRITICAL: {
     label: "Critical",
-    bg: "bg-red-950/60",
+    bg: "bg-red-950/70 shadow-[inset_0_0_12px_rgba(239,68,68,0.12)]",
     text: "text-red-300",
-    border: "border-red-800/80",
-    dot: "bg-red-500",
+    border: "border-red-700/70",
+    dot: "bg-red-400",
+    pulse: true,
   },
   HIGH: {
     label: "High",
-    bg: "bg-orange-950/60",
+    bg: "bg-orange-950/65 shadow-[inset_0_0_10px_rgba(249,115,22,0.1)]",
     text: "text-orange-300",
-    border: "border-orange-800/80",
-    dot: "bg-orange-500",
+    border: "border-orange-700/70",
+    dot: "bg-orange-400",
   },
   MEDIUM: {
     label: "Medium",
     bg: "bg-amber-950/60",
     text: "text-amber-300",
-    border: "border-amber-800/80",
-    dot: "bg-amber-500",
+    border: "border-amber-700/65",
+    dot: "bg-amber-400",
   },
   LOW: {
     label: "Low",
-    bg: "bg-blue-950/60",
-    text: "text-blue-300",
-    border: "border-blue-800/80",
-    dot: "bg-blue-500",
+    bg: "bg-sky-950/60",
+    text: "text-sky-300",
+    border: "border-sky-800/70",
+    dot: "bg-sky-400",
   },
   INFO: {
     label: "Info",
-    bg: "bg-zinc-900",
+    bg: "bg-zinc-900/90",
     text: "text-zinc-400",
-    border: "border-zinc-700",
+    border: "border-zinc-700/80",
     dot: "bg-zinc-500",
   },
 };
@@ -54,10 +55,10 @@ export const SeverityBadge: React.FC<SeverityBadgeProps> = ({
   size = "md",
   showDot = true,
 }) => {
-  const normalized = (severity.toUpperCase() as FindingSeverity) || "INFO";
+  const normalized = (severity?.toUpperCase() as FindingSeverity) || "INFO";
   const config = severityConfig[normalized] ?? severityConfig.INFO;
 
-  const sizeClass = size === "sm" ? "px-1.5 py-0.5 text-[10px]" : "px-2.5 py-1 text-xs";
+  const sizeClass = size === "sm" ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-0.5 text-[11px]";
 
   return (
     <span
@@ -66,10 +67,12 @@ export const SeverityBadge: React.FC<SeverityBadgeProps> = ({
       aria-label={`Severity: ${config.label}`}
     >
       {showDot && (
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${config.dot}`}
-          aria-hidden="true"
-        />
+        <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
+          {config.pulse && (
+            <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping ${config.dot}`} />
+          )}
+          <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${config.dot}`} />
+        </span>
       )}
       <span>{config.label}</span>
     </span>

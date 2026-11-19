@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { SearchIcon, FileTextIcon } from "../ui/Icons";
 import {
   searchPlatform,
   groupSearchResults,
@@ -125,10 +126,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         onKeyDown={handleKeyDown}
       >
         {/* Search Input Bar */}
-        <div className="relative flex items-center border-b border-zinc-800 px-4 py-3">
-          <span className="text-zinc-500 text-lg mr-3" aria-hidden="true">
-            🔍
-          </span>
+        <div className="relative flex items-center border-b border-zinc-800 px-4 py-3.5">
+          <SearchIcon size={16} className="text-[var(--brand-text)] mr-3" />
           <input
             ref={inputRef}
             type="text"
@@ -186,15 +185,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
                         data-active={isSelected}
                         onClick={() => handleSelectItem(item)}
                         onMouseEnter={() => setSelectedIndex(itemIndex)}
-                        className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors ${
-                          isSelected
-                            ? "bg-cyan-500/10 text-cyan-200 border border-cyan-500/30"
-                            : "text-zinc-300 hover:bg-zinc-800/60"
+                        className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors ${isSelected
+                              ? "bg-[var(--brand-bg)] text-[var(--brand-strong)] border border-[var(--brand-border)]"
+                              : "text-zinc-300 hover:bg-zinc-800/60 border border-transparent"
                         }`}
                       >
                         <div className="flex items-center gap-3 overflow-hidden">
-                          <span className="text-base flex-shrink-0" aria-hidden="true">
-                            {item.icon || "📄"}
+                          <span className="text-zinc-400 flex-shrink-0" aria-hidden="true">
+                            <FileTextIcon size={14} />
                           </span>
                           <div className="truncate">
                             <div className="font-medium truncate">{item.title}</div>
@@ -207,15 +205,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
                         <div className="flex items-center gap-2 flex-shrink-0 ml-4">
                           {item.badge && (
                             <span
-                              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                                item.badge === "CRITICAL"
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${item.badge === "CRITICAL"
                                   ? "bg-red-950 text-red-400 border border-red-800"
                                   : item.badge === "HIGH"
-                                  ? "bg-orange-950 text-orange-400 border border-orange-800"
-                                  : item.badge === "Production"
-                                  ? "bg-cyan-950 text-cyan-400 border border-cyan-800"
-                                  : "bg-zinc-800 text-zinc-400 border border-zinc-700"
-                              }`}
+                                    ? "bg-orange-950 text-orange-400 border border-orange-800"
+                                    : item.badge === "Production"
+                                      ? "bg-cyan-950 text-cyan-400 border border-cyan-800"
+                                      : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                                }`}
                             >
                               {item.badge}
                             </span>
@@ -249,7 +246,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
               <kbd className="rounded bg-zinc-800 px-1 py-0.5 font-mono text-zinc-400">esc</kbd> to close
             </span>
           </div>
-          <span className="text-zinc-600">KELVIN Omnibar v1.0</span>
+          <span className="font-mono text-[10px] text-zinc-500">
+            <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-zinc-400">Ctrl+Shift+P</kbd> · <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-zinc-400">/</kbd>
+          </span>
         </div>
       </div>
     </div>

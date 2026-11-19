@@ -1,3 +1,4 @@
+import { getAllLiveScanResults } from "../reports/liveScanStore";
 import type {
   BatchUpdatePayload,
   BatchUpdateResponse,
@@ -7,6 +8,37 @@ import type {
   FindingsListResponse,
   FindingSeverity,
 } from "./types";
+
+function buildLiveFindings(): Finding[] {
+  const results = getAllLiveScanResults();
+  const out: Finding[] = [];
+  for (const { assessmentId, result } of results) {
+    const tier: 1 | 2 | 3 = result.planTier ?? 1;
+    for (const f of result.findings) {
+      out.push({
+        id: `${assessmentId}-${f.id}`,
+        fingerprint: `live:${result.hostname}:${f.id}`,
+        title: f.title,
+        severity: f.severity,
+        status: "OPEN",
+        target: result.hostname,
+        affectedEndpoint: f.endpoint,
+        scanner: f.scanner,
+        cvssScore: f.cvss,
+        riskScore: Math.min(10, Number((f.cvss * 1.05).toFixed(1))),
+        cweId: f.cwe,
+        cveIds: [],
+        firstSeenAt: result.logs[0]?.timestamp || new Date().toISOString(),
+        lastSeenAt: result.logs[result.logs.length - 1]?.timestamp || new Date().toISOString(),
+        description: f.description,
+        remediation: f.remediation,
+        remediationGuidance: f.remediation,
+        requiredTier: tier,
+      });
+    }
+  }
+  return out;
+}
 
 const severityWeights: Record<FindingSeverity, number> = {
   CRITICAL: 5,
@@ -176,14 +208,117 @@ export const INITIAL_FINDINGS: Finding[] = [
     description: "Server response header exposes 'nginx/1.24.0 (Ubuntu)'.",
     remediation: "Disable server_tokens directive in nginx.conf.",
     remediationGuidance: "Disable server_tokens directive in nginx.conf.",
+    requiredTier: 1,
+  },
+  {
+    id: "fnd-009",
+    fingerprint: "sha256:9d118b7a5e2f",
+    title: "Vulnerable OpenSSL 3.0.11 Container Image Package (Trivy SBOM)",
+    severity: "HIGH",
+    status: "OPEN",
+    target: "registry.staging.kelvin-sec.internal",
+    affectedEndpoint: "ghcr.io/eozka/kelvin-api:v1.8 (libssl3 3.0.11)",
+    scanner: "Trivy",
+    cvssScore: 7.8,
+    riskScore: 7.6,
+    cweId: "CWE-119",
+    cveIds: ["CVE-2024-5535"],
+    firstSeenAt: "2026-11-01T08:00:00Z",
+    lastSeenAt: "2026-11-04T09:15:00Z",
+    assignee: "sec-ops@kelvin.io",
+    description: "Container layer contains libssl3 affected by SSL_select_next_proto buffer overread detected by Pro SBOM scanner.",
+    remediation: "Rebuild base Alpine runtime image pinning openssl >= 3.0.14-r0.",
+    remediationGuidance: "Rebuild base Alpine runtime image pinning openssl >= 3.0.14-r0.",
+    requiredTier: 2,
+  },
+  {
+    id: "fnd-010",
+    fingerprint: "sha256:c4a9e8f10b72",
+    title: "Permissive SPF Record (+all) & Missing DNS CAA Issuance Lock",
+    severity: "HIGH",
+    status: "OPEN",
+    target: "edge.eozka-perimeter.io",
+    affectedEndpoint: "dns://edge.eozka-perimeter.io (TXT / CAA)",
+    scanner: "Custom-Workers",
+    cvssScore: 7.4,
+    riskScore: 7.2,
+    cweId: "CWE-290",
+    cveIds: [],
+    firstSeenAt: "2026-11-02T11:30:00Z",
+    lastSeenAt: "2026-11-05T10:00:00Z",
+    assignee: "perimeter-ops@kelvin.io",
+    description: "Enterprise DNS compliance probe detected +all SPF authorization and zero CAA records restricting certificate authorities.",
+    remediation: "Replace +all with -all in SPF TXT and publish DNS CAA issue records for DigiCert / Let's Encrypt.",
+    remediationGuidance: "Replace +all with -all in SPF TXT and publish DNS CAA issue records for DigiCert / Let's Encrypt.",
+    requiredTier: 3,
+  },
+  {
+    id: "fnd-011",
+    fingerprint: "sha256:e7f2a1d49c03",
+    title: "SAML 2.0 Identity Federation Missing Strict AudienceRestriction Validation",
+    severity: "CRITICAL",
+    status: "CONFIRMED",
+    target: "sso.kelvin-enterprise.internal",
+    affectedEndpoint: "https://sso.kelvin-enterprise.internal/saml/acs",
+    scanner: "Custom-Workers",
+    cvssScore: 9.1,
+    riskScore: 9.0,
+    cweId: "CWE-347",
+    cveIds: [],
+    firstSeenAt: "2026-11-03T15:40:00Z",
+    lastSeenAt: "2026-11-06T06:20:00Z",
+    assignee: "iam-security@kelvin.io",
+    description: "Enterprise SSO ACS endpoint accepts assertions without verifying AudienceRestriction URI or InResponseTo freshness window.",
+    remediation: "Enforce exact SP EntityID AudienceRestriction matching and single-use Assertion ID replay cache.",
+    remediationGuidance: "Enforce exact SP EntityID AudienceRestriction matching and single-use Assertion ID replay cache.",
+    requiredTier: 3,
+  },
+  {
+    id: "fnd-012",
+    fingerprint: "sha256:6b8c4f1d9a22",
+    title: "Multi-Cluster KMS Envelope Key Exceeds 365-Day Rotation Policy",
+    severity: "MEDIUM",
+    status: "OPEN",
+    target: "kms.cluster-eu.kelvin-sec.internal",
+    affectedEndpoint: "arn:aws:kms:eu-central-1:9012:key/perimeter-ledger",
+    scanner: "Custom-Workers",
+    cvssScore: 5.5,
+    riskScore: 5.3,
+    cweId: "CWE-320",
+    cveIds: [],
+    firstSeenAt: "2026-11-04T09:10:00Z",
+    lastSeenAt: "2026-11-06T12:00:00Z",
+    assignee: "cloud-sec@kelvin.io",
+    description: "Compliance worker audit detected static CMK encryption material exceeding SOC 2 CC6.6 365-day cryptographic rotation ceiling.",
+    remediation: "Enable annual KMS automatic key rotation and verify SIEM alert delivery webhook.",
+    remediationGuidance: "Enable annual KMS automatic key rotation and verify SIEM alert delivery webhook.",
+    requiredTier: 3,
   },
 ];
 
-let mockFindingsStore: Finding[] = JSON.parse(JSON.stringify(INITIAL_FINDINGS));
+let mockFindingsStore: Finding[] = JSON.parse(JSON.stringify(INITIAL_FINDINGS)).map((f: Finding) => {
+  if (f.requiredTier) return f;
+  const s = f.scanner.toLowerCase();
+  if (s === "owasp-zap" || s === "trivy") return { ...f, requiredTier: 2 as const };
+  if (s === "custom-workers") return { ...f, requiredTier: 3 as const };
+  return { ...f, requiredTier: 1 as const };
+});
 
 export const demoFindingsProvider = {
   fetchFindings(params?: FindingsFilterParams): Promise<FindingsListResponse> {
-    let filtered = [...mockFindingsStore];
+    const combined = [...buildLiveFindings(), ...mockFindingsStore];
+    const maxTier = params?.maxTier;
+    const lockedTierCounts =
+      maxTier !== undefined
+        ? {
+            pro: maxTier < 2 ? combined.filter((f) => (f.requiredTier ?? 1) === 2).length : 0,
+            enterprise: maxTier < 3 ? combined.filter((f) => (f.requiredTier ?? 1) === 3).length : 0,
+          }
+        : undefined;
+
+    let filtered = maxTier !== undefined
+      ? combined.filter((f) => (f.requiredTier ?? 1) <= maxTier)
+      : combined;
 
     if (params?.search) {
       const q = params.search.toLowerCase();
@@ -245,11 +380,13 @@ export const demoFindingsProvider = {
       page,
       limit,
       totalPages,
+      lockedTierCounts,
     });
   },
 
   getFindingDetail(id: string): Promise<FindingDetail> {
-    const finding = mockFindingsStore.find((f) => f.id === id) || mockFindingsStore[0];
+    const all = [...buildLiveFindings(), ...mockFindingsStore];
+    const finding = all.find((f) => f.id === id) || mockFindingsStore[0];
     return Promise.resolve({
       ...finding,
       riskExplainability: {
