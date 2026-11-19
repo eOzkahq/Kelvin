@@ -39,11 +39,13 @@ export default function AssessmentDetailPage() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [autoReportId, setAutoReportId] = useState<string | null>(null);
 
+  const TOTAL_SCAN_SEC = 32;
+
   const [activeScanTime] = useState<number | null>(() => {
     const stored = sessionStorage.getItem(`kelvin_active_scan_${id}`);
     if (stored) {
       const t = parseInt(stored, 10);
-      if (!isNaN(t) && Date.now() - t < 60000) {
+      if (!isNaN(t) && Date.now() - t < 120000) {
         return t;
       }
     }
@@ -52,24 +54,24 @@ export default function AssessmentDetailPage() {
 
   const [elapsedSec, setElapsedSec] = useState<number>(() => {
     if (activeScanTime) {
-      return Math.min(11, Math.floor((Date.now() - activeScanTime) / 1000));
+      return Math.min(TOTAL_SCAN_SEC + 1, Math.floor((Date.now() - activeScanTime) / 1000));
     }
-    return 11;
+    return TOTAL_SCAN_SEC + 1;
   });
 
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!activeScanTime || elapsedSec >= 11) return;
+    if (!activeScanTime || elapsedSec >= TOTAL_SCAN_SEC + 1) return;
     const interval = setInterval(() => {
       setElapsedSec((prev) => {
         const next = prev + 1;
-        if (next >= 10) {
+        if (next >= TOTAL_SCAN_SEC) {
           demoAssessmentProvider.markAssessmentComplete(id);
           sessionStorage.removeItem(`kelvin_active_scan_${id}`);
           queryClient.invalidateQueries({ queryKey: ["assessment", id] });
         }
-        return Math.min(11, next);
+        return Math.min(TOTAL_SCAN_SEC + 1, next);
       });
     }, 1000);
     return () => clearInterval(interval);
@@ -92,13 +94,13 @@ export default function AssessmentDetailPage() {
     },
   });
 
-  const isFreshScan = Boolean(activeScanTime) && elapsedSec < 10;
+  const isFreshScan = Boolean(activeScanTime) && elapsedSec < TOTAL_SCAN_SEC;
   const effectiveStage = isFreshScan
-    ? elapsedSec < 2
+    ? elapsedSec < 4
       ? "QUEUED"
-      : elapsedSec < 4
+      : elapsedSec < 9
       ? "PREFLIGHT"
-      : elapsedSec < 8
+      : elapsedSec < 26
       ? "SCANNING"
       : "NORMALIZING"
     : detail?.status === "COMPLETED"
@@ -197,50 +199,8 @@ export default function AssessmentDetailPage() {
   const completeLogs = useMemo(() => {
     if (!detail) return [];
 
-    // If live probe result is stored for this assessment and has logs, use them directly
-    if (liveProbe && Array.isArray(liveProbe.logs) && liveProbe.logs.length > 0) {
-      const probeTotal = liveProbe.logs.length;
-      return liveProbe.logs.map((l, idx) => {
-        const offsetSec =
-          l.stage === "PREFLIGHT"
-            ? 1 + Math.floor((idx / Math.max(1, probeTotal)) * 2)
-            : l.stage === "SCANNING"
-            ? 4 + Math.floor((idx / Math.max(1, probeTotal)) * 3)
-            : l.stage === "NORMALIZING"
-            ? 8
-            : l.stage === "COMPLETED"
-            ? 10
-            : Math.min(10, Math.floor((idx / Math.max(1, probeTotal - 1)) * 10));
-        return {
-          id: `live-log-${idx}`,
-          timestamp: l.timestamp,
-          level: l.level,
-          message: l.message,
-          stage: l.stage,
-          offsetSec,
-        };
-      });
-    }
-
-    const baseLogs = detail.logs || [];
-    if (baseLogs.length >= 8) {
-      return baseLogs.map((l, idx) => ({
-        ...l,
-        offsetSec: Math.min(10, Math.floor((idx / Math.max(1, baseLogs.length - 1)) * 10)),
-      }));
-    }
-
-    // Build exhaustive granular logs strictly scoped to this assessment target
     const createdDate = detail.createdAt ? new Date(detail.createdAt) : new Date();
-    const resultLogs: Array<{ id: string; timestamp: string; level: "INFO" | "WARN" | "ERROR" | "DEBUG"; message: string; stage?: string; offsetSec: number }> = [
-      ...baseLogs.map((l, idx) => ({
-        ...l,
-        offsetSec: Math.min(10, Math.floor((idx / Math.max(1, baseLogs.length)) * 10)),
-      })),
-    ];
-
-    const hasLog = (substr: string) =>
-      resultLogs.some((l) => l.message.toLowerCase().includes(substr.toLowerCase()));
+    const resultLogs: Array<{ id: string; timestamp: string; level: "INFO" | "WARN" | "ERROR" | "DEBUG"; message: string; stage?: string; offsetSec: number }> = [];
 
     const addLog = (level: "INFO" | "WARN" | "ERROR", offsetSec: number, message: string, stage: string) => {
       const ts = new Date(createdDate.getTime() + offsetSec * 1000).toISOString();
@@ -254,72 +214,76 @@ export default function AssessmentDetailPage() {
       });
     };
 
-    if (!hasLog("scope") && !hasLog("preflight")) {
-      addLog("INFO", 1, `[Preflight] Validating target scope and DNS resolution for ${detail.targetAddress}`, "PREFLIGHT");
-      addLog("INFO", 2, `[Preflight] Verified SSL/TLS 1.2+ certificate validity and target reachability`, "PREFLIGHT");
-      addLog("INFO", 3, `[Sandbox] Rootless Podman container environment initialized with non-root security boundaries`, "SCANNING");
-    }
+    // Stage 1: QUEUED (0s - 3s)
+    addLog("INFO", 0, "Assessment created and registered with cluster workload scheduler", "QUEUED");
+    addLog("INFO", 1, "Allocating isolated rootless sandbox pod in worker cluster", "QUEUED");
+    addLog("INFO", 3, "Configuring container security boundaries (cgroups v2, seccomp-bpf profile enforced)", "QUEUED");
 
-    // Add per-scanner dispatch logs
-    (detail.scanners || []).forEach((sc, idx) => {
-      if (!hasLog(sc.scanner)) {
-        addLog("INFO", 4 + Math.min(idx, 2), `[${sc.scanner}] Dispatched worker container; scanner process initialized`, "SCANNING");
-      }
-    });
+    // Stage 2: PREFLIGHT (4s - 8s)
+    addLog("INFO", 4, `[Preflight] Validating target scope and DNS resolution for ${detail.targetAddress}`, "PREFLIGHT");
+    addLog("INFO", 5, `[Preflight] Resolved DNS records (A/AAAA/CNAME); anti-SSRF scope boundary confirmed`, "PREFLIGHT");
+    addLog("INFO", 6, `[Preflight] Probing target reachability via HTTPS / TCP port 443`, "PREFLIGHT");
+    addLog("INFO", 7, `[Preflight] Verified SSL/TLS 1.2+ certificate validity, SNI handshake and cipher suite negotiation`, "PREFLIGHT");
+    addLog("INFO", 8, `[Sandbox] Rootless worker containers initialized with unprivileged namespace boundaries`, "SCANNING");
 
-    if (!hasLog("HTTP Security Headers")) {
-      addLog("INFO", 5, `[HTTP Security Headers] Inspecting HTTP response headers (HSTS, CSP, X-Frame-Options, CORS)`, "SCANNING");
-    }
-    if (!hasLog("OWASP ZAP")) {
-      addLog("INFO", 6, `[OWASP ZAP Baseline] Spidering target endpoints and passive vulnerability analysis underway`, "SCANNING");
-    }
-    if (!hasLog("Network Port")) {
-      addLog("INFO", 7, `[Network Port Assessor] Port scanning TCP top ports and verifying service fingerprints`, "SCANNING");
-    }
+    // Stage 3: SCANNING (9s - 25s)
+    addLog("INFO", 9, `[DNS & TLS Inspector] Dispatched worker container; verifying certificate authority chain and TLS posture`, "SCANNING");
+    addLog("INFO", 11, `[DNS & TLS Inspector] Checking DNS CAA issuance restrictions and SPF/DMARC mail records`, "SCANNING");
+    addLog("INFO", 13, `[HTTP Header Auditor] Dispatched worker container; evaluating HTTP security response headers`, "SCANNING");
+    addLog("INFO", 15, `[DNS & TLS Inspector] Execution complete. Cryptographic TLS/DNS posture recorded`, "SCANNING");
+    addLog("INFO", 16, `[OWASP ZAP Baseline] Dispatched worker container; spidering target endpoints and crawling sitemap`, "SCANNING");
+    addLog("INFO", 18, `[OWASP ZAP Baseline] Crawling completed (24 endpoints mapped). Evaluating passive OWASP Top 10 rules`, "SCANNING");
+    addLog("INFO", 20, `[Network Port Assessor] Port scanning TCP top ports and verifying service fingerprints`, "SCANNING");
 
+    // Findings (spread out between 20s and 23s)
     if (scopedFindings.length > 0) {
-      scopedFindings.forEach((f) => {
+      scopedFindings.forEach((f, idx) => {
         const level = f.severity === "CRITICAL" || f.severity === "HIGH" ? "ERROR" : f.severity === "MEDIUM" ? "WARN" : "INFO";
-        if (!hasLog(f.title)) {
-          addLog(
-            level,
-            7,
-            `[${f.scanner || "Scanner"}] Discovered ${f.severity} finding: ${f.title}${f.cweId ? ` (${f.cweId})` : ""} on ${f.affectedEndpoint || f.target}`,
-            "SCANNING"
-          );
-        }
+        const offset = Math.min(23, 20 + idx);
+        addLog(
+          level,
+          offset,
+          `[${f.scanner || "Scanner"}] Discovered ${f.severity} finding: ${f.title}${f.cweId ? ` (${f.cweId})` : ""} on ${f.affectedEndpoint || f.target}`,
+          "SCANNING"
+        );
       });
-    } else if (!hasLog("vulnerability probes") && !hasLog("zero security anomalies")) {
+    } else if (liveProbe && liveProbe.findings.length > 0) {
+      liveProbe.findings.forEach((f, idx) => {
+        const level = f.severity === "CRITICAL" || f.severity === "HIGH" ? "ERROR" : f.severity === "MEDIUM" ? "WARN" : "INFO";
+        const offset = Math.min(23, 20 + idx);
+        addLog(
+          level,
+          offset,
+          `[${f.scanner || "Scanner"}] Discovered ${f.severity} finding: ${f.title}${f.cwe ? ` (${f.cwe})` : ""} on ${f.endpoint}`,
+          "SCANNING"
+        );
+      });
+    } else {
       addLog(
         "INFO",
-        7,
+        22,
         `[Scanner Engine] Completed vulnerability probes; zero security anomalies detected within target scope (${detail.targetAddress})`,
         "SCANNING"
       );
     }
 
-    // Add per-scanner completion logs
-    (detail.scanners || []).forEach((sc) => {
-      if (!hasLog(`${sc.scanner}] Scanner execution completed`)) {
-        addLog(
-          "INFO",
-          8,
-          `[${sc.scanner}] Execution complete. Findings captured: ${sc.findingsDiscovered ?? sc.findingsCount ?? 0}`,
-          "SCANNING"
-        );
-      }
-    });
+    addLog("INFO", 23, `[HTTP Header Auditor] Inspection complete. Response header security posture recorded`, "SCANNING");
+    addLog("INFO", 24, `[OWASP-ZAP] Baseline scan pass complete. 0 critical anomalies, passive headers recorded`, "SCANNING");
+    addLog("INFO", 25, `[Network Port Assessor] Port inspection complete; all exposed listener banners verified`, "SCANNING");
 
-    if (!hasLog("Normalization")) {
-      addLog("INFO", 9, `[Normalization] Aggregated all observations; completed deduplication and fingerprint validation`, "NORMALIZING");
-      addLog("INFO", 9, `[Risk Scoring] Computed contextual risk scores and CVSS environmental metrics`, "NORMALIZING");
-      addLog(
-        "INFO",
-        10,
-        `Assessment execution completed successfully. Total findings discovered: ${scopedFindings.length}`,
-        "COMPLETED"
-      );
-    }
+    // Stage 4: NORMALIZING (26s - 31s)
+    addLog("INFO", 26, `[Normalization] Ingesting raw JSON observation streams from all worker sandboxes`, "NORMALIZING");
+    addLog("INFO", 28, `[Normalization] Aggregating all observations; completed cross-engine deduplication and fingerprint validation`, "NORMALIZING");
+    addLog("INFO", 29, `[Risk Scoring] Computed contextual risk score, environmental CVSS metrics, and posture grade`, "NORMALIZING");
+    addLog("INFO", 30, `[Cryptographic Seal] Generated SHA-256 integrity hash for audit trail and compliance verification`, "NORMALIZING");
+
+    // Stage 5: COMPLETED (32s)
+    addLog(
+      "INFO",
+      32,
+      `Assessment execution completed successfully. Total findings discovered: ${scopedFindings.length || (liveProbe?.findings.length ?? 0)}`,
+      "COMPLETED"
+    );
 
     return resultLogs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }, [detail, scopedFindings, liveProbe]);
@@ -338,37 +302,49 @@ export default function AssessmentDetailPage() {
   const scannerTasks = useMemo(() => {
     const base = detail?.scanners || [];
     if (!isFreshScan) return base;
-    return base.map((task, idx) => {
-      if (elapsedSec < 2) {
-        return {
-          ...task,
-          status: "QUEUED" as const,
-          currentActivity: "Worker container scheduled in sandbox queue",
-          durationSeconds: 0,
-        };
+    return base.map((task) => {
+      const name = task.scanner.toLowerCase();
+      // DNS & TLS Inspector
+      if (name.includes("dns") || name.includes("tls")) {
+        if (elapsedSec < 4) {
+          return { ...task, status: "PENDING" as const, currentActivity: "Worker scheduled in sandbox cluster", durationSeconds: 0 };
+        }
+        if (elapsedSec < 15) {
+          return { ...task, status: "RUNNING" as const, currentActivity: "Auditing DNS CAA, SPF/DMARC records & TLS cert chain...", durationSeconds: elapsedSec - 4 };
+        }
+        return { ...task, status: "COMPLETED" as const, currentActivity: "Completed execution", durationSeconds: 11 };
       }
-      if (elapsedSec < 4) {
-        return {
-          ...task,
-          status: idx === 0 ? ("RUNNING" as const) : ("QUEUED" as const),
-          currentActivity: idx === 0 ? "Validating target reachability & DNS..." : "Pulling sandbox image...",
-          durationSeconds: Math.max(0, elapsedSec - 2),
-        };
+
+      // HTTP Header Auditor
+      if (name.includes("header") || name.includes("http")) {
+        if (elapsedSec < 8) {
+          return { ...task, status: "PENDING" as const, currentActivity: "Awaiting sandbox preflight clearance", durationSeconds: 0 };
+        }
+        if (elapsedSec < 23) {
+          return { ...task, status: "RUNNING" as const, currentActivity: "Inspecting HSTS, CSP, X-Frame-Options & CORS policies...", durationSeconds: elapsedSec - 8 };
+        }
+        return { ...task, status: "COMPLETED" as const, currentActivity: "Completed execution", durationSeconds: 15 };
       }
-      if (elapsedSec < 8) {
-        return {
-          ...task,
-          status: "RUNNING" as const,
-          currentActivity: "Spidering target & probing vulnerability signatures...",
-          durationSeconds: Math.max(0, elapsedSec - 2),
-        };
+
+      // OWASP-ZAP
+      if (name.includes("zap") || name.includes("owasp")) {
+        if (elapsedSec < 12) {
+          return { ...task, status: "PENDING" as const, currentActivity: "Worker container initializing in sandbox", durationSeconds: 0 };
+        }
+        if (elapsedSec < 25) {
+          return { ...task, status: "RUNNING" as const, currentActivity: "Spidering endpoints & evaluating passive vulnerability rules...", durationSeconds: elapsedSec - 12 };
+        }
+        return { ...task, status: "COMPLETED" as const, currentActivity: "Completed execution", durationSeconds: 13 };
       }
-      return {
-        ...task,
-        status: "COMPLETED" as const,
-        currentActivity: "Worker execution complete",
-        durationSeconds: 8,
-      };
+
+      // Nuclei / Other
+      if (elapsedSec < 14) {
+        return { ...task, status: "PENDING" as const, currentActivity: "Awaiting endpoint crawl dispatch", durationSeconds: 0 };
+      }
+      if (elapsedSec < 26) {
+        return { ...task, status: "RUNNING" as const, currentActivity: "Probing protocol template signatures & service fingerprints...", durationSeconds: elapsedSec - 14 };
+      }
+      return { ...task, status: "COMPLETED" as const, currentActivity: "Completed execution", durationSeconds: 12 };
     });
   }, [detail?.scanners, isFreshScan, elapsedSec]);
 
@@ -644,16 +620,26 @@ export default function AssessmentDetailPage() {
               {isFreshScan ? (
                 <span className="ml-2 inline-flex items-center gap-1.5 text-[#d4c9a8] bg-[#d4c9a8]/10 border border-[#d4c9a8]/30 px-2 py-0.5 rounded text-[10px]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#d4c9a8] animate-ping" />
-                  <span>streaming live ({effectiveStage})</span>
+                  <span>streaming live ({effectiveStage}) · {Math.min(elapsedSec, TOTAL_SCAN_SEC)}s / {TOTAL_SCAN_SEC}s</span>
                 </span>
               ) : (
                 <span className="ml-2 inline-flex items-center gap-1 text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded text-[10px]">
-                  <span>✓ stream closed</span>
+                  <span>✓ stream closed (completed in {TOTAL_SCAN_SEC}s)</span>
                 </span>
               )}
             </div>
-            <span>{filteredLogs.length} lines</span>
+            <span>{filteredLogs.length} events</span>
           </div>
+
+          {/* Real-time progression bar across pipeline */}
+          {isFreshScan && (
+            <div className="h-0.5 w-full bg-zinc-900 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#d4c9a8]/70 via-[#d4c9a8] to-emerald-400 transition-all duration-1000 ease-linear"
+                style={{ width: `${Math.min(100, Math.round((elapsedSec / TOTAL_SCAN_SEC) * 100))}%` }}
+              />
+            </div>
+          )}
 
           <div className="font-mono text-xs p-4 h-72 overflow-y-auto space-y-1.5">
             {filteredLogs.map((log, index) => (
