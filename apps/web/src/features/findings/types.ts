@@ -80,6 +80,7 @@ export interface RiskExplainability {
 
 export interface Finding {
   id: string;
+  assessmentId?: string;
   fingerprint: string;
   title: string;
   severity: FindingSeverity;

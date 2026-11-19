@@ -97,6 +97,7 @@ export function normalizeFinding(raw: any): Finding {
 
   return {
     id: String(raw.id || ""),
+    assessmentId: raw.assessmentId || raw.assessment_id || undefined,
     fingerprint: String(raw.fingerprint || ""),
     title: String(raw.title || "Untitled Finding"),
     severity: (String(raw.severity || "INFO").toUpperCase() as FindingSeverity),

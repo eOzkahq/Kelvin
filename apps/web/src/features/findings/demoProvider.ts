@@ -17,6 +17,7 @@ function buildLiveFindings(): Finding[] {
     for (const f of result.findings) {
       out.push({
         id: `${assessmentId}-${f.id}`,
+        assessmentId,
         fingerprint: `live:${result.hostname}:${f.id}`,
         title: f.title,
         severity: f.severity,
@@ -297,6 +298,7 @@ export const INITIAL_FINDINGS: Finding[] = [
 ];
 
 let mockFindingsStore: Finding[] = JSON.parse(JSON.stringify(INITIAL_FINDINGS)).map((f: Finding) => {
+  f.assessmentId = f.assessmentId || "asmt-2026-001";
   if (f.requiredTier) return f;
   const s = f.scanner.toLowerCase();
   if (s === "owasp-zap" || s === "trivy") return { ...f, requiredTier: 2 as const };
@@ -307,18 +309,28 @@ let mockFindingsStore: Finding[] = JSON.parse(JSON.stringify(INITIAL_FINDINGS)).
 export const demoFindingsProvider = {
   fetchFindings(params?: FindingsFilterParams): Promise<FindingsListResponse> {
     const combined = [...buildLiveFindings(), ...mockFindingsStore];
+    let filtered = combined;
+
+    if (params?.assessmentId) {
+      filtered = filtered.filter(
+        (f: Finding) =>
+          f.assessmentId === params.assessmentId ||
+          f.id.startsWith(`${params.assessmentId}-`)
+      );
+    }
+
     const maxTier = params?.maxTier;
     const lockedTierCounts =
       maxTier !== undefined
         ? {
-            pro: maxTier < 2 ? combined.filter((f) => (f.requiredTier ?? 1) === 2).length : 0,
-            enterprise: maxTier < 3 ? combined.filter((f) => (f.requiredTier ?? 1) === 3).length : 0,
+            pro: maxTier < 2 ? filtered.filter((f) => (f.requiredTier ?? 1) === 2).length : 0,
+            enterprise: maxTier < 3 ? filtered.filter((f) => (f.requiredTier ?? 1) === 3).length : 0,
           }
         : undefined;
 
-    let filtered = maxTier !== undefined
-      ? combined.filter((f) => (f.requiredTier ?? 1) <= maxTier)
-      : combined;
+    if (maxTier !== undefined) {
+      filtered = filtered.filter((f) => (f.requiredTier ?? 1) <= maxTier);
+    }
 
     if (params?.search) {
       const q = params.search.toLowerCase();
@@ -406,7 +418,7 @@ export const demoFindingsProvider = {
           name: "HTTP Request / Response Sanitized Trace",
           storagePath: `evidence/${id}/trace.json`,
           sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          sanitizedPayload: "GET /api/v1/auth/ldap HTTP/1.1\r\nHost: api.staging.kelvin-sec.internal\r\nAuthorization: Bearer [REDACTED_JWT_TOKEN]\r\n\r\n[Payload Processed Safely]",
+          sanitizedPayload: `GET ${finding.affectedEndpoint || "/"} HTTP/1.1\r\nHost: ${finding.target}\r\nAuthorization: Bearer [REDACTED_JWT_TOKEN]\r\n\r\n[Payload Processed Safely]`,
           isSafe: true,
           redactionCount: 1,
         },
@@ -498,6 +510,13 @@ export const demoFindingsProvider = {
   },
 
   resetMockFindings(): void {
-    mockFindingsStore = JSON.parse(JSON.stringify(INITIAL_FINDINGS));
+    mockFindingsStore = JSON.parse(JSON.stringify(INITIAL_FINDINGS)).map((f: Finding) => {
+      f.assessmentId = f.assessmentId || "asmt-2026-001";
+      if (f.requiredTier) return f;
+      const s = f.scanner.toLowerCase();
+      if (s === "owasp-zap" || s === "trivy") return { ...f, requiredTier: 2 as const };
+      if (s === "custom-workers") return { ...f, requiredTier: 3 as const };
+      return { ...f, requiredTier: 1 as const };
+    });
   },
 };

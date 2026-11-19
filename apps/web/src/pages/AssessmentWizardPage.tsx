@@ -10,7 +10,7 @@ import {
 } from "../features/assessments";
 import { demoAssessmentProvider } from "../features/assessments/demoProvider";
 import { ensureReportForAssessment } from "../features/reports/reportsApi";
-import { runLiveWebsiteProbe, saveLiveScanResult } from "../features/reports/liveScanStore";
+import { runLiveWebsiteProbe, saveLiveScanResult, createFallbackLiveProbe } from "../features/reports/liveScanStore";
 import { isDemoMode } from "../config/env";
 import {
   Card,
@@ -156,7 +156,14 @@ export default function AssessmentWizardPage() {
           demoAssessmentProvider.attachLiveProbe(res.id, probe);
           findingsCount = probe.findings.length;
         } catch {
-          // Live probe unreachable or non-dev environment — still auto-create assessment report
+          // If live probe backend is unreachable (e.g. offline, static preview), synthesize target-scoped probe
+          const fallbackProbe = createFallbackLiveProbe(
+            effectiveTargetHost,
+            (activePlan.tierNumber as 1 | 2 | 3) || 1,
+          );
+          saveLiveScanResult(res.id, fallbackProbe);
+          demoAssessmentProvider.attachLiveProbe(res.id, fallbackProbe);
+          findingsCount = fallbackProbe.findings.length;
         }
 
         const report = await ensureReportForAssessment(res.id, effectiveTargetHost, assessmentName);

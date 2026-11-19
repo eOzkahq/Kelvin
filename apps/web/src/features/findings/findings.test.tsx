@@ -123,4 +123,18 @@ describe("Findings Management & Search API Engine (FE-08)", () => {
     expect(lines[0]).toContain("Status");
     expect(lines[0]).toContain("Risk Score");
   });
+
+  it("strictly enforces assessmentId scope isolation and prevents finding leakage across assessments", async () => {
+    // 1. Existing default assessment returns its scoped findings
+    const asmt1 = await fetchFindings({ assessmentId: "asmt-2026-001" });
+    expect(asmt1.items.length).toBeGreaterThan(0);
+    asmt1.items.forEach((f) => {
+      expect(f.assessmentId).toBe("asmt-2026-001");
+    });
+
+    // 2. An unrelated or newly queued assessment with no findings returns empty list (zero cross-target leakage)
+    const unrelatedAsmt = await fetchFindings({ assessmentId: "asmt-devbuildz-custom-999" });
+    expect(unrelatedAsmt.items).toHaveLength(0);
+    expect(unrelatedAsmt.total).toBe(0);
+  });
 });

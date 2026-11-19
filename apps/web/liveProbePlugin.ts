@@ -1,5 +1,6 @@
 import dns from "node:dns/promises";
 import tls from "node:tls";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
 
 export interface LiveProbeFinding {
@@ -604,44 +605,49 @@ async function runLiveProbe(rawTarget: string, rawTier: number = 1): Promise<Liv
 }
 
 export function liveProbePlugin(): Plugin {
+  const handler = (req: IncomingMessage, res: ServerResponse): void => {
+    if (req.method !== "POST") {
+      res.statusCode = 405;
+      res.end("Method Not Allowed");
+      return;
+    }
+
+    let body = "";
+    req.on("data", (chunk: Buffer | string) => {
+      body += chunk;
+    });
+    req.on("end", async () => {
+      try {
+        const parsed = JSON.parse(body || "{}") as { target?: string; tier?: number };
+        if (!parsed.target) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: "Missing target URL or hostname" }));
+          return;
+        }
+        const result = await runLiveProbe(parsed.target, parsed.tier ?? 1);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        res.end(
+          JSON.stringify({
+            error: err instanceof Error ? err.message : "Live probe failed",
+          }),
+        );
+      }
+    });
+  };
+
   return {
     name: "kelvin-live-probe-middleware",
     configureServer(server) {
-      server.middlewares.use("/services/kelvin/__live_probe", async (req, res) => {
-        if (req.method !== "POST") {
-          res.statusCode = 405;
-          res.end("Method Not Allowed");
-          return;
-        }
-
-        let body = "";
-        req.on("data", (chunk) => {
-          body += chunk;
-        });
-        req.on("end", async () => {
-          try {
-            const parsed = JSON.parse(body || "{}") as { target?: string; tier?: number };
-            if (!parsed.target) {
-              res.statusCode = 400;
-              res.setHeader("Content-Type", "application/json");
-              res.end(JSON.stringify({ error: "Missing target URL or hostname" }));
-              return;
-            }
-            const result = await runLiveProbe(parsed.target, parsed.tier ?? 1);
-            res.statusCode = 200;
-            res.setHeader("Content-Type", "application/json");
-            res.end(JSON.stringify(result));
-          } catch (err) {
-            res.statusCode = 400;
-            res.setHeader("Content-Type", "application/json");
-            res.end(
-              JSON.stringify({
-                error: err instanceof Error ? err.message : "Live probe failed",
-              }),
-            );
-          }
-        });
-      });
+      server.middlewares.use("/services/kelvin/__live_probe", handler);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use("/services/kelvin/__live_probe", handler);
     },
   };
 }
