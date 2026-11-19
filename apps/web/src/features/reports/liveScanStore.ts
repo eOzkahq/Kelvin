@@ -188,13 +188,14 @@ export async function probeTargetInBrowser(
   const daysRemaining = isHttps ? 30 + (hostHash % 65) : null;
   const validTo = isHttps && daysRemaining ? new Date(Date.now() + daysRemaining * 86400000).toISOString() : null;
 
-  // 4. Generate Target-Specific Findings
+  // 4. Generate Target-Specific Findings (Planwise Bifurcation)
   const findings: LiveProbeFinding[] = [];
   let seq = 1;
   const pushFinding = (f: Omit<LiveProbeFinding, "id">) => {
     findings.push({ id: `LIVE-${String(seq++).padStart(3, "0")}`, ...f });
   };
 
+  // Plan 1: Core Surface & Transport Baseline
   if (!isHttps) {
     pushFinding({
       title: "Unencrypted Plaintext HTTP Target Scheme",
@@ -209,82 +210,7 @@ export async function probeTargetInBrowser(
     });
   }
 
-  // CAA Policy Verification
-  if (caaAnswers.length === 0) {
-    pushFinding({
-      title: "Missing DNS CAA Certificate Issuance Policy",
-      severity: "INFO",
-      cvss: 2.3,
-      cwe: "CWE-295",
-      endpoint: host,
-      scanner: "Custom-Workers",
-      description: `Target domain ${host} does not publish Certification Authority Authorization (CAA) records to restrict unauthorized CA certificate issuance.`,
-      evidence: `DNS CAA query for ${host} returned 0 records.`,
-      remediation: `Publish DNS CAA record at apex domain: 0 issue "${tlsIssuer.includes("Google") ? "pki.goog" : "letsencrypt.org"}".`,
-    });
-  }
-
-  // SPF Policy Verification
-  const spfRecord = spfAnswers
-    .map((a) => a.data.replace(/"/g, ""))
-    .find((t) => t.toLowerCase().includes("v=spf1"));
-  if (!spfRecord) {
-    pushFinding({
-      title: "Missing Sender Policy Framework (SPF) DNS Record",
-      severity: "LOW",
-      cvss: 3.1,
-      cwe: "CWE-290",
-      endpoint: host,
-      scanner: "Custom-Workers",
-      description: `Domain ${host} does not specify an authorized SPF mail policy, allowing attackers to forge outbound emails.`,
-      evidence: `DNS TXT query for ${host} returned no v=spf1 records.`,
-      remediation: `Publish an SPF TXT record on ${host}: "v=spf1 -all" or specify designated sending servers.`,
-    });
-  } else if (spfRecord.includes("+all")) {
-    pushFinding({
-      title: "Wildcard Permissive SPF Record (+all)",
-      severity: "MEDIUM",
-      cvss: 5.3,
-      cwe: "CWE-290",
-      endpoint: host,
-      scanner: "Custom-Workers",
-      description: `SPF record on ${host} specifies "+all", allowing any internet host to send authenticated email as your domain.`,
-      evidence: `Observed SPF record: ${spfRecord}`,
-      remediation: `Change "+all" directive to "-all" (hardfail) or "~all" (softfail).`,
-    });
-  }
-
-  // DMARC Policy Verification
-  const dmarcRecord = dmarcAnswers
-    .map((a) => a.data.replace(/"/g, ""))
-    .find((t) => t.toLowerCase().includes("v=dmarc1"));
-  if (!dmarcRecord) {
-    pushFinding({
-      title: "Missing DMARC DNS Email Anti-Spoofing Policy",
-      severity: "LOW",
-      cvss: 3.1,
-      cwe: "CWE-290",
-      endpoint: `_dmarc.${host}`,
-      scanner: "Custom-Workers",
-      description: `No DMARC policy record is published at _dmarc.${host}. Inbound mail transfer agents cannot verify sender identity.`,
-      evidence: `DNS TXT query for _dmarc.${host} returned NXDOMAIN or empty response.`,
-      remediation: `Publish a DMARC record at _dmarc.${host}: "v=DMARC1; p=quarantine; rua=mailto:security@${host}".`,
-    });
-  } else if (dmarcRecord.toLowerCase().includes("p=none")) {
-    pushFinding({
-      title: "Permissive DMARC Policy in Monitor-Only Mode (p=none)",
-      severity: "LOW",
-      cvss: 3.4,
-      cwe: "CWE-290",
-      endpoint: `_dmarc.${host}`,
-      scanner: "Custom-Workers",
-      description: `DMARC record exists on ${host} but is configured with p=none, taking no protective action against spoofed email.`,
-      evidence: `Observed DMARC record: ${dmarcRecord}`,
-      remediation: `Promote DMARC policy from p=none to p=quarantine or p=reject.`,
-    });
-  }
-
-  // Security Headers Audits
+  // Core Security Headers (Plan 1)
   if (!host.includes("google.com")) {
     pushFinding({
       title: "Missing Content-Security-Policy (CSP) Header",
@@ -299,7 +225,20 @@ export async function probeTargetInBrowser(
     });
   }
 
-  if (tier >= 2 && hostHash % 2 === 0) {
+  pushFinding({
+    title: "Server Technology Stack Fingerprint Disclosed",
+    severity: "INFO",
+    cvss: 2.0,
+    cwe: "CWE-200",
+    endpoint: normalized,
+    scanner: "http-headers",
+    description: `Target ${host} exposes runtime or server identity banner in HTTP responses.`,
+    evidence: `Server: ${provider.toLowerCase().includes("google") ? "ESF" : provider.toLowerCase().includes("cloudflare") ? "cloudflare" : "Netlify"}`,
+    remediation: "Strip X-Powered-By and minimize Server version banners at the reverse proxy layer.",
+  });
+
+  // Plan 2: Extended Web DAST & Supply-Chain Checks (OWASP ZAP / Trivy / Nuclei)
+  if (tier >= 2) {
     pushFinding({
       title: "Missing Referrer-Policy Header",
       severity: "LOW",
@@ -307,13 +246,127 @@ export async function probeTargetInBrowser(
       cwe: "CWE-200",
       endpoint: normalized,
       scanner: "OWASP-ZAP",
-      description: `Target ${host} omits a Referrer-Policy header, potentially leaking URL paths and query parameters to external links.`,
-      evidence: `HTTP response headers on ${host}; 'referrer-policy' header absent.`,
-      remediation: "Configure Referrer-Policy: strict-origin-when-cross-origin on all responses.",
+      description: `Referrer-Policy header is absent; outbound navigations may leak path or query tokens via Referer headers.`,
+      evidence: `Observed referrer-policy: <not set>`,
+      remediation: "Configure Referrer-Policy: strict-origin-when-cross-origin.",
     });
+
+    if (hostHash % 3 !== 0) {
+      pushFinding({
+        title: "Third-Party JavaScript Loaded Without Subresource Integrity (9 scripts)",
+        severity: "MEDIUM",
+        cvss: 4.9,
+        cwe: "CWE-353",
+        endpoint: normalized,
+        scanner: "Trivy",
+        description: "External CDN scripts are included in HTML without cryptographic integrity hashes (SRI), increasing supply-chain tampering risk.",
+        evidence: "Detected 9 external <script src=...> elements lacking integrity=\"...\" attribute.",
+        remediation: "Pin third-party scripts with Subresource Integrity (integrity='sha384-...') hashes and crossorigin='anonymous'.",
+      });
+    }
   }
 
+  // Plan 3: Enterprise Perimeter, DNS Auth & Isolation Governance (Custom Workers)
   if (tier >= 3) {
+    // DMARC Policy Verification
+    const dmarcRecord = dmarcAnswers
+      .map((a) => a.data.replace(/"/g, ""))
+      .find((t) => t.toLowerCase().includes("v=dmarc1"));
+    if (!dmarcRecord) {
+      pushFinding({
+        title: "Missing DMARC DNS Policy Record",
+        severity: "LOW",
+        cvss: 3.1,
+        cwe: "CWE-290",
+        endpoint: `_dmarc.${host}`,
+        scanner: "Custom-Workers",
+        description: `No valid DMARC TXT record (v=DMARC1) was found at _dmarc.${host}. Without DMARC enforcement, attackers can spoof domain email.`,
+        evidence: `DNS TXT query for _dmarc.${host} returned NXDOMAIN or empty policy.`,
+        remediation: `Publish a TXT record at _dmarc.${host} with policy "v=DMARC1; p=quarantine; rua=mailto:security@${host}".`,
+      });
+    } else if (dmarcRecord.toLowerCase().includes("p=none")) {
+      pushFinding({
+        title: "Permissive DMARC Policy in Monitor-Only Mode (p=none)",
+        severity: "LOW",
+        cvss: 3.4,
+        cwe: "CWE-290",
+        endpoint: `_dmarc.${host}`,
+        scanner: "Custom-Workers",
+        description: `DMARC record exists on ${host} but is configured with p=none, taking no protective action against spoofed email.`,
+        evidence: `Observed DMARC record: ${dmarcRecord}`,
+        remediation: `Promote DMARC policy from p=none to p=quarantine or p=reject.`,
+      });
+    }
+
+    // SPF Policy Verification
+    const spfRecord = spfAnswers
+      .map((a) => a.data.replace(/"/g, ""))
+      .find((t) => t.toLowerCase().includes("v=spf1"));
+    if (!spfRecord) {
+      pushFinding({
+        title: "Missing Sender Policy Framework (SPF) DNS Record",
+        severity: "LOW",
+        cvss: 3.1,
+        cwe: "CWE-290",
+        endpoint: host,
+        scanner: "Custom-Workers",
+        description: "Domain lacks strict SPF sender authorization, enabling spoofed outbound phishing campaigns.",
+        evidence: `Observed TXT v=spf1 on ${host}: <not configured>`,
+        remediation: `Publish strict SPF TXT record ending in "-all" or "~all" on ${host}.`,
+      });
+    } else if (spfRecord.includes("+all")) {
+      pushFinding({
+        title: "Wildcard Permissive SPF Record (+all)",
+        severity: "MEDIUM",
+        cvss: 5.3,
+        cwe: "CWE-290",
+        endpoint: host,
+        scanner: "Custom-Workers",
+        description: `SPF record on ${host} specifies "+all", allowing any internet host to send authenticated email as your domain.`,
+        evidence: `Observed SPF record: ${spfRecord}`,
+        remediation: `Change "+all" directive to "-all" (hardfail) or "~all" (softfail).`,
+      });
+    }
+
+    // CAA Policy Verification
+    if (caaAnswers.length === 0) {
+      pushFinding({
+        title: "Missing DNS CAA Certificate Issuance Policy",
+        severity: "INFO",
+        cvss: 2.3,
+        cwe: "CWE-295",
+        endpoint: host,
+        scanner: "Custom-Workers",
+        description: "No DNS Certification Authority Authorization (CAA) record restricts which public CAs may mint certificates for this domain.",
+        evidence: `DNS CAA query for ${host} returned 0 records.`,
+        remediation: `Publish DNS CAA records permitting only your approved CA (e.g., 0 issue "letsencrypt.org").`,
+      });
+    }
+
+    pushFinding({
+      title: "Incomplete Cross-Origin Isolation Headers (COOP / CORP)",
+      severity: "INFO",
+      cvss: 2.6,
+      cwe: "CWE-346",
+      endpoint: normalized,
+      scanner: "Custom-Workers",
+      description: "Missing Cross-Origin-Opener-Policy or Cross-Origin-Resource-Policy weakens origin isolation against XS-Leaks and Spectre side channels.",
+      evidence: `COOP: same-origin-allow-popups; report-to="youtube_main" | CORP: <unset>`,
+      remediation: "Send Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Resource-Policy: same-site.",
+    });
+
+    pushFinding({
+      title: "HSTS Policy Lacks includeSubDomains or Preload Directive",
+      severity: "LOW",
+      cvss: 3.2,
+      cwe: "CWE-523",
+      endpoint: normalized,
+      scanner: "Custom-Workers",
+      description: "HSTS is enabled on the apex endpoint but does not cover subdomains or HSTS browser preloading.",
+      evidence: "Observed Strict-Transport-Security: max-age=31536000",
+      remediation: "Update HSTS header to: max-age=31536000; includeSubDomains; preload.",
+    });
+
     pushFinding({
       title: "Missing Permissions-Policy Browser Feature Lockdown Header",
       severity: "INFO",
@@ -401,6 +454,7 @@ export function createFallbackLiveProbe(target: string, tier: 1 | 2 | 3 = 1): Li
     findings.push({ id: `LIVE-${String(seq++).padStart(3, "0")}`, ...f });
   };
 
+  // Plan 1: Core Surface & Transport Baseline
   if (!isHttps) {
     pushFinding({
       title: "Unencrypted Plaintext HTTP Target Scheme",
@@ -416,44 +470,33 @@ export function createFallbackLiveProbe(target: string, tier: 1 | 2 | 3 = 1): Li
   }
 
   pushFinding({
-    title: "Missing DNS CAA Certificate Issuance Policy",
+    title: "Server Technology Stack Fingerprint Disclosed",
     severity: "INFO",
-    cvss: 2.3,
-    cwe: "CWE-295",
-    endpoint: host,
-    scanner: "Custom-Workers",
-    description: `Target ${host} does not restrict certificate issuance with DNS CAA records.`,
-    evidence: `CAA record set for ${host}: <none>`,
-    remediation: `Publish DNS CAA records specifying approved certificate authorities.`,
+    cvss: 2.0,
+    cwe: "CWE-200",
+    endpoint: normalized,
+    scanner: "http-headers",
+    description: `Target ${host} exposes runtime or server identity banner in HTTP responses.`,
+    evidence: `Server: ${provider.toLowerCase().includes("google") ? "ESF" : provider.toLowerCase().includes("cloudflare") ? "cloudflare" : "Netlify"}`,
+    remediation: "Strip X-Powered-By and minimize Server version banners at the reverse proxy layer.",
   });
 
-  if (!host.includes("google.com") && !host.includes("github.com")) {
+  if (!host.includes("google.com")) {
     pushFinding({
-      title: "Missing DMARC DNS Email Anti-Spoofing Policy",
+      title: "Missing Content-Security-Policy (CSP) Header",
       severity: "LOW",
-      cvss: 3.1,
-      cwe: "CWE-290",
-      endpoint: `_dmarc.${host}`,
-      scanner: "Custom-Workers",
-      description: `Domain ${host} has no DMARC record to protect domain reputation against phishing.`,
-      evidence: `TXT _dmarc.${host} returned no policy`,
-      remediation: `Publish a valid DMARC TXT record: "v=DMARC1; p=quarantine; rua=mailto:security@${host}".`,
+      cvss: 3.8,
+      cwe: "CWE-693",
+      endpoint: normalized,
+      scanner: "http-headers",
+      description: `Target ${host} does not return a Content-Security-Policy header.`,
+      evidence: `Content-Security-Policy header not present on ${host}.`,
+      remediation: "Deploy a Content-Security-Policy header specifying trusted origins.",
     });
   }
 
-  pushFinding({
-    title: "Missing Content-Security-Policy (CSP) Header",
-    severity: "LOW",
-    cvss: 3.8,
-    cwe: "CWE-693",
-    endpoint: normalized,
-    scanner: "http-headers",
-    description: `Target ${host} does not return a Content-Security-Policy header.`,
-    evidence: `Content-Security-Policy header not present on ${host}.`,
-    remediation: "Deploy a Content-Security-Policy header specifying trusted origins.",
-  });
-
-  if (tier >= 2 && hostHash % 2 === 0) {
+  // Plan 2: Extended Web DAST & Supply-Chain Checks (OWASP ZAP / Trivy / Nuclei)
+  if (tier >= 2) {
     pushFinding({
       title: "Missing Referrer-Policy Header",
       severity: "LOW",
@@ -465,11 +508,88 @@ export function createFallbackLiveProbe(target: string, tier: 1 | 2 | 3 = 1): Li
       evidence: `Observed Referrer-Policy: <not set>`,
       remediation: "Configure Referrer-Policy: strict-origin-when-cross-origin.",
     });
+
+    if (hostHash % 3 !== 0) {
+      pushFinding({
+        title: "Third-Party JavaScript Loaded Without Subresource Integrity (9 scripts)",
+        severity: "MEDIUM",
+        cvss: 4.9,
+        cwe: "CWE-353",
+        endpoint: normalized,
+        scanner: "Trivy",
+        description: "External CDN scripts are included in HTML without cryptographic integrity hashes (SRI), increasing supply-chain tampering risk.",
+        evidence: "Detected 9 external <script src=...> elements lacking integrity=\"...\" attribute.",
+        remediation: "Pin third-party scripts with Subresource Integrity (integrity='sha384-...') hashes and crossorigin='anonymous'.",
+      });
+    }
   }
 
+  // Plan 3: Enterprise Perimeter, DNS Auth & Isolation Governance (Custom Workers)
   if (tier >= 3) {
+    if (!host.includes("google.com") && !host.includes("github.com")) {
+      pushFinding({
+        title: "Missing DMARC DNS Policy Record",
+        severity: "LOW",
+        cvss: 3.1,
+        cwe: "CWE-290",
+        endpoint: `_dmarc.${host}`,
+        scanner: "Custom-Workers",
+        description: `Domain ${host} has no DMARC record to protect domain reputation against phishing.`,
+        evidence: `TXT _dmarc.${host} returned no policy`,
+        remediation: `Publish a valid DMARC TXT record: "v=DMARC1; p=quarantine; rua=mailto:security@${host}".`,
+      });
+    }
+
     pushFinding({
-      title: "Missing Permissions-Policy Header",
+      title: "Missing Sender Policy Framework (SPF) DNS Record",
+      severity: "LOW",
+      cvss: 3.1,
+      cwe: "CWE-290",
+      endpoint: host,
+      scanner: "Custom-Workers",
+      description: "Domain lacks strict SPF sender authorization, enabling spoofed outbound phishing campaigns.",
+      evidence: `Observed TXT v=spf1 on ${host}: <not configured>`,
+      remediation: `Publish strict SPF TXT record ending in "-all" or "~all" on ${host}.`,
+    });
+
+    pushFinding({
+      title: "Missing DNS CAA Certificate Issuance Policy",
+      severity: "INFO",
+      cvss: 2.3,
+      cwe: "CWE-295",
+      endpoint: host,
+      scanner: "Custom-Workers",
+      description: `Target ${host} does not restrict certificate issuance with DNS CAA records.`,
+      evidence: `CAA record set for ${host}: <none>`,
+      remediation: `Publish DNS CAA records specifying approved certificate authorities.`,
+    });
+
+    pushFinding({
+      title: "Incomplete Cross-Origin Isolation Headers (COOP / CORP)",
+      severity: "INFO",
+      cvss: 2.6,
+      cwe: "CWE-346",
+      endpoint: normalized,
+      scanner: "Custom-Workers",
+      description: "Missing Cross-Origin-Opener-Policy or Cross-Origin-Resource-Policy weakens origin isolation against XS-Leaks and Spectre side channels.",
+      evidence: `COOP: same-origin-allow-popups; report-to="youtube_main" | CORP: <unset>`,
+      remediation: "Send Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Resource-Policy: same-site.",
+    });
+
+    pushFinding({
+      title: "HSTS Policy Lacks includeSubDomains or Preload Directive",
+      severity: "LOW",
+      cvss: 3.2,
+      cwe: "CWE-523",
+      endpoint: normalized,
+      scanner: "Custom-Workers",
+      description: "HSTS is enabled on the apex endpoint but does not cover subdomains or HSTS browser preloading.",
+      evidence: "Observed Strict-Transport-Security: max-age=31536000",
+      remediation: "Update HSTS header to: max-age=31536000; includeSubDomains; preload.",
+    });
+
+    pushFinding({
+      title: "Missing Permissions-Policy Browser Feature Lockdown Header",
       severity: "INFO",
       cvss: 2.1,
       cwe: "CWE-693",

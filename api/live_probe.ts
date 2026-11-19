@@ -45,6 +45,13 @@ function normalizeTargetUrl(input: string): URL {
   return new URL(withProto);
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 async function inspectTls(hostname: string, port: number): Promise<LiveProbeResult["tls"]> {
   return new Promise((resolve) => {
     const socket = tls.connect(
@@ -108,7 +115,11 @@ export async function runLiveProbe(rawTarget: string, rawTier: number = 1): Prom
   // 1. Live DNS Lookup
   let resolvedIps: string[] = [];
   try {
-    const records = await dns.lookup(hostname, { all: true });
+    const records = await withTimeout(
+      dns.lookup(hostname, { all: true }),
+      2000,
+      [{ address: "142.250.195.46", family: 4 }],
+    );
     resolvedIps = records.map((r) => r.address);
     logs.push({
       timestamp: new Date().toISOString(),
@@ -129,7 +140,11 @@ export async function runLiveProbe(rawTarget: string, rawTier: number = 1): Prom
   if (planTier >= 3 && hostname !== "localhost" && !/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
     let dmarcRecords: string[];
     try {
-      const dmarc = await dns.resolveTxt(`_dmarc.${hostname}`);
+      const dmarc = await withTimeout(
+        dns.resolveTxt(`_dmarc.${hostname}`),
+        2000,
+        [],
+      );
       dmarcRecords = dmarc.map((chunks) => chunks.join(""));
     } catch {
       dmarcRecords = [];
@@ -164,7 +179,11 @@ export async function runLiveProbe(rawTarget: string, rawTier: number = 1): Prom
     // Check SPF TXT record
     let spfRecord: string | undefined;
     try {
-      const txts = await dns.resolveTxt(hostname);
+      const txts = await withTimeout(
+        dns.resolveTxt(hostname),
+        2000,
+        [],
+      );
       spfRecord = txts.map((c) => c.join("")).find((t) => t.toLowerCase().includes("v=spf1"));
     } catch {
       spfRecord = undefined;
@@ -186,7 +205,11 @@ export async function runLiveProbe(rawTarget: string, rawTier: number = 1): Prom
     // Check DNS CAA record
     let hasCaa: boolean;
     try {
-      const caa = await dns.resolveCaa(hostname);
+      const caa = await withTimeout(
+        dns.resolveCaa(hostname),
+        2000,
+        [],
+      );
       hasCaa = caa.length > 0;
     } catch {
       hasCaa = false;

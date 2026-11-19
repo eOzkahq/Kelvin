@@ -1,5 +1,4 @@
 import { buildStructuredReport } from "./reportModel";
-import { buildEozkaPdfLogoOps } from "./eozkaReportLogo";
 import type { ReportItem } from "./types";
 
 type RGB = [number, number, number];
@@ -154,38 +153,27 @@ export function buildSecurityReportPdfBlob(report: ReportItem): Blob {
     y -= 14;
   };
 
-  // --- eOzka Official Logo + Warm Ivory Masthead ---
-  const mastH = 114;
+  // --- eOzka Official Editorial Masthead ---
+  const mastH = 76;
   const mastBottom = y - mastH + 14;
   drawLine(marginX, y + 14, pageW - marginX, y + 14, INK.indigo, 2.5);
   fillRect(marginX, mastBottom, contentW, mastH, INK.ivory);
   strokeRect(marginX, mastBottom, contentW, mastH, INK.ruleLight, 0.6);
 
-  // Official vector eOzka Full Logo (Wordmark + "Augmenting Sentient" cursive tagline)
-  const logoResult = buildEozkaPdfLogoOps(marginX + 12, y + 4, 96);
-  curPage.push(...logoResult.cmds);
-
-  // Editorial platform subhead aligned cleanly beside logo
-  drawLine(marginX + 116, y + 4, marginX + 116, y - 34, INK.ruleLight, 0.7);
-  drawText(marginX + 126, y - 8, "KELVIN SECURITY PLATFORM", "F2", 9, INK.indigo);
-  drawText(marginX + 126, y - 20, "Official Security Assessment Deliverable", "F1", 7.8, INK.muted);
+  // Platform & Brand Header Line
   drawText(
-    marginX + 126,
-    y - 31,
-    `${doc.planLabel.toUpperCase()}  ·  ${report.templateType.replace(/_/g, " ")}`,
-    "F3",
-    7.2,
-    INK.sub,
+    marginX + 12,
+    y - 2,
+    `EOZKA - KELVIN SECURITY PLATFORM - AUGMENTING SENTIENT - ${doc.planLabel.toUpperCase()}`,
+    "F2",
+    8.5,
+    INK.indigo,
   );
 
-  // Hairline gold separator inside masthead above report title
-  drawLine(marginX + 12, y - 43, pageW - marginX - 12, y - 43, INK.ruleLight, 0.7);
-  y -= 58;
-
-  const titleLines = wrapLines(report.title, 62);
-  titleLines.slice(0, 2).forEach((line) => {
-    drawText(marginX + 12, y, line, "F2", 13.5, INK.black);
-    y -= 15;
+  y -= 23;
+  const titleLines = wrapLines(report.title, 56);
+  titleLines.slice(0, 1).forEach((line) => {
+    drawText(marginX + 12, y, line, "F2", 14.5, INK.black);
   });
 
   drawText(
@@ -197,7 +185,7 @@ export function buildSecurityReportPdfBlob(report: ReportItem): Blob {
     INK.muted,
   );
   y = mastBottom - 2;
-  drawLine(marginX, y, pageW - marginX, y, INK.gold, 1.5);
+  drawLine(marginX, y, pageW - marginX, y, INK.gold, 1.8);
   y -= 12;
 
   // --- Hairline-Ruled 4-Column Metric Strip ---
