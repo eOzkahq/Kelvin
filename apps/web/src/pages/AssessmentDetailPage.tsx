@@ -337,6 +337,17 @@ export default function AssessmentDetailPage() {
         return { ...task, status: "COMPLETED" as const, currentActivity: "Completed execution", durationSeconds: 13 };
       }
 
+      // Custom Workers / Trivy SBOM (Plan 3 Enterprise)
+      if (name.includes("custom") || name.includes("trivy") || name.includes("sbom")) {
+        if (elapsedSec < 16) {
+          return { ...task, status: "PENDING" as const, currentActivity: "Waiting for container image pull & SBOM indexing", durationSeconds: 0 };
+        }
+        if (elapsedSec < 27) {
+          return { ...task, status: "RUNNING" as const, currentActivity: "Scanning container packages, dependencies & cloud KMS envelopes...", durationSeconds: elapsedSec - 16 };
+        }
+        return { ...task, status: "COMPLETED" as const, currentActivity: "Completed execution", durationSeconds: 11 };
+      }
+
       // Nuclei / Other
       if (elapsedSec < 14) {
         return { ...task, status: "PENDING" as const, currentActivity: "Awaiting endpoint crawl dispatch", durationSeconds: 0 };

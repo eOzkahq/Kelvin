@@ -168,6 +168,22 @@ export const demoAssessmentProvider = {
     const profileName =
       mockProfiles.find((p) => p.id === payload.profileId)?.name || "Standard Security Profile";
 
+    const isEnterpriseProfile = payload.profileId === "prof-full-active";
+    const scanners: Array<{ id: string; scanner: string; status: "PENDING" | "RUNNING" | "COMPLETED"; findingsCount: number }> = [
+      { id: `sc-dns-${newId}`, scanner: "DNS & TLS Inspector", status: "PENDING", findingsCount: 0 },
+      { id: `sc-hdr-${newId}`, scanner: "HTTP Header Auditor", status: "PENDING", findingsCount: 0 },
+      { id: `sc-zap-${newId}`, scanner: "OWASP-ZAP", status: "PENDING", findingsCount: 0 },
+      { id: `sc-nuclei-${newId}`, scanner: "Nuclei", status: "PENDING", findingsCount: 0 },
+    ];
+    if (isEnterpriseProfile) {
+      scanners.push({
+        id: `sc-custom-${newId}`,
+        scanner: "Custom Workers & Trivy SBOM",
+        status: "PENDING",
+        findingsCount: 0,
+      });
+    }
+
     const newRecord: AssessmentDetail = {
       id: newId,
       name: payload.name,
@@ -181,12 +197,7 @@ export const demoAssessmentProvider = {
       highCount: 0,
       totalFindings: 0,
       createdAt: new Date().toISOString(),
-      scanners: [
-        { id: `sc-dns-${newId}`, scanner: "DNS & TLS Inspector", status: "PENDING", findingsCount: 0 },
-        { id: `sc-hdr-${newId}`, scanner: "HTTP Header Auditor", status: "PENDING", findingsCount: 0 },
-        { id: `sc-zap-${newId}`, scanner: "OWASP-ZAP", status: "PENDING", findingsCount: 0 },
-        { id: `sc-nuclei-${newId}`, scanner: "Nuclei", status: "PENDING", findingsCount: 0 },
-      ],
+      scanners,
       logs: [
         { id: `log-init-${newId}`, timestamp: new Date().toISOString(), level: "INFO", message: "Assessment created and queued", stage: "QUEUED" },
       ],
@@ -202,36 +213,48 @@ export const demoAssessmentProvider = {
     found.criticalCount = probe.findings.filter((f) => f.severity === "CRITICAL").length;
     found.highCount = probe.findings.filter((f) => f.severity === "HIGH").length;
     found.totalFindings = probe.findings.length;
-    found.scanners = [
+    const baseScanners = [
       {
         id: `sc-dns-${id}`,
         scanner: "DNS & TLS Inspector",
-        status: "RUNNING",
+        status: "RUNNING" as const,
         findingsCount: probe.findings.filter((f) => f.scanner === "dns-probe" || f.scanner === "tls-check").length,
         startTime: found.createdAt,
       },
       {
         id: `sc-hdr-${id}`,
         scanner: "HTTP Header Auditor",
-        status: "RUNNING",
+        status: "RUNNING" as const,
         findingsCount: probe.findings.filter((f) => f.scanner === "http-headers" || f.scanner === "http-preflight").length,
         startTime: found.createdAt,
       },
       {
         id: `sc-zap-${id}`,
         scanner: "OWASP-ZAP",
-        status: "RUNNING",
+        status: "RUNNING" as const,
         findingsCount: 0,
         startTime: found.createdAt,
       },
       {
         id: `sc-nuclei-${id}`,
         scanner: "Nuclei",
-        status: "RUNNING",
+        status: "RUNNING" as const,
         findingsCount: 0,
         startTime: found.createdAt,
       },
     ];
+
+    if (probe.planTier === 3 || found.profileId === "prof-full-active") {
+      baseScanners.push({
+        id: `sc-custom-${id}`,
+        scanner: "Custom Workers & Trivy SBOM",
+        status: "RUNNING" as const,
+        findingsCount: 0,
+        startTime: found.createdAt,
+      });
+    }
+
+    found.scanners = baseScanners;
   },
 
   markAssessmentComplete(id: string): void {
