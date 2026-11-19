@@ -175,23 +175,20 @@ export const demoAssessmentProvider = {
       targetAddress: resolvedTarget,
       profileId: payload.profileId,
       profileName,
-      status: "COMPLETED",
-      currentStage: "COMPLETED",
+      status: "RUNNING",
+      currentStage: "QUEUED",
       criticalCount: 0,
       highCount: 0,
       totalFindings: 0,
       createdAt: new Date().toISOString(),
-      completedAt: new Date().toISOString(),
       scanners: [
-        { id: `sc-dns-${newId}`, scanner: "DNS & TLS Inspector", status: "COMPLETED", findingsCount: 0 },
-        { id: `sc-hdr-${newId}`, scanner: "HTTP Header Auditor", status: "COMPLETED", findingsCount: 0 },
+        { id: `sc-dns-${newId}`, scanner: "DNS & TLS Inspector", status: "PENDING", findingsCount: 0 },
+        { id: `sc-hdr-${newId}`, scanner: "HTTP Header Auditor", status: "PENDING", findingsCount: 0 },
+        { id: `sc-zap-${newId}`, scanner: "OWASP-ZAP", status: "PENDING", findingsCount: 0 },
+        { id: `sc-nuclei-${newId}`, scanner: "Nuclei", status: "PENDING", findingsCount: 0 },
       ],
       logs: [
-        { id: `log-init-${newId}`, timestamp: new Date(Date.now() - 4000).toISOString(), level: "INFO", message: "Assessment created and queued", stage: "QUEUED" },
-        { id: `log-pref-${newId}`, timestamp: new Date(Date.now() - 3000).toISOString(), level: "INFO", message: `[Preflight] Validating target scope and DNS resolution for ${resolvedTarget}`, stage: "PREFLIGHT" },
-        { id: `log-tls-${newId}`, timestamp: new Date(Date.now() - 2000).toISOString(), level: "INFO", message: `[Preflight] Verified SSL/TLS 1.2+ certificate validity and target reachability`, stage: "PREFLIGHT" },
-        { id: `log-scan-${newId}`, timestamp: new Date(Date.now() - 1000).toISOString(), level: "INFO", message: `[Scanner Engine] Completed vulnerability probes; zero security anomalies detected within target scope (${resolvedTarget})`, stage: "SCANNING" },
-        { id: `log-done-${newId}`, timestamp: new Date().toISOString(), level: "INFO", message: `Assessment execution completed successfully. Total findings discovered: 0`, stage: "COMPLETED" },
+        { id: `log-init-${newId}`, timestamp: new Date().toISOString(), level: "INFO", message: "Assessment created and queued", stage: "QUEUED" },
       ],
     };
     mockAssessmentsStore.unshift(newRecord);
@@ -202,9 +199,6 @@ export const demoAssessmentProvider = {
     const found = mockAssessmentsStore.find((a) => a.id === id);
     if (!found) return;
     found.targetAddress = probe.targetUrl;
-    found.status = "COMPLETED";
-    found.currentStage = "COMPLETED";
-    found.completedAt = new Date().toISOString();
     found.criticalCount = probe.findings.filter((f) => f.severity === "CRITICAL").length;
     found.highCount = probe.findings.filter((f) => f.severity === "HIGH").length;
     found.totalFindings = probe.findings.length;
@@ -212,26 +206,44 @@ export const demoAssessmentProvider = {
       {
         id: `sc-dns-${id}`,
         scanner: "DNS & TLS Inspector",
-        status: "COMPLETED",
+        status: "RUNNING",
         findingsCount: probe.findings.filter((f) => f.scanner === "dns-probe" || f.scanner === "tls-check").length,
         startTime: found.createdAt,
-        endTime: found.completedAt,
       },
       {
         id: `sc-hdr-${id}`,
         scanner: "HTTP Header Auditor",
-        status: "COMPLETED",
+        status: "RUNNING",
         findingsCount: probe.findings.filter((f) => f.scanner === "http-headers" || f.scanner === "http-preflight").length,
         startTime: found.createdAt,
-        endTime: found.completedAt,
+      },
+      {
+        id: `sc-zap-${id}`,
+        scanner: "OWASP-ZAP",
+        status: "RUNNING",
+        findingsCount: 0,
+        startTime: found.createdAt,
+      },
+      {
+        id: `sc-nuclei-${id}`,
+        scanner: "Nuclei",
+        status: "RUNNING",
+        findingsCount: 0,
+        startTime: found.createdAt,
       },
     ];
-    found.logs = probe.logs.map((l, idx) => ({
-      id: `log-live-${idx}`,
-      timestamp: l.timestamp,
-      level: l.level,
-      message: l.message,
-      stage: l.stage,
+  },
+
+  markAssessmentComplete(id: string): void {
+    const found = mockAssessmentsStore.find((a) => a.id === id);
+    if (!found) return;
+    found.status = "COMPLETED";
+    found.currentStage = "COMPLETED";
+    found.completedAt = new Date().toISOString();
+    found.scanners = (found.scanners || []).map((sc) => ({
+      ...sc,
+      status: "COMPLETED",
+      endTime: found.completedAt,
     }));
   },
 

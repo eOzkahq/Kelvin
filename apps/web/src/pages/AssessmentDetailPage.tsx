@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchAssessmentDetail,
   cancelAssessment,
 } from "../features/assessments";
+import { demoAssessmentProvider } from "../features/assessments/demoProvider";
 import { fetchFindings, type Finding } from "../features/findings";
 import { downloadAssessmentReport } from "../features/reports";
 import { ensureReportForAssessment } from "../features/reports/reportsApi";
@@ -38,6 +39,42 @@ export default function AssessmentDetailPage() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [autoReportId, setAutoReportId] = useState<string | null>(null);
 
+  const [activeScanTime] = useState<number | null>(() => {
+    const stored = sessionStorage.getItem(`kelvin_active_scan_${id}`);
+    if (stored) {
+      const t = parseInt(stored, 10);
+      if (!isNaN(t) && Date.now() - t < 60000) {
+        return t;
+      }
+    }
+    return null;
+  });
+
+  const [elapsedSec, setElapsedSec] = useState<number>(() => {
+    if (activeScanTime) {
+      return Math.min(11, Math.floor((Date.now() - activeScanTime) / 1000));
+    }
+    return 11;
+  });
+
+  const terminalEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!activeScanTime || elapsedSec >= 11) return;
+    const interval = setInterval(() => {
+      setElapsedSec((prev) => {
+        const next = prev + 1;
+        if (next >= 10) {
+          demoAssessmentProvider.markAssessmentComplete(id);
+          sessionStorage.removeItem(`kelvin_active_scan_${id}`);
+          queryClient.invalidateQueries({ queryKey: ["assessment", id] });
+        }
+        return Math.min(11, next);
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeScanTime, elapsedSec, id, queryClient]);
+
   const { data: detail, isLoading, isError } = useQuery({
     queryKey: ["assessment", id],
     queryFn: () => fetchAssessmentDetail(id),
@@ -54,6 +91,28 @@ export default function AssessmentDetailPage() {
       return 3000;
     },
   });
+
+  const isFreshScan = Boolean(activeScanTime) && elapsedSec < 10;
+  const effectiveStage = isFreshScan
+    ? elapsedSec < 2
+      ? "QUEUED"
+      : elapsedSec < 4
+      ? "PREFLIGHT"
+      : elapsedSec < 8
+      ? "SCANNING"
+      : "NORMALIZING"
+    : detail?.status === "COMPLETED"
+    ? "COMPLETED"
+    : (detail?.currentStage || "COMPLETED");
+
+  const effectiveStatus = isFreshScan ? "RUNNING" : (detail?.status || "COMPLETED");
+  const isTerminal =
+    effectiveStatus === "COMPLETED" ||
+    effectiveStatus === "FAILED" ||
+    effectiveStatus === "CANCELLED" ||
+    effectiveStatus === "TIMED_OUT";
+
+  const currentStageIndex = STAGES.indexOf(effectiveStage);
 
   const liveProbe = useMemo(() => {
     const fromStore = getLiveScanResult(id);
@@ -116,17 +175,18 @@ export default function AssessmentDetailPage() {
   }, [detail, findingsList]);
 
   useEffect(() => {
-    if (detail?.status === "COMPLETED" && !autoReportId) {
+    if (effectiveStatus === "COMPLETED" && !autoReportId && detail) {
       void ensureReportForAssessment(detail.id, detail.targetAddress, detail.name).then((rep) => {
         setAutoReportId(rep.id);
       });
     }
-  }, [detail?.status, detail?.id, detail?.targetAddress, detail?.name, autoReportId]);
+  }, [effectiveStatus, detail, autoReportId]);
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelAssessment(id),
     onSuccess: (data) => {
       if (data && data.success) {
+        sessionStorage.removeItem(`kelvin_active_scan_${id}`);
         queryClient.invalidateQueries({ queryKey: ["assessment", id] });
         setShowCancelModal(false);
       }
@@ -139,23 +199,45 @@ export default function AssessmentDetailPage() {
 
     // If live probe result is stored for this assessment and has logs, use them directly
     if (liveProbe && Array.isArray(liveProbe.logs) && liveProbe.logs.length > 0) {
-      return liveProbe.logs.map((l, idx) => ({
-        id: `live-log-${idx}`,
-        timestamp: l.timestamp,
-        level: l.level,
-        message: l.message,
-        stage: l.stage,
-      }));
+      const probeTotal = liveProbe.logs.length;
+      return liveProbe.logs.map((l, idx) => {
+        const offsetSec =
+          l.stage === "PREFLIGHT"
+            ? 1 + Math.floor((idx / Math.max(1, probeTotal)) * 2)
+            : l.stage === "SCANNING"
+            ? 4 + Math.floor((idx / Math.max(1, probeTotal)) * 3)
+            : l.stage === "NORMALIZING"
+            ? 8
+            : l.stage === "COMPLETED"
+            ? 10
+            : Math.min(10, Math.floor((idx / Math.max(1, probeTotal - 1)) * 10));
+        return {
+          id: `live-log-${idx}`,
+          timestamp: l.timestamp,
+          level: l.level,
+          message: l.message,
+          stage: l.stage,
+          offsetSec,
+        };
+      });
     }
 
     const baseLogs = detail.logs || [];
     if (baseLogs.length >= 8) {
-      return baseLogs;
+      return baseLogs.map((l, idx) => ({
+        ...l,
+        offsetSec: Math.min(10, Math.floor((idx / Math.max(1, baseLogs.length - 1)) * 10)),
+      }));
     }
 
     // Build exhaustive granular logs strictly scoped to this assessment target
     const createdDate = detail.createdAt ? new Date(detail.createdAt) : new Date();
-    const resultLogs = [...baseLogs];
+    const resultLogs: Array<{ id: string; timestamp: string; level: "INFO" | "WARN" | "ERROR" | "DEBUG"; message: string; stage?: string; offsetSec: number }> = [
+      ...baseLogs.map((l, idx) => ({
+        ...l,
+        offsetSec: Math.min(10, Math.floor((idx / Math.max(1, baseLogs.length)) * 10)),
+      })),
+    ];
 
     const hasLog = (substr: string) =>
       resultLogs.some((l) => l.message.toLowerCase().includes(substr.toLowerCase()));
@@ -168,6 +250,7 @@ export default function AssessmentDetailPage() {
         level,
         message,
         stage,
+        offsetSec,
       });
     };
 
@@ -180,27 +263,27 @@ export default function AssessmentDetailPage() {
     // Add per-scanner dispatch logs
     (detail.scanners || []).forEach((sc, idx) => {
       if (!hasLog(sc.scanner)) {
-        addLog("INFO", 4 + idx * 2, `[${sc.scanner}] Dispatched worker container; scanner process initialized`, "SCANNING");
+        addLog("INFO", 4 + Math.min(idx, 2), `[${sc.scanner}] Dispatched worker container; scanner process initialized`, "SCANNING");
       }
     });
 
     if (!hasLog("HTTP Security Headers")) {
-      addLog("INFO", 7, `[HTTP Security Headers] Inspecting HTTP response headers (HSTS, CSP, X-Frame-Options, CORS)`, "SCANNING");
+      addLog("INFO", 5, `[HTTP Security Headers] Inspecting HTTP response headers (HSTS, CSP, X-Frame-Options, CORS)`, "SCANNING");
     }
     if (!hasLog("OWASP ZAP")) {
-      addLog("INFO", 11, `[OWASP ZAP Baseline] Spidering target endpoints and passive vulnerability analysis underway`, "SCANNING");
+      addLog("INFO", 6, `[OWASP ZAP Baseline] Spidering target endpoints and passive vulnerability analysis underway`, "SCANNING");
     }
     if (!hasLog("Network Port")) {
-      addLog("INFO", 16, `[Network Port Assessor] Port scanning TCP top ports and verifying service fingerprints`, "SCANNING");
+      addLog("INFO", 7, `[Network Port Assessor] Port scanning TCP top ports and verifying service fingerprints`, "SCANNING");
     }
 
     if (scopedFindings.length > 0) {
-      scopedFindings.forEach((f, idx) => {
+      scopedFindings.forEach((f) => {
         const level = f.severity === "CRITICAL" || f.severity === "HIGH" ? "ERROR" : f.severity === "MEDIUM" ? "WARN" : "INFO";
         if (!hasLog(f.title)) {
           addLog(
             level,
-            20 + idx * 2,
+            7,
             `[${f.scanner || "Scanner"}] Discovered ${f.severity} finding: ${f.title}${f.cweId ? ` (${f.cweId})` : ""} on ${f.affectedEndpoint || f.target}`,
             "SCANNING"
           );
@@ -209,30 +292,30 @@ export default function AssessmentDetailPage() {
     } else if (!hasLog("vulnerability probes") && !hasLog("zero security anomalies")) {
       addLog(
         "INFO",
-        20,
+        7,
         `[Scanner Engine] Completed vulnerability probes; zero security anomalies detected within target scope (${detail.targetAddress})`,
         "SCANNING"
       );
     }
 
     // Add per-scanner completion logs
-    (detail.scanners || []).forEach((sc, idx) => {
+    (detail.scanners || []).forEach((sc) => {
       if (!hasLog(`${sc.scanner}] Scanner execution completed`)) {
         addLog(
           "INFO",
-          32 + idx * 2,
+          8,
           `[${sc.scanner}] Execution complete. Findings captured: ${sc.findingsDiscovered ?? sc.findingsCount ?? 0}`,
           "SCANNING"
         );
       }
     });
 
-    if (detail.status === "COMPLETED" && !hasLog("Normalization")) {
-      addLog("INFO", 42, `[Normalization] Aggregated all observations; completed deduplication and fingerprint validation`, "NORMALIZING");
-      addLog("INFO", 43, `[Risk Scoring] Computed contextual risk scores and CVSS environmental metrics`, "NORMALIZING");
+    if (!hasLog("Normalization")) {
+      addLog("INFO", 9, `[Normalization] Aggregated all observations; completed deduplication and fingerprint validation`, "NORMALIZING");
+      addLog("INFO", 9, `[Risk Scoring] Computed contextual risk scores and CVSS environmental metrics`, "NORMALIZING");
       addLog(
         "INFO",
-        45,
+        10,
         `Assessment execution completed successfully. Total findings discovered: ${scopedFindings.length}`,
         "COMPLETED"
       );
@@ -241,11 +324,59 @@ export default function AssessmentDetailPage() {
     return resultLogs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }, [detail, scopedFindings, liveProbe]);
 
+  const progressiveLogs = useMemo(() => {
+    if (!isFreshScan) return completeLogs;
+    return completeLogs.filter((log) => (log.offsetSec ?? 0) <= elapsedSec);
+  }, [completeLogs, isFreshScan, elapsedSec]);
+
   const filteredLogs = useMemo(() => {
-    return completeLogs.filter((log) =>
+    return progressiveLogs.filter((log) =>
       log && log.message && log.message.toLowerCase().includes(logFilter.toLowerCase())
     );
-  }, [completeLogs, logFilter]);
+  }, [progressiveLogs, logFilter]);
+
+  const scannerTasks = useMemo(() => {
+    const base = detail?.scanners || [];
+    if (!isFreshScan) return base;
+    return base.map((task, idx) => {
+      if (elapsedSec < 2) {
+        return {
+          ...task,
+          status: "QUEUED" as const,
+          currentActivity: "Worker container scheduled in sandbox queue",
+          durationSeconds: 0,
+        };
+      }
+      if (elapsedSec < 4) {
+        return {
+          ...task,
+          status: idx === 0 ? ("RUNNING" as const) : ("QUEUED" as const),
+          currentActivity: idx === 0 ? "Validating target reachability & DNS..." : "Pulling sandbox image...",
+          durationSeconds: Math.max(0, elapsedSec - 2),
+        };
+      }
+      if (elapsedSec < 8) {
+        return {
+          ...task,
+          status: "RUNNING" as const,
+          currentActivity: "Spidering target & probing vulnerability signatures...",
+          durationSeconds: Math.max(0, elapsedSec - 2),
+        };
+      }
+      return {
+        ...task,
+        status: "COMPLETED" as const,
+        currentActivity: "Worker execution complete",
+        durationSeconds: 8,
+      };
+    });
+  }, [detail?.scanners, isFreshScan, elapsedSec]);
+
+  useEffect(() => {
+    if (isFreshScan && terminalEndRef.current) {
+      terminalEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [filteredLogs.length, isFreshScan]);
 
   const handleCopyLogs = () => {
     const text = filteredLogs
@@ -298,14 +429,6 @@ export default function AssessmentDetailPage() {
     );
   }
 
-  const isTerminal =
-    detail.status === "COMPLETED" ||
-    detail.status === "FAILED" ||
-    detail.status === "CANCELLED" ||
-    detail.status === "TIMED_OUT";
-
-  const currentStageIndex = STAGES.indexOf(detail.currentStage);
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -315,7 +438,7 @@ export default function AssessmentDetailPage() {
             <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-display">
               {detail.name}
             </h1>
-            <StatusPill status={detail.status} />
+            <StatusPill status={effectiveStatus} />
           </div>
           <p className="text-xs text-zinc-400 mt-1.5 font-mono">
             ID: {detail.id} • Target: <span className="text-[#d4c9a8]">{detail.targetAddress}</span> • Profile: {detail.profileName}
@@ -336,10 +459,15 @@ export default function AssessmentDetailPage() {
           <Button
             variant="primary"
             size="sm"
-            isLoading={isGeneratingReport}
+            isLoading={isGeneratingReport || !isTerminal}
+            disabled={!isTerminal}
             onClick={() => { void handleGenerateReport(); }}
           >
-            {autoReportId ? "Open Auto-Generated Report" : "Open PDF Report"}
+            {!isTerminal
+              ? `Scan in Progress (${effectiveStage})…`
+              : autoReportId
+              ? "Open Auto-Generated Report"
+              : "Open PDF Report"}
           </Button>
 
           {isTerminal && (
@@ -355,13 +483,13 @@ export default function AssessmentDetailPage() {
 
           <Link to="/findings">
             <Button variant="secondary" size="sm">
-              View Findings ({detail.totalFindings})
+              View Findings ({!isTerminal ? "..." : detail.totalFindings})
             </Button>
           </Link>
         </div>
       </div>
 
-      {detail.status === "COMPLETED" && autoReportId && (
+      {effectiveStatus === "COMPLETED" && autoReportId && (
         <div className="rounded-xl border border-emerald-800/60 bg-emerald-950/30 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-zinc-200">
             <strong className="text-emerald-400">Assessment Completed:</strong> Report{" "}
@@ -400,7 +528,7 @@ export default function AssessmentDetailPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
           {STAGES.map((stage, idx) => {
-            const isPassed = currentStageIndex > idx || detail.status === "COMPLETED";
+            const isPassed = currentStageIndex > idx || effectiveStatus === "COMPLETED";
             const isCurrent = currentStageIndex === idx && !isTerminal;
 
             return (
@@ -429,7 +557,7 @@ export default function AssessmentDetailPage() {
 
       {/* Per-Scanner Worker Status */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(detail.scanners || []).map((task) => (
+        {scannerTasks.map((task) => (
           <Card key={task.scanner} className="p-4 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-xs text-zinc-100 flex items-center gap-2 font-display">
@@ -508,11 +636,21 @@ export default function AssessmentDetailPage() {
         <div className="rounded-xl border border-zinc-800 bg-[#060709] overflow-hidden shadow-inner">
           {/* Terminal Window Chrome */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/80 bg-zinc-950/90 text-[10px] font-mono text-zinc-500">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
               <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
               <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
               <span className="ml-2 text-zinc-400">kelvin-runner://sandbox-stream/{detail.id}</span>
+              {isFreshScan ? (
+                <span className="ml-2 inline-flex items-center gap-1.5 text-[#d4c9a8] bg-[#d4c9a8]/10 border border-[#d4c9a8]/30 px-2 py-0.5 rounded text-[10px]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#d4c9a8] animate-ping" />
+                  <span>streaming live ({effectiveStage})</span>
+                </span>
+              ) : (
+                <span className="ml-2 inline-flex items-center gap-1 text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded text-[10px]">
+                  <span>✓ stream closed</span>
+                </span>
+              )}
             </div>
             <span>{filteredLogs.length} lines</span>
           </div>
@@ -536,107 +674,125 @@ export default function AssessmentDetailPage() {
                 <span className="text-zinc-300">{log.message}</span>
               </div>
             ))}
+            <div ref={terminalEndRef} />
           </div>
         </div>
       </Card>
 
-              {/* Live Website Probe Findings & Posture Marking */}
-              {liveProbe && (() => {
-                const marking = computePostureMarking(liveProbe.findings);
-                return (
-          <Card className="p-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-zinc-800/80">
-              <div>
-                <h2 className="text-sm font-semibold text-zinc-100 font-display">
-                  Security Score, Marking &amp; Live Probe Findings
-                </h2>
-                <p className="text-xs text-zinc-400">
-                  Real DNS, TLS certificate, and HTTP security header checks executed against{" "}
-                  <span className="font-mono text-[var(--brand-text)]">{liveProbe.targetUrl}</span>
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono font-semibold text-[var(--brand-text)] bg-[var(--brand-bg)] border border-[var(--brand-border)] px-3 py-1 rounded-full">
-                  Score: {marking.postureScore} / 100 · Grade {marking.postureGrade}
-                </span>
-                <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/50 border border-emerald-800/60 px-2.5 py-1 rounded-full">
-                  HTTP {liveProbe.httpStatus ?? "N/A"} · {liveProbe.latencyMs}ms
-                </span>
-              </div>
+      {/* Live Website Probe Findings & Posture Marking */}
+      {!isTerminal ? (
+        <Card className="p-8 text-center space-y-3 border-zinc-800 bg-zinc-950/50">
+          <div className="flex justify-center">
+            <div className="relative flex items-center justify-center w-12 h-12 rounded-full border border-[#d4c9a8]/30 bg-[#d4c9a8]/10">
+              <RadarIcon size={24} className="text-[#d4c9a8] animate-spin" />
             </div>
-
-            {/* Category Marking Breakdown */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {marking.scoringRubric.map((sc) => (
-                <div key={sc.category} className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-zinc-200 truncate">{sc.category}</span>
-                    <span className="font-mono font-semibold text-[var(--brand-text)]">
-                      {sc.earned}/{sc.max}
-                    </span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-zinc-900 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${
-                        sc.status === "PASS" ? "bg-emerald-500" : sc.status === "WARN" ? "bg-amber-500" : "bg-red-500"
-                      }`}
-                      style={{ width: `${(sc.earned / sc.max) * 100}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] font-mono text-zinc-500 truncate">{sc.deductions}</p>
+          </div>
+          <h3 className="text-sm font-semibold text-zinc-100 font-display">
+            Live Vulnerability Probing in Progress…
+          </h3>
+          <p className="text-xs text-zinc-400 max-w-md mx-auto">
+            Executing DNS resolution, TLS certificate handshakes, and OWASP baseline telemetry against{" "}
+            <span className="font-mono text-[var(--brand-text)]">{detail.targetAddress}</span>. Findings and posture scoring will unlock upon pipeline completion.
+          </p>
+        </Card>
+      ) : (
+        liveProbe && (() => {
+          const marking = computePostureMarking(liveProbe.findings);
+          return (
+            <Card className="p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-zinc-800/80">
+                <div>
+                  <h2 className="text-sm font-semibold text-zinc-100 font-display">
+                    Security Score, Marking &amp; Live Probe Findings
+                  </h2>
+                  <p className="text-xs text-zinc-400">
+                    Real DNS, TLS certificate, and HTTP security header checks executed against{" "}
+                    <span className="font-mono text-[var(--brand-text)]">{liveProbe.targetUrl}</span>
+                  </p>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono font-semibold text-[var(--brand-text)] bg-[var(--brand-bg)] border border-[var(--brand-border)] px-3 py-1 rounded-full">
+                    Score: {marking.postureScore} / 100 · Grade {marking.postureGrade}
+                  </span>
+                  <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/50 border border-emerald-800/60 px-2.5 py-1 rounded-full">
+                    HTTP {liveProbe.httpStatus ?? "N/A"} · {liveProbe.latencyMs}ms
+                  </span>
+                </div>
+              </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
-                <span className="text-[10px] text-zinc-500 block">RESOLVED IPs</span>
-                <span className="text-zinc-200 mt-1 block">
-                  {liveProbe.resolvedIps.length > 0 ? liveProbe.resolvedIps.join(", ") : "Unresolved"}
-                </span>
-              </div>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
-                <span className="text-[10px] text-zinc-500 block">TLS POSTURE</span>
-                <span className="text-zinc-200 mt-1 block">
-                  {liveProbe.tls.supported
-                    ? `${liveProbe.tls.protocol} · ${liveProbe.tls.cipher}`
-                    : "No TLS / Plaintext"}
-                </span>
-              </div>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
-                <span className="text-[10px] text-zinc-500 block">CERT EXPIRY</span>
-                <span className="text-zinc-200 mt-1 block">
-                  {liveProbe.tls.daysRemaining !== null
-                    ? `${liveProbe.tls.daysRemaining} days (${liveProbe.tls.issuer ?? "CA"})`
-                    : "N/A"}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2.5">
-              {liveProbe.findings.map((f) => (
-                <div
-                  key={f.id}
-                  className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3.5 space-y-1.5"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <SeverityBadge severity={f.severity} size="sm" />
-                      <span className="text-xs font-semibold text-zinc-100">{f.title}</span>
+              {/* Category Marking Breakdown */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {marking.scoringRubric.map((sc) => (
+                  <div key={sc.category} className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-zinc-200 truncate">{sc.category}</span>
+                      <span className="font-mono font-semibold text-[var(--brand-text)]">
+                        {sc.earned}/{sc.max}
+                      </span>
                     </div>
-                    <span className="text-[10px] font-mono text-zinc-500">
-                      CVSS {f.cvss.toFixed(1)} · {f.cwe} · {f.scanner}
-                    </span>
+                    <div className="h-1.5 w-full rounded-full bg-zinc-900 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          sc.status === "PASS" ? "bg-emerald-500" : sc.status === "WARN" ? "bg-amber-500" : "bg-red-500"
+                        }`}
+                        style={{ width: `${(sc.earned / sc.max) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] font-mono text-zinc-500 truncate">{sc.deductions}</p>
                   </div>
-                  <p className="text-xs text-zinc-400">{f.description}</p>
-                  <p className="text-[11px] font-mono text-[var(--brand-text)]">Evidence: {f.evidence}</p>
-                  <p className="text-[11px] text-emerald-400">Remediation: {f.remediation}</p>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                  <span className="text-[10px] text-zinc-500 block">RESOLVED IPs</span>
+                  <span className="text-zinc-200 mt-1 block">
+                    {liveProbe.resolvedIps.length > 0 ? liveProbe.resolvedIps.join(", ") : "Unresolved"}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </Card>
-        );
-      })()}
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                  <span className="text-[10px] text-zinc-500 block">TLS POSTURE</span>
+                  <span className="text-zinc-200 mt-1 block">
+                    {liveProbe.tls.supported
+                      ? `${liveProbe.tls.protocol} · ${liveProbe.tls.cipher}`
+                      : "No TLS / Plaintext"}
+                  </span>
+                </div>
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                  <span className="text-[10px] text-zinc-500 block">CERT EXPIRY</span>
+                  <span className="text-zinc-200 mt-1 block">
+                    {liveProbe.tls.daysRemaining !== null
+                      ? `${liveProbe.tls.daysRemaining} days (${liveProbe.tls.issuer ?? "CA"})`
+                      : "N/A"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                {liveProbe.findings.map((f) => (
+                  <div
+                    key={f.id}
+                    className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3.5 space-y-1.5"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <SeverityBadge severity={f.severity} size="sm" />
+                        <span className="text-xs font-semibold text-zinc-100">{f.title}</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-zinc-500">
+                        CVSS {f.cvss.toFixed(1)} · {f.cwe} · {f.scanner}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-400">{f.description}</p>
+                    <p className="text-[11px] font-mono text-[var(--brand-text)]">Evidence: {f.evidence}</p>
+                    <p className="text-[11px] text-emerald-400">Remediation: {f.remediation}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })()
+      )}
 
       {/* Findings Summary Strip */}
       <Card variant="accent" className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -646,10 +802,12 @@ export default function AssessmentDetailPage() {
           </span>
           <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
             <SeverityBadge severity="CRITICAL" size="sm" />
-            <span className="text-xs text-zinc-200 font-mono">{detail.criticalCount}</span>
+            <span className="text-xs text-zinc-200 font-mono">{!isTerminal ? "..." : detail.criticalCount}</span>
             <SeverityBadge severity="HIGH" size="sm" />
-            <span className="text-xs text-zinc-200 font-mono">{detail.highCount}</span>
-            <span className="text-xs text-zinc-400 font-mono ml-1">({detail.totalFindings} total normalized)</span>
+            <span className="text-xs text-zinc-200 font-mono">{!isTerminal ? "..." : detail.highCount}</span>
+            <span className="text-xs text-zinc-400 font-mono ml-1">
+              {!isTerminal ? "(probes active)" : `(${detail.totalFindings} total normalized)`}
+            </span>
           </div>
         </div>
 

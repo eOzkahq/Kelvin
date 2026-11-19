@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -18,10 +18,9 @@ import {
   CardDescription,
   Button,
   Input,
-  Modal,
   SkeletonLoader,
 } from "../components/ui";
-import { AlertTriangleIcon, CheckCircleIcon, LockIcon, RadarIcon, ShieldIcon } from "../components/ui/Icons";
+import { AlertTriangleIcon, LockIcon, RadarIcon, ShieldIcon } from "../components/ui/Icons";
 import { useOptionalPlan, PLANS } from "../features/billing/PlanContext";
 
 const STEPS = [
@@ -54,28 +53,6 @@ export default function AssessmentWizardPage() {
   const [timeoutMinutes, setTimeoutMinutes] = useState(Math.min(30, activePlan.limits.maxTimeoutMinutes));
   const [scopeConfirmed, setScopeConfirmed] = useState(false);
   const [idempotencyKey] = useState(() => `idem-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
-  const [completedInfo, setCompletedInfo] = useState<{
-    assessmentId: string;
-    reportId: string;
-    targetHost: string;
-    findingsCount: number;
-    countdown: number;
-  } | null>(null);
-
-  useEffect(() => {
-    if (!completedInfo) return;
-    if (completedInfo.countdown <= 0) {
-      navigate(
-        `/reports?open=${encodeURIComponent(completedInfo.reportId)}&fromAssessment=${encodeURIComponent(completedInfo.assessmentId)}`,
-        { replace: true },
-      );
-      return;
-    }
-    const timer = setTimeout(() => {
-      setCompletedInfo((prev) => (prev ? { ...prev, countdown: prev.countdown - 1 } : null));
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [completedInfo, navigate]);
 
   const { data: targets, isLoading: targetsLoading } = useQuery({
     queryKey: ["targets"],
@@ -145,7 +122,6 @@ export default function AssessmentWizardPage() {
       });
 
       if (effectiveTargetHost) {
-        let findingsCount = 0;
         let probe: LiveProbeResult | null = null;
         try {
           probe = await runLiveWebsiteProbe(
@@ -163,18 +139,12 @@ export default function AssessmentWizardPage() {
         if (probe) {
           saveLiveScanResult(res.id, probe);
           demoAssessmentProvider.attachLiveProbe(res.id, probe);
-          findingsCount = probe.findings.length;
         }
 
-        const report = await ensureReportForAssessment(res.id, effectiveTargetHost, assessmentName);
+        await ensureReportForAssessment(res.id, effectiveTargetHost, assessmentName);
+        sessionStorage.setItem(`kelvin_active_scan_${res.id}`, Date.now().toString());
         setIsSubmitting(false);
-        setCompletedInfo({
-          assessmentId: res.id,
-          reportId: report.id,
-          targetHost: effectiveTargetHost,
-          findingsCount,
-          countdown: 3,
-        });
+        navigate(`/assessments/${res.id}`);
         return;
       }
 
@@ -691,74 +661,6 @@ export default function AssessmentWizardPage() {
                 )}
               </div>
             </Card>
-
-      {/* Assessment Completed Popup -> Auto-Redirect to Auto-Generated Report */}
-        {completedInfo && (
-          <Modal
-            isOpen={Boolean(completedInfo)}
-            onClose={() => {
-              const aid = completedInfo.assessmentId;
-              setCompletedInfo(null);
-              navigate(`/assessments/${aid}`, { replace: true });
-            }}
-            title="Assessment Completed"
-            description={`Security report automatically generated for ${completedInfo.targetHost}.`}
-            maxWidth="md"
-          >
-            <div className="space-y-4">
-              <div className="rounded-xl border border-emerald-800/60 bg-emerald-950/35 p-4 flex items-start gap-3">
-                <CheckCircleIcon size={18} className="text-emerald-400 shrink-0 mt-0.5" />
-                <div className="space-y-1 text-xs">
-                  <p className="font-semibold text-zinc-100">
-                    Scan Finished ({completedInfo.findingsCount} finding{completedInfo.findingsCount === 1 ? "" : "s"} identified)
-                  </p>
-                  <p className="text-zinc-400">
-                    Report <code className="font-mono text-[var(--brand-text)]">{completedInfo.reportId}</code> is ready. Opening Report Center in{" "}
-                    <strong className="font-mono text-zinc-100">{completedInfo.countdown}s</strong>…
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Button
-                  variant="primary"
-                  className="w-full justify-center"
-                  onClick={() =>
-                    navigate(
-                      `/reports?open=${encodeURIComponent(completedInfo.reportId)}&fromAssessment=${encodeURIComponent(completedInfo.assessmentId)}`,
-                      { replace: true },
-                    )
-                  }
-                >
-                  Open Security Report Now &rarr;
-                </Button>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      const aid = completedInfo.assessmentId;
-                      setCompletedInfo(null);
-                      navigate(`/assessments/${aid}`, { replace: true });
-                    }}
-                  >
-                    Inspect Telemetry Logs
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setCompletedInfo(null);
-                      navigate("/findings", { replace: true });
-                    }}
-                  >
-                    Explore Findings
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </Modal>
-        )}
     </div>
   );
 }
