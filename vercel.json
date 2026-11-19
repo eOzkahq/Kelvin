@@ -3,6 +3,18 @@
   "outputDirectory": "apps/web/dist",
   "rewrites": [
     {
+      "source": "/services/kelvin/__live_probe",
+      "destination": "/api/live_probe"
+    },
+    {
+      "source": "/services/kelvin/api/live_probe",
+      "destination": "/api/live_probe"
+    },
+    {
+      "source": "/api/live_probe",
+      "destination": "/api/live_probe"
+    },
+    {
       "source": "/services/kelvin/assets/(.*)",
       "destination": "/assets/$1"
     },
