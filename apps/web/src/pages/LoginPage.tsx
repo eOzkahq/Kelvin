@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
-import { Button, Input, Card } from "../components/ui";
+import { Button, Input, Card, BrandMark } from "../components/ui";
+import { LockIcon } from "../components/ui/Icons";
 
 export default function LoginPage() {
-  const { login, loginWithSSO, isLoading } = useAuth();
+  const { login, instantLogin, loginWithSSO, isLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const rawReturnUrl = searchParams.get("returnUrl") || "/dashboard";
@@ -40,107 +41,168 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 py-12">
-      <div className="w-full max-w-md space-y-6">
-        {/* Brand Header */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#f0eeea] via-[#d4c9a8] to-[#936e1f] font-bold text-2xl text-[#0c0c0c] shadow-[0_0_30px_rgba(212,201,168,0.25)]">
-            K
+    <div className="relative min-h-screen w-full bg-zinc-950 text-zinc-100 flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+        {/* Left Brand & Workspace Overview */}
+        <div className="hidden lg:flex lg:col-span-5 flex-col justify-between space-y-8">
+            <div className="space-y-5">
+              <BrandMark variant="full" />
+
+                <p className="text-[15px] text-zinc-300 leading-relaxed">
+                  Verify target ownership, run isolated vulnerability scans, and generate signed executive security reports across your organization.
+                </p>
+            </div>
+
+            <div className="border-t border-zinc-800/80 pt-5 space-y-3 text-xs text-zinc-400">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-200 font-medium">Supported Scanners</span>
+                <span className="font-mono text-zinc-400">Nmap · Nuclei · Trivy · ZAP</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-200 font-medium">Scope Verification</span>
+                <span className="font-mono text-zinc-400">DNS TXT / HTTP Well-Known</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-200 font-medium">Free Tier Coupon</span>
+                <span className="font-mono text-[var(--brand-text)] font-medium">eozka100 (All Paid Tiers)</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-sans">
-              Sign in to KELVIN
-            </h1>
-            <p className="text-xs text-zinc-400 font-mono tracking-wider uppercase mt-1">
-              Augmenting-SecOps • Security Platform
-            </p>
+
+          {/* Right Sign-In Form */}
+          <div className="lg:col-span-7 w-full max-w-md mx-auto space-y-4">
+            {/* Mobile Brand Header */}
+            <div className="flex flex-col items-center text-center space-y-2 lg:hidden">
+              <BrandMark variant="compact" />
+              <h1 className="text-xl font-bold tracking-tight text-zinc-100 font-display pt-1">
+                Sign in to Kelvin
+              </h1>
+            </div>
+
+            <Card variant="default" className="p-6 sm:p-7">
+              <div className="mb-5 hidden lg:block">
+                <h1 className="text-lg font-semibold tracking-tight text-zinc-100 font-display">
+                  Sign in
+                </h1>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Enter your workspace credentials or authenticate via SSO.
+                </p>
+              </div>
+
+              {error && (
+                <div className="mb-4 rounded-lg border border-red-800/80 bg-red-950/50 p-3 text-xs text-red-300">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <Input
+                  label="Work Email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="analyst@kelvin.com"
+                  required
+                  autoComplete="email"
+                />
+
+                <Input
+                  label="Password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  required
+                  autoComplete="current-password"
+                />
+
+                <div className="flex items-center justify-between text-xs">
+                  <label className="flex items-center gap-2 text-zinc-400 cursor-pointer">
+                    <input type="checkbox" className="rounded border-zinc-700 bg-zinc-900" />
+                    <span>Remember workstation</span>
+                  </label>
+                  <a href="#reset" className="text-[var(--brand-text)] hover:underline transition-colors">
+                    Forgot password?
+                  </a>
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-full justify-center"
+                  isLoading={isLoading}
+                >
+                  Sign in with Credentials
+                </Button>
+
+                {/* Instant Preview Access */}
+                <div className="pt-3 border-t border-zinc-800/70 space-y-2">
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                    Instant Workspace Access
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-center text-xs"
+                      onClick={() => {
+                        void instantLogin("onboarding_user").then(() => {
+                          navigate("/onboarding", { replace: true });
+                        });
+                      }}
+                    >
+                      User + Onboarding
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="w-full justify-center text-xs"
+                      onClick={() => {
+                        void instantLogin("admin").then(() => {
+                          navigate(returnUrl, { replace: true });
+                        });
+                      }}
+                    >
+                      Admin Workspace
+                    </Button>
+                  </div>
+                </div>
+              </form>
+
+              {/* SSO Separator */}
+              <div className="relative my-5">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-zinc-800/90" />
+                </div>
+                <div className="relative flex justify-center text-[10px] font-mono uppercase tracking-wider">
+                  <span className="bg-zinc-900 px-2.5 text-zinc-500">Single Sign-On</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full justify-center text-xs"
+                  leftIcon={<LockIcon size={14} className="text-[var(--brand-text)]" />}
+                  onClick={() => loginWithSSO("saml")}
+                >
+                  Continue with Okta / SAML 2.0
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full justify-center text-xs"
+                  onClick={() => loginWithSSO("google")}
+                >
+                  Continue with Google Workspace
+                </Button>
+              </div>
+            </Card>
           </div>
         </div>
-
-        {/* Card */}
-        <Card variant="accent" className="p-6">
-          {error && (
-            <div className="mb-4 rounded-md border border-red-800 bg-red-950/50 p-3 text-xs text-red-300">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              label="Work Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="analyst@enterprise.com"
-              required
-              autoComplete="email"
-            />
-
-            <Input
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
-              required
-              autoComplete="current-password"
-            />
-
-            <div className="flex items-center justify-between text-xs">
-              <label className="flex items-center gap-2 text-zinc-400">
-                <input type="checkbox" className="rounded border-zinc-700 bg-zinc-800" />
-                <span>Remember this workstation</span>
-              </label>
-              <a href="#reset" className="text-cyan-400 hover:text-cyan-300">
-                Forgot password?
-              </a>
-            </div>
-
-            <Button
-              type="submit"
-              variant="primary"
-              className="w-full justify-center"
-              isLoading={isLoading}
-            >
-              Sign in with Credentials
-            </Button>
-          </form>
-
-          {/* SSO Separator */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-zinc-800" />
-            </div>
-            <div className="relative flex justify-center text-[10px] uppercase">
-              <span className="bg-zinc-900 px-2 text-zinc-500">Or continue with enterprise sso</span>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full justify-center text-xs"
-              onClick={() => loginWithSSO("saml")}
-            >
-              🔐 Sign in with Okta / SAML 2.0
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full justify-center text-xs"
-              onClick={() => loginWithSSO("google")}
-            >
-              🌐 Sign in with Google Workspace (OIDC)
-            </Button>
-          </div>
-        </Card>
-
-        {/* Security Notice */}
-        <p className="text-center text-[11px] text-zinc-500">
-          Strictly authorized personnel only. All access is cryptographically signed and audit logged.
-        </p>
       </div>
-    </div>
-  );
+      );
 }

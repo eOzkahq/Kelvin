@@ -207,12 +207,15 @@ export default function RolesPermissionsSsoPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between pb-4 border-b border-zinc-800/80">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-100">
+          <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[#d4c9a8]">
+            RBAC &amp; Identity Federation
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-display mt-1">
             Roles, Permissions &amp; Single Sign-On (SSO)
           </h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-0.5 text-xs text-zinc-400">
             Fine-grained RBAC matrix, custom role composer, SAML 2.0 / OIDC federation, and SCIM directory sync.
           </p>
         </div>
@@ -231,12 +234,12 @@ export default function RolesPermissionsSsoPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex border-b border-zinc-800 gap-2">
+      <div className="flex border-b border-zinc-800/80 gap-2">
         <button
           onClick={() => setActiveTab("matrix")}
-          className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+          className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
             activeTab === "matrix"
-              ? "border-cyan-500 text-cyan-400"
+              ? "border-[#d4c9a8] text-[#e8debe]"
               : "border-transparent text-zinc-400 hover:text-zinc-200"
           }`}
         >
@@ -244,9 +247,9 @@ export default function RolesPermissionsSsoPage() {
         </button>
         <button
           onClick={() => setActiveTab("sso")}
-          className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+          className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
             activeTab === "sso"
-              ? "border-cyan-500 text-cyan-400"
+              ? "border-[#d4c9a8] text-[#e8debe]"
               : "border-transparent text-zinc-400 hover:text-zinc-200"
           }`}
         >
@@ -254,9 +257,9 @@ export default function RolesPermissionsSsoPage() {
         </button>
         <button
           onClick={() => setActiveTab("scim_mfa")}
-          className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
+          className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
             activeTab === "scim_mfa"
-              ? "border-cyan-500 text-cyan-400"
+              ? "border-[#d4c9a8] text-[#e8debe]"
               : "border-transparent text-zinc-400 hover:text-zinc-200"
           }`}
         >
@@ -267,9 +270,9 @@ export default function RolesPermissionsSsoPage() {
       {/* Tab 1: Permissions Matrix */}
       {activeTab === "matrix" && (
         <div className="space-y-6">
-          <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/60">
+          <div className="overflow-x-auto rounded-xl surface-card">
             <table className="w-full text-left text-sm text-zinc-300">
-              <thead className="border-b border-zinc-800 bg-zinc-900 text-xs uppercase text-zinc-400">
+              <thead className="border-b border-zinc-800/80 bg-zinc-950/90 text-[10px] font-mono tracking-wider uppercase text-zinc-400">
                 <tr>
                   <th className="px-4 py-3 min-w-[260px]">Action &amp; Capability</th>
                   {iam.roles.map((role: RoleDefinition) => (

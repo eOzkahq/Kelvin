@@ -17,15 +17,17 @@ import {
   Modal,
   SeverityBadge,
   SkeletonLoader,
+  StatusPill,
 } from "../components/ui";
+import { SearchIcon } from "../components/ui/Icons";
 
-const COLUMNS: { id: RemediationStatus; title: string; color: string }[] = [
-  { id: "OPEN", title: "Open / Assigned", color: "border-zinc-700 bg-zinc-900/40" },
-  { id: "IN_PROGRESS", title: "In Progress", color: "border-cyan-800/40 bg-cyan-950/20" },
-  { id: "BLOCKED", title: "Blocked", color: "border-amber-800/40 bg-amber-950/20" },
-  { id: "VERIFICATION_PENDING", title: "Verification Pending", color: "border-purple-800/40 bg-purple-950/20" },
-  { id: "RESOLVED", title: "Resolved", color: "border-emerald-800/40 bg-emerald-950/20" },
-  { id: "ACCEPTED_RISK", title: "Risk Accepted", color: "border-zinc-800 bg-zinc-950/40" },
+const COLUMNS: { id: RemediationStatus; title: string; color: string; dot: string }[] = [
+  { id: "OPEN", title: "Open / Assigned", color: "border-zinc-800/90 bg-zinc-950/50", dot: "bg-zinc-400" },
+  { id: "IN_PROGRESS", title: "In Progress", color: "border-[#d4c9a8]/30 bg-[#d4c9a8]/5", dot: "bg-[#d4c9a8]" },
+  { id: "BLOCKED", title: "Blocked", color: "border-amber-800/40 bg-amber-950/15", dot: "bg-amber-400" },
+  { id: "VERIFICATION_PENDING", title: "Verification Pending", color: "border-purple-800/40 bg-purple-950/15", dot: "bg-purple-400" },
+  { id: "RESOLVED", title: "Resolved", color: "border-emerald-800/40 bg-emerald-950/15", dot: "bg-emerald-400" },
+  { id: "ACCEPTED_RISK", title: "Risk Accepted", color: "border-zinc-800/80 bg-zinc-950/60", dot: "bg-slate-400" },
 ];
 
 export default function RemediationWorkspacePage() {
@@ -71,7 +73,6 @@ export default function RemediationWorkspacePage() {
   }, [loadTasks]);
 
   const handleStatusChange = async (taskId: string, newStatus: RemediationStatus) => {
-    // Optimistic UI update
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
     );
@@ -143,7 +144,7 @@ export default function RemediationWorkspacePage() {
   const renderSlaBadge = (task: RemediationTask) => {
     if (task.status === "RESOLVED" || task.status === "ACCEPTED_RISK") {
       return (
-        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
+        <span className="rounded-full bg-zinc-900 border border-zinc-800 px-2 py-0.5 text-[10px] font-mono text-zinc-400">
           Closed
         </span>
       );
@@ -151,7 +152,7 @@ export default function RemediationWorkspacePage() {
 
     if (task.isOverdue) {
       return (
-        <span className="rounded bg-red-950/80 border border-red-800 px-1.5 py-0.5 text-[10px] font-bold text-red-400">
+        <span className="rounded-full bg-red-950/80 border border-red-800 px-2 py-0.5 text-[10px] font-mono font-bold text-red-300">
           OVERDUE ({Math.abs(task.slaHoursRemaining)}h)
         </span>
       );
@@ -159,15 +160,15 @@ export default function RemediationWorkspacePage() {
 
     if (task.slaHoursRemaining <= 48) {
       return (
-        <span className="rounded bg-amber-950/80 border border-amber-800 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
-          {task.slaHoursRemaining}h remaining
+        <span className="rounded-full bg-amber-950/80 border border-amber-800 px-2 py-0.5 text-[10px] font-mono font-semibold text-amber-300">
+          {task.slaHoursRemaining}h left
         </span>
       );
     }
 
     return (
-      <span className="rounded bg-emerald-950/60 border border-emerald-800 px-1.5 py-0.5 text-[10px] text-emerald-400">
-        {Math.round(task.slaHoursRemaining / 24)}d remaining
+      <span className="rounded-full bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+        {Math.round(task.slaHoursRemaining / 24)}d left
       </span>
     );
   };
@@ -175,12 +176,15 @@ export default function RemediationWorkspacePage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between pb-4 border-b border-zinc-800/80">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-100">
+          <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[#d4c9a8]">
+            SLA &amp; Verification Pipeline
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-display mt-1">
             Remediation Management Workspace
           </h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-0.5 text-xs text-zinc-400">
             Lifecycle task tracking, SLA timers, owner assignment, and automated verification scans.
           </p>
         </div>
@@ -188,27 +192,27 @@ export default function RemediationWorkspacePage() {
         {/* View Mode Toggle & Feedback */}
         <div className="flex items-center gap-3">
           {notification && (
-            <span className="rounded bg-emerald-950/60 border border-emerald-800 px-3 py-1 text-xs text-emerald-400 animate-in fade-in">
+            <span className="rounded-lg bg-emerald-950/60 border border-emerald-800 px-3 py-1 text-xs text-emerald-300 font-mono">
               {notification}
             </span>
           )}
-          <div className="flex rounded-md border border-zinc-800 bg-zinc-900 p-1">
+          <div className="flex rounded-lg border border-zinc-800 bg-zinc-900/90 p-0.5">
             <button
               onClick={() => setViewMode("kanban")}
-              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
                 viewMode === "kanban"
-                  ? "bg-zinc-800 text-white shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
+                  ? "bg-[#d4c9a8]/15 text-[#e8debe] border border-[#d4c9a8]/35"
+                  : "text-zinc-400 hover:text-zinc-200 border border-transparent"
               }`}
             >
               Kanban Board
             </button>
             <button
               onClick={() => setViewMode("list")}
-              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
                 viewMode === "list"
-                  ? "bg-zinc-800 text-white shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
+                  ? "bg-[#d4c9a8]/15 text-[#e8debe] border border-[#d4c9a8]/35"
+                  : "text-zinc-400 hover:text-zinc-200 border border-transparent"
               }`}
             >
               List View
@@ -218,38 +222,43 @@ export default function RemediationWorkspacePage() {
       </div>
 
       {/* KPI Overview Strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-          <span className="text-xs text-zinc-400 font-medium">Total Tasks</span>
-          <p className="mt-1 text-2xl font-bold text-zinc-100">{totalTasks}</p>
-        </div>
-        <div className="rounded-lg border border-red-900/40 bg-red-950/20 p-3">
-          <span className="text-xs text-red-400 font-medium">Overdue SLA Breaches</span>
-          <p className="mt-1 text-2xl font-bold text-red-400">{overdueCount}</p>
-        </div>
-        <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 p-3">
-          <span className="text-xs text-amber-400 font-medium">At-Risk (&le; 48h)</span>
-          <p className="mt-1 text-2xl font-bold text-amber-300">{atRiskCount}</p>
-        </div>
-        <div className="rounded-lg border border-purple-900/40 bg-purple-950/20 p-3">
-          <span className="text-xs text-purple-400 font-medium">In Verification</span>
-          <p className="mt-1 text-2xl font-bold text-purple-300">{verifyingCount}</p>
-        </div>
-        <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3">
-          <span className="text-xs text-emerald-400 font-medium">Verified Resolved</span>
-          <p className="mt-1 text-2xl font-bold text-emerald-400">{resolvedCount}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-5">
+        <Card className="p-4">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Total Tasks</span>
+          <p className="stat-num mt-1 text-2xl text-zinc-100">{totalTasks}</p>
+        </Card>
+        <Card className="p-4 border-red-900/40">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-red-400">Overdue SLA</span>
+          <p className="stat-num mt-1 text-2xl text-red-400">{overdueCount}</p>
+        </Card>
+        <Card className="p-4 border-amber-900/40">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400">At-Risk (&le;48h)</span>
+          <p className="stat-num mt-1 text-2xl text-amber-300">{atRiskCount}</p>
+        </Card>
+        <Card className="p-4 border-purple-900/40">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-purple-400">Verifying</span>
+          <p className="stat-num mt-1 text-2xl text-purple-300">{verifyingCount}</p>
+        </Card>
+        <Card className="p-4 border-emerald-900/40">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400">Resolved</span>
+          <p className="stat-num mt-1 text-2xl text-emerald-400">{resolvedCount}</p>
+        </Card>
       </div>
 
       {/* Filter Bar */}
       <Card className="p-4 space-y-3">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
-          <div className="md:col-span-4">
+          <div className="md:col-span-4 relative">
+            <SearchIcon
+              size={14}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
+            />
             <Input
               type="text"
               placeholder="Filter by vulnerability, target, or assignee..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
             />
           </div>
 
@@ -257,7 +266,7 @@ export default function RemediationWorkspacePage() {
             <select
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value)}
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-cyan-500"
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-950/75 px-3 py-2 text-xs sm:text-sm text-zinc-200 focus:outline-none focus:border-[#d4c9a8]"
             >
               <option value="">All Severities</option>
               <option value="CRITICAL">Critical</option>
@@ -271,7 +280,7 @@ export default function RemediationWorkspacePage() {
             <select
               value={assigneeFilter}
               onChange={(e) => setAssigneeFilter(e.target.value)}
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-cyan-500"
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-950/75 px-3 py-2 text-xs sm:text-sm text-zinc-200 focus:outline-none focus:border-[#d4c9a8]"
             >
               <option value="">All Assignees</option>
               <option value="alice@kelvin.io">alice@kelvin.io</option>
@@ -285,7 +294,7 @@ export default function RemediationWorkspacePage() {
             <select
               value={slaFilter}
               onChange={(e) => setSlaFilter(e.target.value as typeof slaFilter)}
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-cyan-500"
+              className="w-full rounded-lg border border-zinc-800 bg-zinc-950/75 px-3 py-2 text-xs sm:text-sm text-zinc-200 focus:outline-none focus:border-[#d4c9a8]"
             >
               <option value="ALL">All SLA Statuses</option>
               <option value="OVERDUE">Overdue Only</option>
@@ -339,70 +348,81 @@ export default function RemediationWorkspacePage() {
             return (
               <div
                 key={col.id}
-                className={`flex flex-col rounded-lg border p-3 min-w-[280px] lg:min-w-0 ${col.color}`}
+                className={`flex flex-col rounded-xl border p-3 min-w-[270px] lg:min-w-0 ${col.color}`}
               >
                 {/* Column Header */}
-                <div className="flex items-center justify-between pb-3 border-b border-zinc-800 mb-3">
-                  <span className="text-xs font-semibold text-zinc-300">{col.title}</span>
-                  <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-mono text-zinc-400">
+                <div className="flex items-center justify-between pb-3 border-b border-zinc-800/80 mb-3">
+                  <span className="text-xs font-semibold text-zinc-200 flex items-center gap-2 font-display">
+                    <span className={`h-2 w-2 rounded-full ${col.dot}`} />
+                    {col.title}
+                  </span>
+                  <span className="rounded-full bg-zinc-900 border border-zinc-800 px-2 py-0.5 text-[10px] font-mono text-zinc-400">
                     {colTasks.length}
                   </span>
                 </div>
 
                 {/* Cards List */}
                 <div className="flex-1 space-y-3 overflow-y-auto max-h-[700px] pr-1">
-                  {colTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className="rounded-md border border-zinc-800 bg-zinc-900 p-3 shadow-sm hover:border-zinc-700 transition-all space-y-2.5"
-                    >
-                      <div className="flex items-center justify-between gap-1">
-                        <SeverityBadge severity={task.severity} />
-                        {renderSlaBadge(task)}
-                      </div>
-
-                      <h4
-                        onClick={() => {
-                          setSelectedTask(task);
-                          setIsDetailModalOpen(true);
-                        }}
-                        className="text-xs font-semibold text-zinc-200 hover:text-cyan-400 cursor-pointer line-clamp-2"
+                  {colTasks.map((task) => {
+                    const assigneeInitial = (task.assignee || "U").charAt(0).toUpperCase();
+                    return (
+                      <div
+                        key={task.id}
+                        className="rounded-xl border border-zinc-800/90 bg-zinc-900/90 p-3.5 shadow-sm hover:border-[#d4c9a8]/40 transition-all space-y-2.5"
                       >
-                        {task.findingTitle}
-                      </h4>
+                        <div className="flex items-center justify-between gap-1">
+                          <SeverityBadge severity={task.severity} size="sm" />
+                          {renderSlaBadge(task)}
+                        </div>
 
-                      <div className="text-[11px] font-mono text-zinc-400 truncate">
-                        {task.target}
-                      </div>
-
-                      <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-1 border-t border-zinc-800/60">
-                        <span className="truncate max-w-[120px]">{task.assignee}</span>
-                        {task.verificationStatus === "VERIFIED_RESOLVED" ? (
-                          <span className="text-emerald-400 font-semibold text-[10px]">✓ Verified</span>
-                        ) : task.verificationStatus === "VERIFYING" ? (
-                          <span className="text-cyan-400 text-[10px] animate-pulse">⟳ Scanning...</span>
-                        ) : null}
-                      </div>
-
-                      {/* Status Selector Dropdown */}
-                      <div className="pt-1 flex items-center justify-between gap-2">
-                        <select
-                          value={task.status}
-                          onChange={(e) =>
-                            handleStatusChange(task.id, e.target.value as RemediationStatus)
-                          }
-                          className="w-full rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300 focus:outline-none"
+                        <h4
+                          onClick={() => {
+                            setSelectedTask(task);
+                            setIsDetailModalOpen(true);
+                          }}
+                          className="text-xs font-semibold text-zinc-100 hover:text-[#e8debe] cursor-pointer line-clamp-2 leading-snug"
                         >
-                          <option value="OPEN">Move: Open</option>
-                          <option value="IN_PROGRESS">Move: In Progress</option>
-                          <option value="BLOCKED">Move: Blocked</option>
-                          <option value="VERIFICATION_PENDING">Move: Verification</option>
-                          <option value="RESOLVED">Move: Resolved</option>
-                          <option value="ACCEPTED_RISK">Move: Accepted Risk</option>
-                        </select>
+                          {task.findingTitle}
+                        </h4>
+
+                        <div className="text-[11px] font-mono text-zinc-400 truncate">
+                          {task.target}
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-2 border-t border-zinc-800/70">
+                          <span className="inline-flex items-center gap-1.5 truncate max-w-[130px]">
+                            <span className="h-4 w-4 rounded-full bg-zinc-800 border border-zinc-700 text-[9px] font-mono font-bold text-[#d4c9a8] flex items-center justify-center shrink-0">
+                              {assigneeInitial}
+                            </span>
+                            <span className="truncate">{task.assignee}</span>
+                          </span>
+                          {task.verificationStatus === "VERIFIED_RESOLVED" ? (
+                            <span className="text-emerald-400 font-mono font-semibold text-[10px]">✓ Verified</span>
+                          ) : task.verificationStatus === "VERIFYING" ? (
+                            <span className="text-[#d4c9a8] font-mono text-[10px] animate-pulse">⟳ Scanning</span>
+                          ) : null}
+                        </div>
+
+                        {/* Status Selector Dropdown */}
+                        <div className="pt-1 flex items-center justify-between gap-2">
+                          <select
+                            value={task.status}
+                            onChange={(e) =>
+                              handleStatusChange(task.id, e.target.value as RemediationStatus)
+                            }
+                            className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-[#d4c9a8]"
+                          >
+                            <option value="OPEN">Move: Open</option>
+                            <option value="IN_PROGRESS">Move: In Progress</option>
+                            <option value="BLOCKED">Move: Blocked</option>
+                            <option value="VERIFICATION_PENDING">Move: Verification</option>
+                            <option value="RESOLVED">Move: Resolved</option>
+                            <option value="ACCEPTED_RISK">Move: Accepted Risk</option>
+                          </select>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -410,9 +430,9 @@ export default function RemediationWorkspacePage() {
         </div>
       ) : (
         /* Tabular List View */
-        <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/60">
+        <div className="overflow-x-auto rounded-xl surface-card">
           <table className="w-full text-left text-sm text-zinc-300">
-            <thead className="border-b border-zinc-800 bg-zinc-900 text-xs uppercase text-zinc-400">
+            <thead className="border-b border-zinc-800/80 bg-zinc-950/90 text-[10px] font-mono tracking-wider uppercase text-zinc-400">
               <tr>
                 <th className="px-4 py-3">Vulnerability Title</th>
                 <th className="px-4 py-3">Severity</th>
@@ -426,41 +446,39 @@ export default function RemediationWorkspacePage() {
             </thead>
             <tbody className="divide-y divide-zinc-800/60">
               {tasks.map((task) => (
-                <tr key={task.id} className="hover:bg-zinc-800/30">
-                  <td className="px-4 py-3">
+                <tr key={task.id} className="hover:bg-zinc-800/35">
+                  <td className="px-4 py-3.5">
                     <button
                       onClick={() => {
                         setSelectedTask(task);
                         setIsDetailModalOpen(true);
                       }}
-                      className="font-medium text-zinc-200 hover:text-cyan-400 text-left"
+                      className="font-medium text-xs sm:text-sm text-zinc-100 hover:text-[#e8debe] text-left cursor-pointer"
                     >
                       {task.findingTitle}
                     </button>
                   </td>
-                  <td className="px-4 py-3">
-                    <SeverityBadge severity={task.severity} />
+                  <td className="px-4 py-3.5">
+                    <SeverityBadge severity={task.severity} size="sm" />
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-zinc-400 truncate max-w-[180px]">
+                  <td className="px-4 py-3.5 font-mono text-xs text-zinc-400 truncate max-w-[180px]">
                     {task.target}
                   </td>
-                  <td className="px-4 py-3 text-xs text-zinc-300">{task.assignee}</td>
-                  <td className="px-4 py-3">
-                    <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-mono text-zinc-300">
-                      {task.status}
-                    </span>
+                  <td className="px-4 py-3.5 text-xs text-zinc-300">{task.assignee}</td>
+                  <td className="px-4 py-3.5">
+                    <StatusPill status={task.status} />
                   </td>
-                  <td className="px-4 py-3">{renderSlaBadge(task)}</td>
-                  <td className="px-4 py-3 text-xs">
+                  <td className="px-4 py-3.5">{renderSlaBadge(task)}</td>
+                  <td className="px-4 py-3.5 text-xs font-mono">
                     {task.verificationStatus === "VERIFIED_RESOLVED" ? (
                       <span className="text-emerald-400 font-semibold">Automated Verified</span>
                     ) : task.verificationStatus === "VERIFYING" ? (
-                      <span className="text-cyan-400 animate-pulse">Sweep in progress...</span>
+                      <span className="text-[#d4c9a8] animate-pulse">Sweep in progress...</span>
                     ) : (
                       <span className="text-zinc-500">Self-Reported</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3.5 text-right">
                     <Button
                       size="sm"
                       variant="outline"
@@ -485,6 +503,7 @@ export default function RemediationWorkspacePage() {
           isOpen={isDetailModalOpen}
           onClose={() => setIsDetailModalOpen(false)}
           title="Remediation Task Workspace"
+          maxWidth="lg"
         >
           <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
             <div className="flex items-center justify-between">
@@ -493,34 +512,34 @@ export default function RemediationWorkspacePage() {
             </div>
 
             <div>
-              <h3 className="text-lg font-bold text-zinc-100">{selectedTask.findingTitle}</h3>
+              <h3 className="text-lg font-bold text-zinc-100 font-display">{selectedTask.findingTitle}</h3>
               <p className="mt-1 font-mono text-xs text-zinc-400">{selectedTask.affectedEndpoint}</p>
               <Link
                 to={`/findings/${selectedTask.findingId}`}
-                className="mt-1 inline-block text-xs text-cyan-400 hover:text-cyan-300 underline"
+                className="mt-1.5 inline-block text-xs font-mono text-[#d4c9a8] hover:text-[#f0eeea] underline"
               >
-                Inspect Original Finding & Evidence &rarr;
+                Inspect Original Finding &amp; Evidence &rarr;
               </Link>
             </div>
 
-            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-xs space-y-2">
-              <span className="font-semibold text-zinc-300 uppercase tracking-wide text-[10px]">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3.5 text-xs space-y-1.5">
+              <span className="font-mono font-semibold text-[#d4c9a8] uppercase tracking-wider text-[10px]">
                 Remediation Guidance
               </span>
-              <p className="text-zinc-400 leading-relaxed">{selectedTask.remediationGuidance}</p>
+              <p className="text-zinc-300 leading-relaxed">{selectedTask.remediationGuidance}</p>
             </div>
 
             {/* Linked PR & Commit */}
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <span className="text-zinc-500">Pull Request</span>
-                <p className="text-zinc-200 mt-0.5 truncate">
+              <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/50 p-3">
+                <span className="text-[10px] font-mono uppercase text-zinc-500">Pull Request</span>
+                <p className="text-zinc-200 mt-1 truncate">
                   {selectedTask.prUrl ? (
                     <a
                       href={selectedTask.prUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-cyan-400 underline"
+                      className="text-[#d4c9a8] underline"
                     >
                       {selectedTask.prUrl}
                     </a>
@@ -529,22 +548,22 @@ export default function RemediationWorkspacePage() {
                   )}
                 </p>
               </div>
-              <div>
-                <span className="text-zinc-500">Commit SHA</span>
-                <p className="font-mono text-zinc-300 mt-0.5">
+              <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/50 p-3">
+                <span className="text-[10px] font-mono uppercase text-zinc-500">Commit SHA</span>
+                <p className="font-mono text-zinc-300 mt-1">
                   {selectedTask.commitSha || "Not specified"}
                 </p>
               </div>
             </div>
 
             {/* Verification Section */}
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 space-y-3">
-              <div className="flex items-center justify-between">
+            <div className="rounded-xl border border-[#d4c9a8]/30 bg-[#d4c9a8]/6 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h4 className="text-xs font-semibold uppercase text-zinc-400">
+                  <h4 className="text-xs font-mono font-semibold uppercase text-[#e8debe]">
                     Automated Verification
                   </h4>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-zinc-400 mt-0.5">
                     Triggers a dedicated scanner sweep targeting this specific vulnerability
                   </p>
                 </div>
@@ -558,15 +577,15 @@ export default function RemediationWorkspacePage() {
                   Verify Fix
                 </Button>
               </div>
-              <div className="text-xs">
-                <span className="text-zinc-500">Current Verification Status: </span>
+              <div className="text-xs font-mono">
+                <span className="text-zinc-500">Status: </span>
                 <span className="font-semibold text-zinc-200">{selectedTask.verificationStatus}</span>
               </div>
             </div>
 
             {/* Notes Thread */}
             <div className="space-y-3 pt-2">
-              <h4 className="text-xs font-semibold uppercase text-zinc-400">
+              <h4 className="text-[10px] font-mono font-semibold uppercase tracking-wider text-zinc-400">
                 Remediation Notes ({selectedTask.notes.length})
               </h4>
               <div className="space-y-2 max-h-40 overflow-y-auto">
@@ -576,9 +595,9 @@ export default function RemediationWorkspacePage() {
                   selectedTask.notes.map((note) => (
                     <div
                       key={note.id}
-                      className="rounded border border-zinc-800/80 bg-zinc-950 p-2.5 text-xs space-y-1"
+                      className="rounded-lg border border-zinc-800/80 bg-zinc-950 p-3 text-xs space-y-1"
                     >
-                      <div className="flex items-center justify-between text-zinc-500 text-[11px]">
+                      <div className="flex items-center justify-between text-zinc-500 font-mono text-[10px]">
                         <span>{note.author}</span>
                         <span>{new Date(note.createdAt).toLocaleString()}</span>
                       </div>

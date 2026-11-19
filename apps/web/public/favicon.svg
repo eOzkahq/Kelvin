@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" width="100%" height="100%" fill="none">
+  <!-- Precision Mathematical Canvas: 140x140 -->
+  <!-- Concept: The Hardened Scope Perimeter, Radial Target Ray, and Sandboxed Assessment Core -->
+  <defs>
+    <!-- Background Gradient -->
+    <radialGradient id="bgPlate" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#020617" />
+    </radialGradient>
+
+    <!-- Radar Sweep Beam (The Assessment Probe) -->
+    <linearGradient id="scanBeam" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.8" />
+      <stop offset="40%" stop-color="#0284C7" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#0369A1" stop-opacity="0.0" />
+    </linearGradient>
+
+    <!-- Reticle Scope Glow -->
+    <linearGradient id="reticleStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#94A3B8" />
+      <stop offset="100%" stop-color="#334155" />
+    </linearGradient>
+  </defs>
+
+  <!-- Container Box -->
+  <rect width="140" height="140" rx="32" fill="url(#bgPlate)" />
+  <rect x="1" y="1" width="138" height="138" rx="31" stroke="#1E293B" stroke-width="1.5" />
+
+  <!-- 1. Layer 1: Scope Target Crosshairs (Axis Grid) -->
+  <line x1="70" y1="20" x2="70" y2="34" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" opacity="0.6" />
+  <line x1="70" y1="106" x2="70" y2="120" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" opacity="0.6" />
+  <line x1="20" y1="70" x2="34" y2="70" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" opacity="0.6" />
+  <line x1="106" y1="70" x2="120" y2="70" stroke="#64748B" stroke-width="1.5" stroke-linecap="round" opacity="0.6" />
+
+  <!-- 2. Layer 2: Scope Radar Boundary (Concentric Scrutiny Rings) -->
+  <circle cx="70" cy="70" r="48" stroke="#334155" stroke-width="1" stroke-dasharray="4 6" opacity="0.5" />
+  <circle cx="70" cy="70" r="34" stroke="#1E293B" stroke-width="1" opacity="0.8" />
+
+  <!-- 3. Layer 3: 45° Scan Beam / Radial Sweep (Active Tool Probe) -->
+  <path d="M 70 70 L 104 36 A 48 48 0 0 0 46 26 Z" fill="url(#scanBeam)" />
+
+  <!-- 4. Layer 4: Hardened Protective Hexagon Shield (The Rootless Sandbox Boundary) -->
+  <polygon points="70,38 98,54 98,86 70,102 42,86 42,54" 
+           fill="#090D16" 
+           fill-opacity="0.9"
+           stroke="url(#reticleStroke)" 
+           stroke-width="2.5" 
+           stroke-linejoin="round" />
+
+  <!-- 5. Layer 5: Target Reticle Corner Brackets (Scope Enforcement Boundary) -->
+  <path d="M 46 44 L 38 44 L 38 52" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 94 44 L 102 44 L 102 52" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 46 96 L 38 96 L 38 88" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 94 96 L 102 96 L 102 88" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- 6. Layer 6: Isolated Target Core & Finding Pulse (The Ingested Asset) -->
+  <circle cx="70" cy="70" r="10" fill="#0284C7" fill-opacity="0.25" stroke="#38BDF8" stroke-width="2" />
+  <circle cx="70" cy="70" r="4" fill="#F8FAFC" />
+
+  <!-- Micro vulnerability finding node -->
+  <circle cx="84" cy="58" r="2.5" fill="#38BDF8" />
+  <circle cx="56" cy="78" r="2" fill="#94A3B8" />
+</svg>

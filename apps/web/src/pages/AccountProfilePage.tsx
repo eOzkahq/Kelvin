@@ -17,9 +17,14 @@ export default function AccountProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-zinc-100">Account & Security Profile</h1>
-        <p className="text-xs text-zinc-400 mt-1">
+      <div className="pb-4 border-b border-zinc-800/80">
+        <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[#d4c9a8]">
+          Operator Identity
+        </span>
+        <h1 className="text-2xl font-bold text-zinc-100 font-display mt-1">
+          Account &amp; Security Profile
+        </h1>
+        <p className="text-xs text-zinc-400 mt-0.5">
           Manage your personal credentials, cryptographic keys, and active sessions.
         </p>
       </div>

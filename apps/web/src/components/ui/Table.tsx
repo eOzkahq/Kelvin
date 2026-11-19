@@ -5,7 +5,7 @@ export const Table: React.FC<React.TableHTMLAttributes<HTMLTableElement>> = ({
   children,
   ...props
 }) => (
-  <div className="w-full overflow-x-auto rounded-xl border border-zinc-800/80 bg-zinc-900/60 backdrop-blur-xs">
+  <div className="w-full overflow-x-auto rounded-xl surface-card">
     <table className={`w-full text-left text-sm text-zinc-300 ${className}`} {...props}>
       {children}
     </table>
@@ -17,7 +17,10 @@ export const TableHeader: React.FC<React.HTMLAttributes<HTMLTableSectionElement>
   children,
   ...props
 }) => (
-  <thead className={`bg-zinc-950/90 text-[11px] uppercase font-mono font-medium text-zinc-400 border-b border-zinc-800/80 ${className}`} {...props}>
+  <thead
+    className={`bg-zinc-950/90 text-[10px] uppercase font-mono tracking-wider font-medium text-zinc-400 border-b border-zinc-800/80 ${className}`}
+    {...props}
+  >
     {children}
   </thead>
 );
@@ -37,7 +40,7 @@ export const TableRow: React.FC<React.HTMLAttributes<HTMLTableRowElement>> = ({
   children,
   ...props
 }) => (
-  <tr className={`transition-colors hover:bg-zinc-800/40 ${className}`} {...props}>
+  <tr className={`transition-colors hover:bg-zinc-800/35 ${className}`} {...props}>
     {children}
   </tr>
 );

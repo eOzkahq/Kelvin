@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchAssessmentDetail,
@@ -7,6 +7,9 @@ import {
 } from "../features/assessments";
 import { fetchFindings, type Finding } from "../features/findings";
 import { downloadAssessmentReport } from "../features/reports";
+import { ensureReportForAssessment } from "../features/reports/reportsApi";
+import { computePostureMarking } from "../features/reports/reportModel";
+import { getLiveScanResult } from "../features/reports/liveScanStore";
 import {
   Card,
   CardHeader,
@@ -19,24 +22,40 @@ import {
   SkeletonLoader,
   EmptyState,
 } from "../components/ui";
+import { RadarIcon, SearchIcon, TerminalIcon } from "../components/ui/Icons";
 
 const STAGES = ["QUEUED", "PREFLIGHT", "SCANNING", "NORMALIZING", "COMPLETED"];
 
 export default function AssessmentDetailPage() {
   const { id = "asmt-current" } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [logFilter, setLogFilter] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportFormat, setReportFormat] = useState<"html" | "pdf" | "csv" | "json">("html");
   const [copiedLogs, setCopiedLogs] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [autoReportId, setAutoReportId] = useState<string | null>(null);
+
+  const liveProbe = getLiveScanResult(id);
+
+  const handleGenerateReport = async () => {
+    if (!detail) return;
+    setIsGeneratingReport(true);
+    try {
+      const created = await ensureReportForAssessment(detail.id, detail.targetAddress, detail.name);
+      navigate(`/reports?open=${encodeURIComponent(created.id)}&fromAssessment=${encodeURIComponent(detail.id)}`);
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
 
   const { data: detail, isLoading, isError } = useQuery({
     queryKey: ["assessment", id],
     queryFn: () => fetchAssessmentDetail(id),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      // Stop polling on terminal states (FE-26.5)
       if (
         status === "COMPLETED" ||
         status === "FAILED" ||
@@ -45,7 +64,7 @@ export default function AssessmentDetailPage() {
       ) {
         return false;
       }
-      return 3000; // Poll every 3s while active
+      return 3000;
     },
   });
 
@@ -58,6 +77,14 @@ export default function AssessmentDetailPage() {
   const findingsList: Finding[] = useMemo(() => {
     return findingsData?.items || [];
   }, [findingsData]);
+
+  useEffect(() => {
+    if (detail?.status === "COMPLETED" && !autoReportId) {
+      void ensureReportForAssessment(detail.id, detail.targetAddress, detail.name).then((rep) => {
+        setAutoReportId(rep.id);
+      });
+    }
+  }, [detail?.status, detail?.id, detail?.targetAddress, detail?.name, autoReportId]);
 
   const cancelMutation = useMutation({
     mutationFn: () => cancelAssessment(id),
@@ -225,16 +252,16 @@ export default function AssessmentDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-zinc-800">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-zinc-800/80">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold tracking-tight text-zinc-100">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-display">
               {detail.name}
             </h1>
             <StatusPill status={detail.status} />
           </div>
-          <p className="text-xs text-zinc-400 mt-1 font-mono">
-            ID: {detail.id} • Target: <span className="text-cyan-400">{detail.targetAddress}</span> • Profile: {detail.profileName}
+          <p className="text-xs text-zinc-400 mt-1.5 font-mono">
+            ID: {detail.id} • Target: <span className="text-[#d4c9a8]">{detail.targetAddress}</span> • Profile: {detail.profileName}
           </p>
         </div>
 
@@ -249,14 +276,23 @@ export default function AssessmentDetailPage() {
             </Button>
           )}
 
+          <Button
+            variant="primary"
+            size="sm"
+            isLoading={isGeneratingReport}
+            onClick={() => { void handleGenerateReport(); }}
+          >
+            {autoReportId ? "Open Auto-Generated Report" : "Open PDF Report"}
+          </Button>
+
           {isTerminal && (
             <Button
-              variant="primary"
+              variant="secondary"
               size="sm"
               onClick={() => setShowReportModal(true)}
               aria-label="Download assessment report"
             >
-              📥 Download Report
+              📥 Download Formats
             </Button>
           )}
 
@@ -268,18 +304,44 @@ export default function AssessmentDetailPage() {
         </div>
       </div>
 
+      {detail.status === "COMPLETED" && autoReportId && (
+        <div className="rounded-xl border border-emerald-800/60 bg-emerald-950/30 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-zinc-200">
+            <strong className="text-emerald-400">Assessment Completed:</strong> Report{" "}
+            <code className="font-mono text-[var(--brand-text)]">{autoReportId}</code> was automatically generated for{" "}
+            <span className="font-mono">{detail.targetAddress}</span>.
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() =>
+                navigate(`/reports?open=${encodeURIComponent(autoReportId)}&fromAssessment=${encodeURIComponent(detail.id)}`)
+              }
+            >
+              View Report &rarr;
+            </Button>
+            <Link to="/findings">
+              <Button size="sm" variant="secondary">
+                Explore Findings
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Multi-Stage Visual Execution Timeline */}
-      <Card>
+      <Card variant="elevated">
         <CardHeader>
           <div>
             <CardTitle>Execution Stage Pipeline</CardTitle>
             <CardDescription>
-              Continuous pipeline progression without fabricated percentage estimates
+              Continuous sandboxed pipeline progression without fabricated percentage estimates
             </CardDescription>
           </div>
         </CardHeader>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
           {STAGES.map((stage, idx) => {
             const isPassed = currentStageIndex > idx || detail.status === "COMPLETED";
             const isCurrent = currentStageIndex === idx && !isTerminal;
@@ -287,19 +349,18 @@ export default function AssessmentDetailPage() {
             return (
               <div
                 key={stage}
-                className={`p-3 rounded-lg border text-center transition-all ${
-                  isCurrent
-                    ? "border-cyan-500 bg-cyan-950/40 text-cyan-200"
-                    : isPassed
-                    ? "border-emerald-800/80 bg-emerald-950/20 text-emerald-300"
-                    : "border-zinc-800 bg-zinc-900/40 text-zinc-600"
-                }`}
+                className={`p-3.5 rounded-xl border text-center transition-all ${isCurrent
+                  ? "border-[#d4c9a8]/65 bg-[#d4c9a8]/12 text-[#f0eeea] shadow-[0_0_20px_rgba(212,201,168,0.12)]"
+                  : isPassed
+                    ? "border-emerald-800/70 bg-emerald-950/25 text-emerald-300"
+                    : "border-zinc-800/80 bg-zinc-950/50 text-zinc-500"
+                  }`}
               >
-                <div className="text-[10px] uppercase font-mono tracking-wider">
-                  Stage {idx + 1}
+                <div className="text-[10px] uppercase font-mono tracking-wider opacity-80">
+                  Stage 0{idx + 1}
                 </div>
-                <div className="text-xs font-semibold mt-1 flex items-center justify-center gap-1.5">
-                  {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />}
+                <div className="text-xs font-semibold font-mono mt-1.5 flex items-center justify-center gap-1.5">
+                  {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-[#d4c9a8] animate-ping" />}
                   {isPassed && <span>✓</span>}
                   <span>{stage}</span>
                 </div>
@@ -312,14 +373,17 @@ export default function AssessmentDetailPage() {
       {/* Per-Scanner Worker Status */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {(detail.scanners || []).map((task) => (
-          <Card key={task.scanner} className="p-4 space-y-2">
+          <Card key={task.scanner} className="p-4 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-xs text-zinc-100">{task.scanner}</span>
+              <span className="font-semibold text-xs text-zinc-100 flex items-center gap-2 font-display">
+                <RadarIcon size={14} className="text-[#d4c9a8]" />
+                {task.scanner}
+              </span>
               <StatusPill status={task.status} />
             </div>
             <p className="text-xs text-zinc-400">{task.currentActivity || "Standby"}</p>
-            <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-2 border-t border-zinc-800/60 font-mono">
-              <span>Findings: {task.findingsDiscovered ?? task.findingsCount ?? 0}</span>
+            <div className="flex items-center justify-between text-[11px] text-zinc-500 pt-2.5 border-t border-zinc-800/70 font-mono">
+              <span>Findings: <strong className="text-zinc-200">{task.findingsDiscovered ?? task.findingsCount ?? 0}</strong></span>
               <span>
                 {task.durationSeconds !== undefined && task.durationSeconds > 0
                   ? `${task.durationSeconds}s elapsed`
@@ -339,22 +403,29 @@ export default function AssessmentDetailPage() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
             <div>
-              <div className="flex items-center gap-2">
-                <CardTitle>Worker Execution Logs</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <TerminalIcon size={15} className="text-[#d4c9a8]" />
+                <span>Worker Execution Logs</span>
                 <span className="rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-mono text-zinc-400">
                   {filteredLogs.length} events
                 </span>
-              </div>
+              </CardTitle>
               <CardDescription>Real-time audit telemetry streamed from runner containers</CardDescription>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <input
-                type="text"
-                placeholder="Search logs..."
-                value={logFilter}
-                onChange={(e) => setLogFilter(e.target.value)}
-                className="w-full sm:w-48 bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-xs text-zinc-200 placeholder-zinc-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500"
-              />
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <div className="relative w-full sm:w-64">
+                <SearchIcon
+                  size={13}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Filter log stream..."
+                  value={logFilter}
+                  onChange={(e) => setLogFilter(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#d4c9a8]"
+                />
+              </div>
               <Button
                 variant="secondary"
                 size="sm"
@@ -377,37 +448,151 @@ export default function AssessmentDetailPage() {
           </div>
         </CardHeader>
 
-        <div className="font-mono text-xs bg-black rounded-lg border border-zinc-800 p-4 h-64 overflow-y-auto space-y-1">
-          {filteredLogs.map((log, index) => (
-            <div key={index} className="flex items-start gap-3">
-              <span className="text-zinc-600 select-none whitespace-nowrap">{log.timestamp}</span>
-              <span
-                className={`font-semibold uppercase text-[10px] px-1 rounded whitespace-nowrap ${
-                  log.level === "ERROR"
-                    ? "bg-red-950 text-red-400"
-                    : log.level === "WARN"
-                    ? "bg-amber-950 text-amber-400"
-                    : "text-cyan-400"
-                }`}
-              >
-                [{log.level}]
-              </span>
-              <span className="text-zinc-300 break-words">{log.message}</span>
+        <div className="rounded-xl border border-zinc-800 bg-[#060709] overflow-hidden shadow-inner">
+          {/* Terminal Window Chrome */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800/80 bg-zinc-950/90 text-[10px] font-mono text-zinc-500">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+              <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+              <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+              <span className="ml-2 text-zinc-400">kelvin-runner://sandbox-stream/{detail.id}</span>
             </div>
-          ))}
+            <span>{filteredLogs.length} lines</span>
+          </div>
+
+          <div className="font-mono text-xs p-4 h-72 overflow-y-auto space-y-1.5">
+            {filteredLogs.map((log, index) => (
+              <div key={index} className="flex items-start gap-3 leading-relaxed">
+                <span className="text-zinc-700 select-none w-6 text-right shrink-0">{index + 1}</span>
+                <span className="text-zinc-500 select-none shrink-0">{log.timestamp}</span>
+                <span
+                  className={`font-semibold uppercase text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
+                    log.level === "ERROR"
+                      ? "bg-red-950/80 text-red-400 border border-red-900/60"
+                      : log.level === "WARN"
+                      ? "bg-amber-950/80 text-amber-300 border border-amber-900/60"
+                      : "bg-[#d4c9a8]/10 text-[#d4c9a8] border border-[#d4c9a8]/20"
+                  }`}
+                >
+                  {log.level}
+                </span>
+                <span className="text-zinc-300">{log.message}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </Card>
 
+              {/* Live Website Probe Findings & Posture Marking */}
+              {liveProbe && (() => {
+                const marking = computePostureMarking(liveProbe.findings);
+                return (
+          <Card className="p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-zinc-800/80">
+              <div>
+                <h2 className="text-sm font-semibold text-zinc-100 font-display">
+                  Security Score, Marking &amp; Live Probe Findings
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Real DNS, TLS certificate, and HTTP security header checks executed against{" "}
+                  <span className="font-mono text-[var(--brand-text)]">{liveProbe.targetUrl}</span>
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-semibold text-[var(--brand-text)] bg-[var(--brand-bg)] border border-[var(--brand-border)] px-3 py-1 rounded-full">
+                  Score: {marking.postureScore} / 100 · Grade {marking.postureGrade}
+                </span>
+                <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/50 border border-emerald-800/60 px-2.5 py-1 rounded-full">
+                  HTTP {liveProbe.httpStatus ?? "N/A"} · {liveProbe.latencyMs}ms
+                </span>
+              </div>
+            </div>
+
+            {/* Category Marking Breakdown */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {marking.scoringRubric.map((sc) => (
+                <div key={sc.category} className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-zinc-200 truncate">{sc.category}</span>
+                    <span className="font-mono font-semibold text-[var(--brand-text)]">
+                      {sc.earned}/{sc.max}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-zinc-900 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${
+                        sc.status === "PASS" ? "bg-emerald-500" : sc.status === "WARN" ? "bg-amber-500" : "bg-red-500"
+                      }`}
+                      style={{ width: `${(sc.earned / sc.max) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] font-mono text-zinc-500 truncate">{sc.deductions}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                <span className="text-[10px] text-zinc-500 block">RESOLVED IPs</span>
+                <span className="text-zinc-200 mt-1 block">
+                  {liveProbe.resolvedIps.length > 0 ? liveProbe.resolvedIps.join(", ") : "Unresolved"}
+                </span>
+              </div>
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                <span className="text-[10px] text-zinc-500 block">TLS POSTURE</span>
+                <span className="text-zinc-200 mt-1 block">
+                  {liveProbe.tls.supported
+                    ? `${liveProbe.tls.protocol} · ${liveProbe.tls.cipher}`
+                    : "No TLS / Plaintext"}
+                </span>
+              </div>
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                <span className="text-[10px] text-zinc-500 block">CERT EXPIRY</span>
+                <span className="text-zinc-200 mt-1 block">
+                  {liveProbe.tls.daysRemaining !== null
+                    ? `${liveProbe.tls.daysRemaining} days (${liveProbe.tls.issuer ?? "CA"})`
+                    : "N/A"}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              {liveProbe.findings.map((f) => (
+                <div
+                  key={f.id}
+                  className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3.5 space-y-1.5"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <SeverityBadge severity={f.severity} size="sm" />
+                      <span className="text-xs font-semibold text-zinc-100">{f.title}</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-zinc-500">
+                      CVSS {f.cvss.toFixed(1)} · {f.cwe} · {f.scanner}
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400">{f.description}</p>
+                  <p className="text-[11px] font-mono text-[var(--brand-text)]">Evidence: {f.evidence}</p>
+                  <p className="text-[11px] text-emerald-400">Remediation: {f.remediation}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
+
       {/* Findings Summary Strip */}
-      <Card className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <Card variant="accent" className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs text-zinc-400 block font-medium">Discovered Vulnerabilities:</span>
-          <div className="flex items-center gap-2 mt-1">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 block">
+            Discovered Vulnerabilities
+          </span>
+          <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
             <SeverityBadge severity="CRITICAL" size="sm" />
-            <span className="text-xs text-zinc-300 font-mono">{detail.criticalCount}</span>
+            <span className="text-xs text-zinc-200 font-mono">{detail.criticalCount}</span>
             <SeverityBadge severity="HIGH" size="sm" />
-            <span className="text-xs text-zinc-300 font-mono">{detail.highCount}</span>
-            <span className="text-xs text-zinc-500 ml-2">({detail.totalFindings} total normalized)</span>
+            <span className="text-xs text-zinc-200 font-mono">{detail.highCount}</span>
+            <span className="text-xs text-zinc-400 font-mono ml-1">({detail.totalFindings} total normalized)</span>
           </div>
         </div>
 
@@ -575,9 +760,9 @@ export default function AssessmentDetailPage() {
           </>
         }
       >
-        <p className="text-xs text-zinc-300">
+        <p className="text-xs text-zinc-300 leading-relaxed">
           SIGTERM will be transmitted to all container sandboxes executing against{" "}
-          <span className="font-mono text-cyan-400">{detail.targetAddress}</span>. Partial results
+          <span className="font-mono text-[#d4c9a8]">{detail.targetAddress}</span>. Partial results
           already recorded will be preserved in the findings repository.
         </p>
         {cancelMutation.isError && (

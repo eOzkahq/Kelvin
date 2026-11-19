@@ -10,4 +10,5 @@ export * from "./SkeletonLoader";
 export * from "./CustomCursor";
 export * from "./BackgroundParticles";
 export * from "./ErrorBoundary";
-
+export * from "./Icons";
+export * from "./eOzkaBrand";

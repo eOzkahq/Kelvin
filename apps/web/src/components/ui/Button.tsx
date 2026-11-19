@@ -13,21 +13,21 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-[#f0eeea] hover:bg-[#d4c9a8] text-[#0c0c0c] font-bold tracking-wider uppercase shadow-[0_0_20px_rgba(212,201,168,0.15)] border border-[#d4c9a8] focus-visible:ring-[#d4c9a8]",
+  "bg-gradient-to-b from-[var(--brand-btn-from)] to-[var(--brand-btn-to)] hover:opacity-95 text-[var(--brand-btn-fg)] font-semibold tracking-wide shadow-sm border border-[var(--brand-btn-border)] focus-visible:ring-[var(--brand)] active:scale-[0.99]",
   secondary:
-    "bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 font-semibold tracking-wider uppercase border border-zinc-700/80 hover:border-[#d4c9a8]/50 focus-visible:ring-[#d4c9a8]",
+  "bg-zinc-900 hover:bg-zinc-850 text-zinc-200 font-medium border border-zinc-700 hover:border-[var(--brand-border)] shadow-xs focus-visible:ring-[var(--brand)]",
   danger:
-    "bg-red-950/80 hover:bg-red-900 text-red-200 font-semibold tracking-wider uppercase border border-red-800 focus-visible:ring-red-500",
+  "bg-red-950/90 hover:bg-red-900/90 text-red-300 font-medium border border-red-800/80 hover:border-red-600 focus-visible:ring-red-500",
   ghost:
-    "bg-transparent hover:bg-zinc-800/60 text-zinc-300 hover:text-[#d4c9a8] border border-transparent focus-visible:ring-[#d4c9a8]",
+  "bg-transparent hover:bg-zinc-800/70 text-zinc-300 hover:text-[var(--brand-text)] border border-transparent focus-visible:ring-[var(--brand)]",
   outline:
-    "bg-transparent hover:bg-[#d4c9a8]/10 text-[#d4c9a8] border border-[#d4c9a8]/60 hover:border-[#d4c9a8] font-semibold tracking-wider uppercase focus-visible:ring-[#d4c9a8]",
+  "bg-[var(--brand-bg)] hover:opacity-90 text-[var(--brand-text)] border border-[var(--brand-border)] hover:border-[var(--brand)] font-medium focus-visible:ring-[var(--brand)]",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: "px-2.5 py-1 text-xs gap-1.5 rounded",
-  md: "px-3.5 py-1.5 text-sm gap-2 rounded-md",
-  lg: "px-5 py-2.5 text-base gap-2.5 rounded-lg",
+  sm: "px-3 py-1.5 text-xs gap-1.5 rounded-lg",
+  md: "px-4 py-2 text-xs sm:text-sm gap-2 rounded-lg",
+  lg: "px-5 py-2.5 text-sm gap-2.5 rounded-xl",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -49,12 +49,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         disabled={disabled || isLoading}
-        className={`inline-flex items-center justify-center transition-colors font-sans duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+        className={`inline-flex items-center justify-center silk-transition silk-press font-sans cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 whitespace-nowrap ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
         {...props}
       >
         {isLoading && (
           <svg
-            className="animate-spin -ml-0.5 h-4 w-4 text-current"
+            className="animate-spin -ml-0.5 h-3.5 w-3.5 text-current"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"

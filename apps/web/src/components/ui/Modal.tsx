@@ -14,7 +14,7 @@ const maxWidthMap = {
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",
-  xl: "max-w-xl",
+  xl: "max-w-2xl",
 };
 
 export const Modal: React.FC<ModalProps> = ({
@@ -50,7 +50,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
@@ -63,12 +63,12 @@ export const Modal: React.FC<ModalProps> = ({
     >
       <div
         ref={modalRef}
-        className={`w-full ${maxWidthMap[maxWidth]} bg-zinc-900/95 border border-zinc-800/90 rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] p-6 text-zinc-100 focus-visible:outline-none`}
+        className={`w-full ${maxWidthMap[maxWidth]} surface-card gold-hairline-top rounded-2xl border-zinc-700/80 shadow-[0_24px_70px_rgba(0,0,0,0.85)] p-6 text-zinc-100 focus-visible:outline-none`}
         tabIndex={-1}
       >
-        <div className="flex items-start justify-between pb-3 border-b border-zinc-800">
+        <div className="flex items-start justify-between pb-3.5 border-b border-zinc-800/80">
           <div>
-            <h2 id="modal-title" className="text-base font-semibold text-zinc-100 font-sans tracking-tight">
+            <h2 id="modal-title" className="text-base font-semibold text-zinc-100 font-display tracking-tight">
               {title}
             </h2>
             {description && (
@@ -77,20 +77,28 @@ export const Modal: React.FC<ModalProps> = ({
               </p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-200 transition-colors rounded p-1 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4c9a8]"
-            aria-label="Close dialog"
-          >
-            <span aria-hidden="true">&times;</span>
-          </button>
+          <div className="flex items-center gap-2 ml-4">
+            <kbd className="hidden sm:inline-block rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500">
+              ESC
+            </kbd>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-zinc-400 hover:text-zinc-100 transition-colors rounded-lg p-1.5 hover:bg-zinc-800/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4c9a8]"
+              aria-label="Close dialog"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div className="py-4 text-sm">{children}</div>
 
         {footer && (
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
+          <div className="flex items-center justify-end gap-2.5 pt-3.5 border-t border-zinc-800/80">
             {footer}
           </div>
         )}

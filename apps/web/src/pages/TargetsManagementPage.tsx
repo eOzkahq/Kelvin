@@ -19,8 +19,13 @@ import {
   Modal,
   SkeletonLoader,
 } from "../components/ui";
+import { useOptionalPlan, PLANS } from "../features/billing/PlanContext";
 
 export default function TargetsManagementPage() {
+  const planCtx = useOptionalPlan();
+  const activePlan = planCtx?.currentPlan ?? PLANS[0];
+  const openPaywall = planCtx?.openPaywall;
+
   const [targets, setTargets] = useState<TargetAsset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -202,45 +207,69 @@ export default function TargetsManagementPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between pb-4 border-b border-zinc-800/80">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-100">
-            Targets & Asset Scope Management
+          <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[#d4c9a8]">
+            Attack Surface &amp; Guardrails
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-display mt-1">
+            Targets &amp; Asset Scope Management
           </h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-0.5 text-xs text-zinc-400">
             Authorized attack surface inventory, domain ownership verification, and scanning guardrails.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {notification && (
-            <span className="rounded bg-emerald-950/60 border border-emerald-800 px-3 py-1 text-xs text-emerald-400 animate-in fade-in">
+            <span className="rounded-lg bg-emerald-950/60 border border-emerald-800 px-3 py-1 text-xs font-mono text-emerald-300">
               {notification}
             </span>
           )}
-          <Button variant="primary" onClick={() => setIsRegisterOpen(true)}>
-            + Register New Target
-          </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                const cap = activePlan.limits.maxTargets;
+                if (cap !== null && targets.length >= cap && openPaywall) {
+                  openPaywall(
+                    "pro",
+                    `Target quota reached (${targets.length}/${cap}) on ${activePlan.name}. Upgrade or apply coupon eozka100 for up to 25 or Unlimited targets.`,
+                  );
+                  return;
+                }
+                setIsRegisterOpen(true);
+              }}
+            >
+              + Register New Target
+            </Button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-          <span className="text-xs text-zinc-400 font-medium">Total Registered Targets</span>
-          <p className="mt-1 text-2xl font-bold text-zinc-100">{totalCount}</p>
-        </div>
-        <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3">
-          <span className="text-xs text-emerald-400 font-medium">Ownership Verified</span>
-          <p className="mt-1 text-2xl font-bold text-emerald-400">{verifiedCount}</p>
-        </div>
-        <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 p-3">
-          <span className="text-xs text-amber-400 font-medium">Pending Verification</span>
-          <p className="mt-1 text-2xl font-bold text-amber-400">{pendingCount}</p>
-        </div>
-        <div className="rounded-lg border border-red-900/40 bg-red-950/20 p-3">
-          <span className="text-xs text-red-400 font-medium">Tier-1 Mission Critical</span>
-          <p className="mt-1 text-2xl font-bold text-red-400">{tier1Count}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
+        <Card className="p-4">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+            Targets ({activePlan.name} Quota)
+          </span>
+          <p className="stat-num mt-1 text-2xl text-zinc-100">
+            {totalCount}{" "}
+            <span className="text-sm font-mono text-zinc-400 font-normal">
+              / {activePlan.limits.maxTargets ?? "∞"}
+            </span>
+          </p>
+        </Card>
+        <Card className="p-4 border-emerald-900/40">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400">Ownership Verified</span>
+          <p className="stat-num mt-1 text-2xl text-emerald-400">{verifiedCount}</p>
+        </Card>
+        <Card className="p-4 border-amber-900/40">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400">Pending Verification</span>
+          <p className="stat-num mt-1 text-2xl text-amber-300">{pendingCount}</p>
+        </Card>
+        <Card className="p-4 border-red-900/40">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-red-400">Tier-1 Mission Critical</span>
+          <p className="stat-num mt-1 text-2xl text-red-400">{tier1Count}</p>
+        </Card>
       </div>
 
       {/* Filter Bar */}
@@ -300,9 +329,9 @@ export default function TargetsManagementPage() {
       </Card>
 
       {/* Targets Table */}
-      <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/60">
+      <div className="overflow-x-auto rounded-xl surface-card">
         <table className="w-full text-left text-sm text-zinc-300">
-          <thead className="border-b border-zinc-800 bg-zinc-900 text-xs uppercase text-zinc-400">
+          <thead className="border-b border-zinc-800/80 bg-zinc-950/90 text-[10px] font-mono tracking-wider uppercase text-zinc-400">
             <tr>
               <th className="px-4 py-3">Target Asset</th>
               <th className="px-4 py-3">Type</th>
@@ -346,13 +375,12 @@ export default function TargetsManagementPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`rounded px-2 py-0.5 text-xs font-medium ${
-                        tgt.environment === "PRODUCTION"
+                      className={`rounded px-2 py-0.5 text-xs font-medium ${tgt.environment === "PRODUCTION"
                           ? "bg-red-950/40 text-red-300 border border-red-800/40"
                           : tgt.environment === "STAGING"
-                          ? "bg-cyan-950/40 text-cyan-300 border border-cyan-800/40"
-                          : "bg-zinc-800 text-zinc-400"
-                      }`}
+                            ? "bg-cyan-950/40 text-cyan-300 border border-cyan-800/40"
+                            : "bg-zinc-800 text-zinc-400"
+                        }`}
                     >
                       {tgt.environment}
                     </span>
@@ -565,11 +593,10 @@ export default function TargetsManagementPage() {
 
             {verifyMessage && (
               <div
-                className={`rounded p-3 text-xs ${
-                  verifyMessage.includes("verified")
+                className={`rounded p-3 text-xs ${verifyMessage.includes("verified")
                     ? "bg-emerald-950/60 border border-emerald-800 text-emerald-300"
                     : "bg-red-950/60 border border-red-800 text-red-300"
-                }`}
+                  }`}
               >
                 {verifyMessage}
               </div>

@@ -146,12 +146,15 @@ export default function TeamMembersPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between pb-4 border-b border-zinc-800/80">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-100">
+          <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[#d4c9a8]">
+            Identity &amp; Squads
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-display mt-1">
             Team &amp; Member Directory
           </h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-0.5 text-xs text-zinc-400">
             Enterprise team organization, member invitations, role authorization, and security compliance.
           </p>
         </div>
@@ -230,9 +233,9 @@ export default function TeamMembersPage() {
       </Card>
 
       {/* Member Directory Table */}
-      <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/60">
+      <div className="overflow-x-auto rounded-xl surface-card">
         <table className="w-full text-left text-sm text-zinc-300">
-          <thead className="border-b border-zinc-800 bg-zinc-900 text-xs uppercase text-zinc-400">
+          <thead className="border-b border-zinc-800/80 bg-zinc-950/90 text-[10px] font-mono tracking-wider uppercase text-zinc-400">
             <tr>
               <th className="px-4 py-3">Member Name &amp; Email</th>
               <th className="px-4 py-3">Global Role</th>

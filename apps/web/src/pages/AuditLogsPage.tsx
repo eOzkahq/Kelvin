@@ -82,18 +82,21 @@ export default function AuditLogsPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between pb-4 border-b border-zinc-800/80">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-100">
+          <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[#d4c9a8]">
+            Immutable Security Ledger
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-display mt-1">
             Tamper-Evident Audit Trail
           </h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-0.5 text-xs text-zinc-400">
             Immutable, cryptographically linked record of user actions, assessment triggers, and access events.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {notification && (
-            <span className="rounded bg-emerald-950/60 border border-emerald-800 px-3 py-1 text-xs text-emerald-400 animate-in fade-in">
+            <span className="rounded-lg bg-emerald-950/60 border border-emerald-800 px-3 py-1 text-xs font-mono text-emerald-300">
               {notification}
             </span>
           )}
@@ -107,27 +110,27 @@ export default function AuditLogsPage() {
       </div>
 
       {/* KPI Overview Strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-          <span className="text-xs text-zinc-400 font-medium">Recorded Events</span>
-          <p className="mt-1 text-2xl font-bold text-zinc-100">{totalCount}</p>
-        </div>
-        <div className="rounded-lg border border-cyan-900/40 bg-cyan-950/20 p-3">
-          <span className="text-xs text-cyan-400 font-medium">Authentication &amp; SSO</span>
-          <p className="mt-1 text-2xl font-bold text-cyan-300">{authCount}</p>
-        </div>
-        <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 p-3">
-          <span className="text-xs text-amber-400 font-medium">Policy Changes</span>
-          <p className="mt-1 text-2xl font-bold text-amber-300">{policyCount}</p>
-        </div>
-        <div className="rounded-lg border border-red-900/40 bg-red-950/20 p-3">
-          <span className="text-xs text-red-400 font-medium">Failed / Blocked</span>
-          <p className="mt-1 text-2xl font-bold text-red-400">{failureCount}</p>
-        </div>
-        <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3">
-          <span className="text-xs text-emerald-400 font-medium">Hash Chain Integrity</span>
-          <p className="mt-1 text-base font-bold text-emerald-400">✓ 100% Sealed &amp; Valid</p>
-        </div>
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-5">
+        <Card className="p-4">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">Recorded Events</span>
+          <p className="stat-num mt-1 text-2xl text-zinc-100">{totalCount}</p>
+        </Card>
+        <Card className="p-4">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-[#d4c9a8]">Auth &amp; SSO</span>
+          <p className="stat-num mt-1 text-2xl text-[#e8debe]">{authCount}</p>
+        </Card>
+        <Card className="p-4 border-amber-900/40">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400">Policy Changes</span>
+          <p className="stat-num mt-1 text-2xl text-amber-300">{policyCount}</p>
+        </Card>
+        <Card className="p-4 border-red-900/40">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-red-400">Failed / Blocked</span>
+          <p className="stat-num mt-1 text-2xl text-red-400">{failureCount}</p>
+        </Card>
+        <Card className="p-4 border-emerald-900/40">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400">Hash Chain</span>
+          <p className="mt-1.5 text-sm font-mono font-bold text-emerald-400">✓ 100% Sealed</p>
+        </Card>
       </div>
 
       {/* Filter Bar */}
@@ -188,9 +191,9 @@ export default function AuditLogsPage() {
       </Card>
 
       {/* Audit Log Table */}
-      <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/60">
+      <div className="overflow-x-auto rounded-xl surface-card">
         <table className="w-full text-left text-sm text-zinc-300">
-          <thead className="border-b border-zinc-800 bg-zinc-900 text-xs uppercase text-zinc-400">
+          <thead className="border-b border-zinc-800/80 bg-zinc-950/90 text-[10px] font-mono tracking-wider uppercase text-zinc-400">
             <tr>
               <th className="px-4 py-3">Timestamp (UTC)</th>
               <th className="px-4 py-3">Actor</th>
