@@ -79,16 +79,30 @@ export async function runLiveWebsiteProbe(
   target: string,
   tier: 1 | 2 | 3 = 1,
 ): Promise<LiveProbeResult> {
-  const resp = await fetch("/services/kelvin/__live_probe", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ target, tier }),
-  });
-  const data = (await resp.json()) as LiveProbeResult & { error?: string };
-  if (!resp.ok) {
-    throw new Error(data.error || `Live probe returned HTTP ${resp.status}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const resp = await fetch("/services/kelvin/__live_probe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target, tier }),
+      signal: controller.signal,
+    });
+    if (!resp.ok) {
+      throw new Error(`Live probe returned HTTP ${resp.status}`);
+    }
+    const contentType = resp.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error("Live probe endpoint did not return JSON");
+    }
+    const data = (await resp.json()) as LiveProbeResult & { error?: string };
+    if (data.error) {
+      throw new Error(data.error);
+    }
+    return data;
+  } finally {
+    clearTimeout(timer);
   }
-  return data;
 }
 
 export function createFallbackLiveProbe(target: string, tier: 1 | 2 | 3 = 1): LiveProbeResult {

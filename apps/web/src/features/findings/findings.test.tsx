@@ -136,5 +136,10 @@ describe("Findings Management & Search API Engine (FE-08)", () => {
     const unrelatedAsmt = await fetchFindings({ assessmentId: "asmt-devbuildz-custom-999" });
     expect(unrelatedAsmt.items).toHaveLength(0);
     expect(unrelatedAsmt.total).toBe(0);
+
+    // 3. Querying by target host ensures strict domain isolation
+    const netlifyFindings = await fetchFindings({ target: "devbuildz.netlify.app" });
+    expect(netlifyFindings.items).toHaveLength(0);
+    expect(netlifyFindings.total).toBe(0);
   });
 });

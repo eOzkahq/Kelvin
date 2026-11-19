@@ -90,6 +90,49 @@ describe("FE-21: 10 Critical User Journeys (CUJ) Integration State Machine", () 
     expect(block2.prevHash).toBe(block1.hash);
   });
 
+  it("CUJ-11: Assessment execution against custom target isolates logs and findings from staging mock data", async () => {
+    const { createAssessment } = await import("../assessments/assessmentApi");
+    const { fetchFindings } = await import("../findings/findingsApi");
+    const { createFallbackLiveProbe, saveLiveScanResult, getLiveScanResult } = await import("../reports/liveScanStore");
+
+    const customTarget = "https://devbuildz.netlify.app";
+    const res = await createAssessment({
+      name: "Custom Target Security Probe",
+      targetId: "tgt-custom-devbuildz",
+      targetAddress: customTarget,
+      targets: [{ host: customTarget }],
+      profileId: "prof-web-baseline",
+      rateLimit: 10,
+      timeoutMinutes: 15,
+      authorizedScopeConfirmed: true,
+      idempotencyKey: "test-idem-devbuildz",
+    });
+
+    expect(res.id).toBeDefined();
+
+    // Attach target-scoped live probe
+    const probe = createFallbackLiveProbe(customTarget, 1);
+    saveLiveScanResult(res.id, probe);
+
+    const storedProbe = getLiveScanResult(res.id);
+    expect(storedProbe).toBeDefined();
+    expect(storedProbe?.hostname).toBe("devbuildz.netlify.app");
+
+    // Verify zero cross-target leakage in findings
+    const findings = await fetchFindings({ assessmentId: res.id });
+    for (const f of findings.items) {
+      expect(f.target).not.toContain("staging.kelvin-sec.internal");
+      expect(f.affectedEndpoint).not.toContain("staging.kelvin-sec.internal");
+      expect(f.title).not.toContain("Log4j");
+    }
+
+    // Verify probe logs never leak staging infrastructure
+    for (const log of storedProbe?.logs || []) {
+      expect(log.message).not.toContain("kelvin-sec.internal");
+      expect(log.message).not.toContain("Log4j");
+    }
+  });
+
   it("WCAG 2.2 contrast compliance holds across critical UI components", () => {
     const ratio = getContrastRatio("#f4f4f5", "#09090b");
     expect(ratio).toBeGreaterThan(10);

@@ -9,7 +9,7 @@ import { fetchFindings, type Finding } from "../features/findings";
 import { downloadAssessmentReport } from "../features/reports";
 import { ensureReportForAssessment } from "../features/reports/reportsApi";
 import { computePostureMarking } from "../features/reports/reportModel";
-import { getLiveScanResult } from "../features/reports/liveScanStore";
+import { getLiveScanResult, createFallbackLiveProbe, saveLiveScanResult } from "../features/reports/liveScanStore";
 import {
   Card,
   CardHeader,
@@ -38,19 +38,6 @@ export default function AssessmentDetailPage() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [autoReportId, setAutoReportId] = useState<string | null>(null);
 
-  const liveProbe = getLiveScanResult(id);
-
-  const handleGenerateReport = async () => {
-    if (!detail) return;
-    setIsGeneratingReport(true);
-    try {
-      const created = await ensureReportForAssessment(detail.id, detail.targetAddress, detail.name);
-      navigate(`/reports?open=${encodeURIComponent(created.id)}&fromAssessment=${encodeURIComponent(detail.id)}`);
-    } finally {
-      setIsGeneratingReport(false);
-    }
-  };
-
   const { data: detail, isLoading, isError } = useQuery({
     queryKey: ["assessment", id],
     queryFn: () => fetchAssessmentDetail(id),
@@ -68,6 +55,28 @@ export default function AssessmentDetailPage() {
     },
   });
 
+  const liveProbe = useMemo(() => {
+    const fromStore = getLiveScanResult(id);
+    if (fromStore) return fromStore;
+    if (detail?.targetAddress && detail.id !== "asmt-2026-001") {
+      const fallback = createFallbackLiveProbe(detail.targetAddress);
+      saveLiveScanResult(id, fallback);
+      return fallback;
+    }
+    return undefined;
+  }, [id, detail?.targetAddress, detail?.id]);
+
+  const handleGenerateReport = async () => {
+    if (!detail) return;
+    setIsGeneratingReport(true);
+    try {
+      const created = await ensureReportForAssessment(detail.id, detail.targetAddress, detail.name);
+      navigate(`/reports?open=${encodeURIComponent(created.id)}&fromAssessment=${encodeURIComponent(detail.id)}`);
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
   const { data: findingsData } = useQuery({
     queryKey: ["assessment-findings", id],
     queryFn: () => fetchFindings({ assessmentId: id, limit: 100 }),
@@ -77,6 +86,34 @@ export default function AssessmentDetailPage() {
   const findingsList: Finding[] = useMemo(() => {
     return findingsData?.items || [];
   }, [findingsData]);
+
+  const scopedFindings = useMemo(() => {
+    if (!detail) return [];
+    const extractHost = (val?: string): string => {
+      if (!val) return "";
+      try {
+        const withProto = /^https?:\/\//i.test(val.trim()) ? val.trim() : `https://${val.trim()}`;
+        return new URL(withProto).hostname.toLowerCase();
+      } catch {
+        return val.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].trim().toLowerCase();
+      }
+    };
+    const targetHost = extractHost(detail.targetAddress);
+
+    return findingsList.filter((f) => {
+      const belongsToAsmt = (f.assessmentId && f.assessmentId === detail.id) || f.id.startsWith(`${detail.id}-`);
+      if (!belongsToAsmt && detail.id !== "asmt-2026-001") return false;
+
+      if (!targetHost) return false;
+      const findingHost = extractHost(f.target);
+      const endpointHost = extractHost(f.affectedEndpoint);
+
+      return (
+        (Boolean(findingHost) && (findingHost === targetHost || findingHost.endsWith(`.${targetHost}`))) ||
+        (Boolean(endpointHost) && (endpointHost === targetHost || endpointHost.endsWith(`.${targetHost}`)))
+      );
+    });
+  }, [detail, findingsList]);
 
   useEffect(() => {
     if (detail?.status === "COMPLETED" && !autoReportId) {
@@ -157,27 +194,6 @@ export default function AssessmentDetailPage() {
       addLog("INFO", 16, `[Network Port Assessor] Port scanning TCP top ports and verifying service fingerprints`, "SCANNING");
     }
 
-    // STRICT SCOPE ISOLATION: Only log findings that strictly belong to this assessment or target host
-    const targetHost = (detail.targetAddress || "")
-      .replace(/^https?:\/\//i, "")
-      .split("/")[0]
-      .split(":")[0]
-      .toLowerCase();
-
-    const scopedFindings = findingsList.filter((f) => {
-      if (f.assessmentId && f.assessmentId === detail.id) return true;
-      if (f.id.startsWith(`${detail.id}-`)) return true;
-      if (!targetHost) return false;
-      const findingHost = (f.target || "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
-      const endpointHost = (f.affectedEndpoint || "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
-      return (
-        findingHost === targetHost ||
-        endpointHost === targetHost ||
-        findingHost.includes(targetHost) ||
-        targetHost.includes(findingHost)
-      );
-    });
-
     if (scopedFindings.length > 0) {
       scopedFindings.forEach((f, idx) => {
         const level = f.severity === "CRITICAL" || f.severity === "HIGH" ? "ERROR" : f.severity === "MEDIUM" ? "WARN" : "INFO";
@@ -190,11 +206,11 @@ export default function AssessmentDetailPage() {
           );
         }
       });
-    } else if (!hasLog("vulnerability probes")) {
+    } else if (!hasLog("vulnerability probes") && !hasLog("zero security anomalies")) {
       addLog(
         "INFO",
         20,
-        `[Scanner Engine] Completed vulnerability probes; no security anomalies detected for ${detail.targetAddress}`,
+        `[Scanner Engine] Completed vulnerability probes; zero security anomalies detected within target scope (${detail.targetAddress})`,
         "SCANNING"
       );
     }
@@ -223,7 +239,7 @@ export default function AssessmentDetailPage() {
     }
 
     return resultLogs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-  }, [detail, findingsList, liveProbe]);
+  }, [detail, scopedFindings, liveProbe]);
 
   const filteredLogs = useMemo(() => {
     return completeLogs.filter((log) =>
@@ -257,7 +273,7 @@ export default function AssessmentDetailPage() {
 
   const handleDownloadReport = (format: "html" | "pdf" | "csv" | "json") => {
     if (!detail) return;
-    downloadAssessmentReport(detail, findingsList, format);
+    downloadAssessmentReport(detail, scopedFindings, format);
     setShowReportModal(false);
   };
 

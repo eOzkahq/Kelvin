@@ -319,6 +319,15 @@ export const demoFindingsProvider = {
       );
     }
 
+    if (params?.target) {
+      const qTarget = params.target.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
+      filtered = filtered.filter((f: Finding) => {
+        const fHost = (f.target || "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
+        const fEnd = (f.affectedEndpoint || "").replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].toLowerCase();
+        return fHost === qTarget || fHost.endsWith(`.${qTarget}`) || fEnd === qTarget || fEnd.endsWith(`.${qTarget}`);
+      });
+    }
+
     const maxTier = params?.maxTier;
     const lockedTierCounts =
       maxTier !== undefined

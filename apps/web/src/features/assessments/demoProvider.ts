@@ -175,14 +175,24 @@ export const demoAssessmentProvider = {
       targetAddress: resolvedTarget,
       profileId: payload.profileId,
       profileName,
-      status: "QUEUED",
-      currentStage: "QUEUED",
+      status: "COMPLETED",
+      currentStage: "COMPLETED",
       criticalCount: 0,
       highCount: 0,
       totalFindings: 0,
       createdAt: new Date().toISOString(),
-      scanners: [],
-      logs: [{ id: `log-init`, timestamp: new Date().toISOString(), level: "INFO", message: "Assessment created and queued", stage: "QUEUED" }],
+      completedAt: new Date().toISOString(),
+      scanners: [
+        { id: `sc-dns-${newId}`, scanner: "DNS & TLS Inspector", status: "COMPLETED", findingsCount: 0 },
+        { id: `sc-hdr-${newId}`, scanner: "HTTP Header Auditor", status: "COMPLETED", findingsCount: 0 },
+      ],
+      logs: [
+        { id: `log-init-${newId}`, timestamp: new Date(Date.now() - 4000).toISOString(), level: "INFO", message: "Assessment created and queued", stage: "QUEUED" },
+        { id: `log-pref-${newId}`, timestamp: new Date(Date.now() - 3000).toISOString(), level: "INFO", message: `[Preflight] Validating target scope and DNS resolution for ${resolvedTarget}`, stage: "PREFLIGHT" },
+        { id: `log-tls-${newId}`, timestamp: new Date(Date.now() - 2000).toISOString(), level: "INFO", message: `[Preflight] Verified SSL/TLS 1.2+ certificate validity and target reachability`, stage: "PREFLIGHT" },
+        { id: `log-scan-${newId}`, timestamp: new Date(Date.now() - 1000).toISOString(), level: "INFO", message: `[Scanner Engine] Completed vulnerability probes; zero security anomalies detected within target scope (${resolvedTarget})`, stage: "SCANNING" },
+        { id: `log-done-${newId}`, timestamp: new Date().toISOString(), level: "INFO", message: `Assessment execution completed successfully. Total findings discovered: 0`, stage: "COMPLETED" },
+      ],
     };
     mockAssessmentsStore.unshift(newRecord);
     return Promise.resolve({ id: newId });
